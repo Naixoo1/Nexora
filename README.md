@@ -1,2 +1,1 @@
-﻿# YosukaADM
-Nexora
+﻿# Nexora
