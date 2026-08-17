@@ -1,8 +1,8 @@
 import {
   pgTable,
   uuid,
-  varchar,
   text,
+  varchar,
   timestamp,
   integer,
   jsonb,
@@ -10,13 +10,15 @@ import {
   AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { user } from './auth';
 
 export const tasks = pgTable(
   'tasks',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    // userId references users.user_id table
-    userId: uuid('user_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
     parentId: uuid('parent_id').references((): AnyPgColumn => tasks.id, {
       onDelete: 'cascade',
     }),
@@ -30,6 +32,13 @@ export const tasks = pgTable(
     source: varchar('source', { length: 20 }).notNull().default('manual'),
     aiSessionId: uuid('ai_session_id'),
     sortOrder: integer('sort_order').notNull().default(0),
+
+    // STEM Canvas compatibility fields
+    canvasNodeId: varchar('canvas_node_id', { length: 100 }),
+    nodeX: integer('node_x'),
+    nodeY: integer('node_y'),
+    latexFormula: text('latex_formula'),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -38,6 +47,7 @@ export const tasks = pgTable(
     index('idx_tasks_parent_id').on(table.parentId),
     index('idx_tasks_status').on(table.userId, table.status),
     index('idx_tasks_due_date').on(table.userId, table.dueDate),
+    index('idx_tasks_canvas_node').on(table.canvasNodeId),
   ]
 );
 
@@ -48,8 +58,9 @@ export const progressSnapshots = pgTable(
     taskId: uuid('task_id')
       .notNull()
       .references(() => tasks.id, { onDelete: 'cascade' }),
-    // userId references users.user_id table
-    userId: uuid('user_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
     aiSessionId: uuid('ai_session_id'),
     totalSteps: integer('total_steps').notNull().default(0),
     completedSteps: integer('completed_steps').notNull().default(0),
@@ -68,6 +79,10 @@ export const progressSnapshots = pgTable(
 );
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  user: one(user, {
+    fields: [tasks.userId],
+    references: [user.id],
+  }),
   parent: one(tasks, {
     fields: [tasks.parentId],
     references: [tasks.id],
@@ -81,6 +96,10 @@ export const progressSnapshotsRelations = relations(progressSnapshots, ({ one })
   task: one(tasks, {
     fields: [progressSnapshots.taskId],
     references: [tasks.id],
+  }),
+  user: one(user, {
+    fields: [progressSnapshots.userId],
+    references: [user.id],
   }),
 }));
 

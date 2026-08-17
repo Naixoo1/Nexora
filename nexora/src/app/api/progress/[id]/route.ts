@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { eq } from 'drizzle-orm';
 
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { progressSnapshots, tasks } from '@/db/schema/tasks';
+import { progressSnapshots } from '@/db/schema/tasks';
 import { UpdateProgressSchema } from '@/lib/validators/task';
 import { successResponse, errorResponse, validationErrorResponse } from '@/lib/api-response';
 
@@ -11,19 +12,27 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    
-    // TODO: Add auth check — get userId from session
-    const userId = 'placeholder-user-id';
+    const session = await auth.api.getSession({
+      headers: req.headers,
+    });
 
-    const body = await req.json();
+    if (!session?.user) {
+      return errorResponse('Unauthorized', 401);
+    }
+
+    const userId = session.user.id;
+    const { id } = await params;
+
+    const body: unknown = await req.json();
     const validatedData = UpdateProgressSchema.safeParse(body);
 
     if (!validatedData.success) {
-      return validationErrorResponse(validatedData.error.flatten().fieldErrors as Record<string, string[]>);
+      return validationErrorResponse(
+        validatedData.error.flatten().fieldErrors as Record<string, string[]>
+      );
     }
 
-    // Verify the progress snapshot exists
+    // Verify the progress snapshot exists and belongs to the user
     const existingSnapshot = await db.query.progressSnapshots.findFirst({
       where: eq(progressSnapshots.id, id),
     });
@@ -32,12 +41,7 @@ export async function PATCH(
       return errorResponse('Progress snapshot not found', 404);
     }
 
-    // Verify it belongs to the user by checking the parent task
-    const task = await db.query.tasks.findFirst({
-      where: eq(tasks.id, existingSnapshot.taskId)
-    });
-
-    if (!task || task.userId !== userId) {
+    if (existingSnapshot.userId !== userId) {
       return errorResponse('Forbidden', 403);
     }
 

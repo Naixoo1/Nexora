@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
+@import "@xyflow/react/dist/style.css";
 
 :root {
   --background: #0B0F17;
@@ -41,6 +43,43 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* React Flow Dark Canvas overrides */
+.react-flow__background {
+  background-color: #0B0F17 !important;
+}
+
+.react-flow__controls {
+  background: #131926 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.react-flow__controls-button {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #94A3B8 !important;
+  fill: #94A3B8 !important;
+}
+
+.react-flow__controls-button:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #F1F5F9 !important;
+  fill: #F1F5F9 !important;
+}
+
+.react-flow__minimap {
+  background: #131926 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.react-flow__attribution {
+  display: none !important;
 }
 
 /* Custom Scrollbar for sleek dark mode */

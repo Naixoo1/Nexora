@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { eq, and } from 'drizzle-orm';
 
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { tasks } from '@/db/schema/tasks';
 import { UpdateTaskSchema } from '@/lib/validators/task';
@@ -54,9 +55,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session?.user) {
+      return errorResponse('Unauthorized', 401);
+    }
+
+    const userId = session.user.id;
     const { id } = await params;
-    // TODO: Add auth check — get userId from session
-    const userId = ''; // placeholder
 
     const [task] = await db
       .select()
@@ -87,9 +95,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session?.user) {
+      return errorResponse('Unauthorized', 401);
+    }
+
+    const userId = session.user.id;
     const { id } = await params;
-    // TODO: Add auth check — get userId from session
-    const userId = ''; // placeholder
 
     // Check if task exists and belongs to user
     const [existingTask] = await db
@@ -123,11 +138,13 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {
       ...data,
       dueDate: data.dueDate ? new Date(data.dueDate) : data.dueDate === null ? null : undefined,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
-    
+
     // Remove undefined values
-    Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+    Object.keys(updateData).forEach(
+      (key) => updateData[key] === undefined && delete updateData[key]
+    );
 
     if (data.status === 'completed' && existingTask.status !== 'completed') {
       updateData.completedAt = new Date();
@@ -154,9 +171,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session?.user) {
+      return errorResponse('Unauthorized', 401);
+    }
+
+    const userId = session.user.id;
     const { id } = await params;
-    // TODO: Add auth check — get userId from session
-    const userId = ''; // placeholder
 
     // Delete task (children deleted by CASCADE)
     const [deletedTask] = await db

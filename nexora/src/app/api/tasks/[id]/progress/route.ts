@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { eq, and, desc } from 'drizzle-orm';
 
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { tasks, progressSnapshots } from '@/db/schema/tasks';
 import { CreateProgressSchema } from '@/lib/validators/task';
@@ -11,24 +12,32 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: taskId } = await params;
-    
-    // TODO: Add auth check — get userId from session
-    const userId = 'placeholder-user-id';
+    const session = await auth.api.getSession({
+      headers: req.headers,
+    });
 
-    const body = await req.json();
-    
+    if (!session?.user) {
+      return errorResponse('Unauthorized', 401);
+    }
+
+    const userId = session.user.id;
+    const { id: taskId } = await params;
+
+    const body: unknown = await req.json();
+
     // Validate body with CreateProgressSchema but override the taskId from the URL param
-    const payload = { ...body, taskId };
+    const payload = typeof body === 'object' && body !== null ? { ...body, taskId } : { taskId };
     const validatedData = CreateProgressSchema.safeParse(payload);
 
     if (!validatedData.success) {
-      return validationErrorResponse(validatedData.error.flatten().fieldErrors as Record<string, string[]>);
+      return validationErrorResponse(
+        validatedData.error.flatten().fieldErrors as Record<string, string[]>
+      );
     }
 
     // Verify the task exists and belongs to the user
     const task = await db.query.tasks.findFirst({
-      where: and(eq(tasks.id, taskId), eq(tasks.userId, userId))
+      where: and(eq(tasks.id, taskId), eq(tasks.userId, userId)),
     });
 
     if (!task) {
@@ -55,14 +64,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth.api.getSession({
+      headers: req.headers,
+    });
+
+    if (!session?.user) {
+      return errorResponse('Unauthorized', 401);
+    }
+
+    const userId = session.user.id;
     const { id: taskId } = await params;
-    
-    // TODO: Add auth check — get userId from session
-    const userId = 'placeholder-user-id';
 
     // Verify the task belongs to the user
     const task = await db.query.tasks.findFirst({
-      where: and(eq(tasks.id, taskId), eq(tasks.userId, userId))
+      where: and(eq(tasks.id, taskId), eq(tasks.userId, userId)),
     });
 
     if (!task) {

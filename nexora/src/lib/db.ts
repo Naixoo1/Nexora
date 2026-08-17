@@ -1,9 +1,11 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
-import * as taskSchema from '@/db/schema/tasks';
+import * as schema from '@/db/schema';
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://placeholder:placeholder@localhost:5432/nexora';
+const connectionString =
+  process.env.DATABASE_URL ||
+  'postgresql://postgres:postgres@localhost:5432/nexora';
 
 // Connection pool for queries
 const client = postgres(connectionString, {
@@ -13,9 +15,7 @@ const client = postgres(connectionString, {
 });
 
 export const db = drizzle(client, {
-  schema: {
-    ...taskSchema,
-  },
+  schema,
 });
 
 export type Database = typeof db;

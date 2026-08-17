@@ -1,5 +1,5 @@
 {
-  "name": "nexora-init",
+  "name": "nexora",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,11 +9,19 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:unit": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@google/genai": "^2.17.1",
+    "@xyflow/react": "^12.11.3",
+    "better-auth": "^1.6.29",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
+    "katex": "^0.18.4",
     "lucide-react": "^1.31.0",
     "next": "16.3.1",
     "postgres": "^3.4.9",
@@ -25,6 +33,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/katex": "^0.16.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

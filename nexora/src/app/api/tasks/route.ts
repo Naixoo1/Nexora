@@ -1,17 +1,43 @@
 import { NextRequest } from 'next/server';
 import { eq, and, gte, lte, like, desc, asc, isNull, count } from 'drizzle-orm';
 
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { tasks } from '@/db/schema/tasks';
 import { CreateTaskSchema, TaskListQuerySchema } from '@/lib/validators/task';
 import { successResponse, errorResponse, validationErrorResponse } from '@/lib/api-response';
 
+// Helper: Calculate sub-task depth
+async function getTaskDepth(taskId: string): Promise<number> {
+  let depth = 0;
+  let currentId: string | null = taskId;
+
+  while (currentId) {
+    const [parent] = await db
+      .select({ parentId: tasks.parentId })
+      .from(tasks)
+      .where(eq(tasks.id, currentId));
+
+    if (!parent) break;
+    depth++;
+    currentId = parent.parentId;
+  }
+
+  return depth;
+}
 
 // POST /api/tasks
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Add auth check — get userId from session
-    const userId = ''; // placeholder
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session?.user) {
+      return errorResponse('Unauthorized', 401);
+    }
+
+    const userId = session.user.id;
 
     const body: unknown = await request.json();
     const parsed = CreateTaskSchema.safeParse(body);
@@ -42,6 +68,10 @@ export async function POST(request: NextRequest) {
       source: data.source,
       aiSessionId: data.aiSessionId ?? null,
       sortOrder: data.sortOrder,
+      canvasNodeId: data.canvasNodeId ?? null,
+      nodeX: data.nodeX ?? null,
+      nodeY: data.nodeY ?? null,
+      latexFormula: data.latexFormula ?? null,
     }).returning();
 
     return successResponse(newTask, 'Task created successfully', 201);
@@ -54,8 +84,15 @@ export async function POST(request: NextRequest) {
 // GET /api/tasks
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Add auth check — get userId from session
-    const userId = ''; // placeholder
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session?.user) {
+      return errorResponse('Unauthorized', 401);
+    }
+
+    const userId = session.user.id;
 
     const searchParams = Object.fromEntries(request.nextUrl.searchParams.entries());
     const parsed = TaskListQuerySchema.safeParse(searchParams);
@@ -134,23 +171,4 @@ export async function GET(request: NextRequest) {
     console.error('GET /api/tasks error:', error);
     return errorResponse('Failed to retrieve tasks');
   }
-}
-
-// Helper: Calculate sub-task depth
-async function getTaskDepth(taskId: string): Promise<number> {
-  let depth = 0;
-  let currentId: string | null = taskId;
-
-  while (currentId) {
-    const [parent] = await db
-      .select({ parentId: tasks.parentId })
-      .from(tasks)
-      .where(eq(tasks.id, currentId));
-
-    if (!parent) break;
-    depth++;
-    currentId = parent.parentId;
-  }
-
-  return depth;
 }

@@ -21,6 +21,12 @@ export const CreateTaskSchema = z.object({
   source: TaskSourceSchema.default('manual'),
   aiSessionId: z.string().uuid().optional(),
   sortOrder: z.number().int().min(0).default(0),
+
+  // STEM Canvas node compatibility
+  canvasNodeId: z.string().max(100).optional(),
+  nodeX: z.number().int().optional(),
+  nodeY: z.number().int().optional(),
+  latexFormula: z.string().optional(),
 });
 
 export const UpdateTaskSchema = z.object({
@@ -32,6 +38,12 @@ export const UpdateTaskSchema = z.object({
   category: z.string().max(50).nullable().optional(),
   dueDate: z.string().datetime({ offset: true }).nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
+
+  // STEM Canvas node compatibility
+  canvasNodeId: z.string().max(100).nullable().optional(),
+  nodeX: z.number().int().nullable().optional(),
+  nodeY: z.number().int().nullable().optional(),
+  latexFormula: z.string().nullable().optional(),
 }).refine(
   (data) => Object.keys(data).length > 0,
   { message: "At least one field must be provided for update" }

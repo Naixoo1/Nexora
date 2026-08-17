@@ -22,6 +22,13 @@ export interface Task {
   source: TaskSource;
   aiSessionId: string | null;
   sortOrder: number;
+
+  // STEM Canvas node compatibility
+  canvasNodeId?: string | null;
+  nodeX?: number | null;
+  nodeY?: number | null;
+  latexFormula?: string | null;
+
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -63,6 +70,10 @@ export interface CreateTaskPayload {
   source?: TaskSource;
   aiSessionId?: string;
   sortOrder?: number;
+  canvasNodeId?: string;
+  nodeX?: number;
+  nodeY?: number;
+  latexFormula?: string;
 }
 
 export interface UpdateTaskPayload {
@@ -74,6 +85,10 @@ export interface UpdateTaskPayload {
   category?: string | null;
   dueDate?: string | null;
   sortOrder?: number;
+  canvasNodeId?: string | null;
+  nodeX?: number | null;
+  nodeY?: number | null;
+  latexFormula?: string | null;
 }
 
 export interface CreateProgressPayload {
@@ -124,6 +139,10 @@ export interface PlannerTaskItem {
   description?: string;
   priority?: TaskPriority;
   dueDate?: string;
+  canvasNodeId?: string;
+  nodeX?: number;
+  nodeY?: number;
+  latexFormula?: string;
   children?: PlannerTaskItem[];
 }
 
