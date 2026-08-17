@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { eq, and, gte, lte, like, sql, desc, asc, isNull, count } from 'drizzle-orm';
+import { eq, and, gte, lte, like, desc, asc, isNull, count } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { tasks } from '@/db/schema/tasks';

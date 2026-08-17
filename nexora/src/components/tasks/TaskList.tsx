@@ -4,17 +4,14 @@ import React, { useMemo } from 'react';
 import {
   Search,
   X,
-  Filter,
   ArrowUpDown,
   Plus,
   Sparkles,
-  CheckCircle,
-  Clock,
   ListTodo,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import type { Task, TaskWithChildren, TaskStatus, TaskPriority, TaskSource } from '@/types/task';
+import type { Task, TaskWithChildren, TaskPriority, TaskSource } from '@/types/task';
 import { TaskCard } from './TaskCard';
 import { useTaskStore, type TaskFilters } from '@/stores/useTaskStore';
 import { cn } from '@/lib/utils';

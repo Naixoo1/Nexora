@@ -42,11 +42,11 @@ export function buildTaskTree(flatTasks: Task[]): TaskWithChildren[] {
     if (t.parentId && taskMap.has(t.parentId)) {
       const parent = taskMap.get(t.parentId)!;
       // Calculate depth from parent
-      node.depth = Math.min(parent.depth + 1, MAX_ALLOWED_DEPTH - 1);
-      if (node.depth < MAX_ALLOWED_DEPTH) {
+      if (parent.depth + 1 < MAX_ALLOWED_DEPTH) {
+        node.depth = parent.depth + 1;
         parent.children.push(node);
       } else {
-        // Fallback to root if max depth exceeded
+        // Fallback to root if max depth exceeded (exceeds 3 levels: 0, 1, 2)
         node.depth = 0;
         roots.push(node);
       }

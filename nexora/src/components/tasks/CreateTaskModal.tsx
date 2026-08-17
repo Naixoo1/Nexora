@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Calendar,
@@ -12,8 +12,258 @@ import {
   GitBranch,
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
-import type { TaskPriority, TaskStatus, CreateTaskPayload, UpdateTaskPayload } from '@/types/task';
+import type { TaskPriority, CreateTaskPayload, UpdateTaskPayload, Task } from '@/types/task';
 import { cn } from '@/lib/utils';
+
+interface CreateTaskFormContentProps {
+  editingTask: Task | null;
+  parentTask: Task | null;
+  parentTaskId: string | null;
+  isCreating: boolean;
+  storeError: string | null;
+  onClose: () => void;
+  onSubmitCreate: (payload: CreateTaskPayload) => Promise<boolean>;
+  onSubmitUpdate: (id: string, payload: UpdateTaskPayload) => Promise<boolean>;
+  clearStoreError: () => void;
+}
+
+const CreateTaskFormContent: React.FC<CreateTaskFormContentProps> = ({
+  editingTask,
+  parentTask,
+  parentTaskId,
+  isCreating,
+  storeError,
+  onClose,
+  onSubmitCreate,
+  onSubmitUpdate,
+  clearStoreError,
+}) => {
+  const [title, setTitle] = useState(editingTask?.title ?? '');
+  const [description, setDescription] = useState(editingTask?.description ?? '');
+  const [priority, setPriority] = useState<TaskPriority>(editingTask?.priority ?? 'medium');
+  const [category, setCategory] = useState(editingTask?.category ?? '');
+  const [dueDate, setDueDate] = useState(
+    editingTask?.dueDate
+      ? new Date(editingTask.dueDate).toISOString().split('T')[0]
+      : ''
+  );
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      setLocalError('Please enter a task title.');
+      return;
+    }
+
+    setLocalError(null);
+    clearStoreError();
+
+    if (editingTask) {
+      const payload: UpdateTaskPayload = {
+        title: title.trim(),
+        description: description.trim() || null,
+        priority,
+        category: category.trim() || null,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+      };
+
+      const success = await onSubmitUpdate(editingTask.id, payload);
+      if (success) {
+        onClose();
+      }
+    } else {
+      const payload: CreateTaskPayload = {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        parentId: parentTaskId || undefined,
+        priority,
+        category: category.trim() || undefined,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+        source: 'manual',
+      };
+
+      const success = await onSubmitCreate(payload);
+      if (success) {
+        onClose();
+      }
+    }
+  };
+
+  return (
+    <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#131926] p-6 sm:p-7 shadow-2xl transition-all">
+      {/* Close Button */}
+      <button
+        type="button"
+        disabled={isCreating}
+        onClick={onClose}
+        className="absolute right-5 top-5 rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50"
+      >
+        <X className="h-5 w-5" />
+      </button>
+
+      {/* Modal Title */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20">
+          {editingTask ? <Edit3 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-white">
+            {editingTask
+              ? 'Edit Task'
+              : parentTask
+              ? 'Add Sub-task'
+              : 'Create New Task'}
+          </h3>
+          <p className="text-xs text-slate-400">
+            {editingTask
+              ? 'Modify task parameters and deadlines'
+              : parentTask
+              ? `Hierarchical child of: "${parentTask.title}"`
+              : 'Define study milestones and actionable items'}
+          </p>
+        </div>
+      </div>
+
+      {/* Parent Task Context Banner if creating subtask */}
+      {parentTask && !editingTask && (
+        <div className="mt-3.5 flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2.5 text-xs text-cyan-300">
+          <GitBranch className="h-4 w-4 shrink-0 text-cyan-400" />
+          <span className="truncate">
+            Sub-task of: <strong className="font-semibold text-white">{parentTask.title}</strong>
+          </span>
+        </div>
+      )}
+
+      {/* Error Alert */}
+      {(storeError || localError) && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{localError || storeError}</span>
+        </div>
+      )}
+
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        {/* Title */}
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+            Task Title <span className="text-cyan-400">*</span>
+          </label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Kerjakan Latihan Soal Try Out Matematika Bab 4..."
+            className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+            disabled={isCreating}
+            required
+          />
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+            Description (Optional)
+          </label>
+          <textarea
+            rows={2}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Tambahkan catatan khusus, referensi bab, atau rumus..."
+            className="w-full rounded-xl border border-white/10 bg-[#0B0F17] p-3 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+            disabled={isCreating}
+          />
+        </div>
+
+        {/* Priority Selection */}
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+            Priority
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {(
+              [
+                { id: 'low', label: 'Low', color: 'border-cyan-500/30 text-cyan-400' },
+                { id: 'medium', label: 'Medium', color: 'border-indigo-500/30 text-indigo-400' },
+                { id: 'high', label: 'High', color: 'border-amber-500/30 text-amber-400' },
+                { id: 'urgent', label: 'Urgent', color: 'border-red-500/30 text-red-400' },
+              ] as const
+            ).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPriority(p.id)}
+                className={cn(
+                  'rounded-xl border py-2 text-xs font-semibold uppercase tracking-wider transition-all',
+                  priority === p.id
+                    ? cn('bg-[#1E2638] shadow-sm', p.color)
+                    : 'border-white/5 bg-[#0B0F17] text-slate-400 hover:bg-[#1A2234]'
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Category & Due Date */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1">
+              <Tag className="h-3.5 w-3.5 text-slate-400" />
+              Category
+            </label>
+            <input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. Matematika, Fisika, Skripsi"
+              className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+              disabled={isCreating}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+              Due Date
+            </label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none [color-scheme:dark]"
+              disabled={isCreating}
+            />
+          </div>
+        </div>
+
+        {/* Submit Button */}
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={isCreating}
+            className={cn(
+              'w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white shadow-lg transition-all',
+              'bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99]',
+              isCreating && 'opacity-70 cursor-wait'
+            )}
+          >
+            {isCreating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-white" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <span>{editingTask ? 'Update Task' : 'Create Task'}</span>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
 
 export const CreateTaskModal: React.FC = () => {
   const {
@@ -29,80 +279,11 @@ export const CreateTaskModal: React.FC = () => {
     clearError,
   } = useTaskStore();
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [category, setCategory] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [localError, setLocalError] = useState<string | null>(null);
-
-  const parentTask = parentTaskIdForNewSubtask
-    ? tasks.find((t) => t.id === parentTaskIdForNewSubtask)
-    : null;
-
-  useEffect(() => {
-    if (editingTask) {
-      setTitle(editingTask.title);
-      setDescription(editingTask.description || '');
-      setPriority(editingTask.priority);
-      setCategory(editingTask.category || '');
-      setDueDate(
-        editingTask.dueDate
-          ? new Date(editingTask.dueDate).toISOString().split('T')[0]
-          : ''
-      );
-    } else {
-      setTitle('');
-      setDescription('');
-      setPriority('medium');
-      setCategory('');
-      setDueDate('');
-    }
-    setLocalError(null);
-  }, [editingTask, isCreateModalOpen]);
-
   if (!isCreateModalOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) {
-      setLocalError('Please enter a task title.');
-      return;
-    }
-
-    setLocalError(null);
-    clearError();
-
-    if (editingTask) {
-      const payload: UpdateTaskPayload = {
-        title: title.trim(),
-        description: description.trim() || null,
-        priority,
-        category: category.trim() || null,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
-      };
-
-      const success = await updateTask(editingTask.id, payload);
-      if (success) {
-        openCreateModal(false);
-      }
-    } else {
-      const payload: CreateTaskPayload = {
-        title: title.trim(),
-        description: description.trim() || undefined,
-        parentId: parentTaskIdForNewSubtask || undefined,
-        priority,
-        category: category.trim() || undefined,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-        source: 'manual',
-      };
-
-      const success = await createTask(payload);
-      if (success) {
-        openCreateModal(false);
-      }
-    }
-  };
+  const parentTask = parentTaskIdForNewSubtask
+    ? tasks.find((t) => t.id === parentTaskIdForNewSubtask) ?? null
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
@@ -112,178 +293,18 @@ export const CreateTaskModal: React.FC = () => {
         onClick={() => !isCreating && openCreateModal(false)}
       />
 
-      {/* Modal Container */}
-      <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#131926] p-6 sm:p-7 shadow-2xl transition-all">
-        {/* Close Button */}
-        <button
-          type="button"
-          disabled={isCreating}
-          onClick={() => openCreateModal(false)}
-          className="absolute right-5 top-5 rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50"
-        >
-          <X className="h-5 w-5" />
-        </button>
-
-        {/* Modal Title */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20">
-            {editingTask ? <Edit3 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">
-              {editingTask
-                ? 'Edit Task'
-                : parentTask
-                ? 'Add Sub-task'
-                : 'Create New Task'}
-            </h3>
-            <p className="text-xs text-slate-400">
-              {editingTask
-                ? 'Modify task parameters and deadlines'
-                : parentTask
-                ? `Hierarchical child of: "${parentTask.title}"`
-                : 'Define study milestones and actionable items'}
-            </p>
-          </div>
-        </div>
-
-        {/* Parent Task Context Banner if creating subtask */}
-        {parentTask && !editingTask && (
-          <div className="mt-3.5 flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2.5 text-xs text-cyan-300">
-            <GitBranch className="h-4 w-4 shrink-0 text-cyan-400" />
-            <span className="truncate">
-              Sub-task of: <strong className="font-semibold text-white">{parentTask.title}</strong>
-            </span>
-          </div>
-        )}
-
-        {/* Error Alert */}
-        {(error || localError) && (
-          <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{localError || error}</span>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-          {/* Title */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Task Title <span className="text-cyan-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Kerjakan Latihan Soal Try Out Matematika Bab 4..."
-              className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
-              disabled={isCreating}
-              required
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Description (Optional)
-            </label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Tambahkan catatan khusus, referensi bab, atau rumus..."
-              className="w-full rounded-xl border border-white/10 bg-[#0B0F17] p-3 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
-              disabled={isCreating}
-            />
-          </div>
-
-          {/* Priority Selection */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Priority
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {(
-                [
-                  { id: 'low', label: 'Low', color: 'border-cyan-500/30 text-cyan-400' },
-                  { id: 'medium', label: 'Medium', color: 'border-indigo-500/30 text-indigo-400' },
-                  { id: 'high', label: 'High', color: 'border-amber-500/30 text-amber-400' },
-                  { id: 'urgent', label: 'Urgent', color: 'border-red-500/30 text-red-400' },
-                ] as const
-              ).map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPriority(p.id)}
-                  className={cn(
-                    'rounded-xl border py-2 text-xs font-semibold uppercase tracking-wider transition-all',
-                    priority === p.id
-                      ? cn('bg-[#1E2638] shadow-sm', p.color)
-                      : 'border-white/5 bg-[#0B0F17] text-slate-400 hover:bg-[#1A2234]'
-                  )}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Category & Due Date */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1">
-                <Tag className="h-3.5 w-3.5 text-slate-400" />
-                Category
-              </label>
-              <input
-                type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="e.g. Matematika, Fisika, Skripsi"
-                className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
-                disabled={isCreating}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1">
-                <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                Due Date
-              </label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none [color-scheme:dark]"
-                disabled={isCreating}
-              />
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={isCreating}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white shadow-lg transition-all',
-                'bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99]',
-                isCreating && 'opacity-70 cursor-wait'
-              )}
-            >
-              {isCreating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin text-white" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                <span>{editingTask ? 'Update Task' : 'Create Task'}</span>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
+      <CreateTaskFormContent
+        key={editingTask?.id ?? parentTaskIdForNewSubtask ?? 'new'}
+        editingTask={editingTask}
+        parentTask={parentTask}
+        parentTaskId={parentTaskIdForNewSubtask}
+        isCreating={isCreating}
+        storeError={error}
+        onClose={() => openCreateModal(false)}
+        onSubmitCreate={createTask}
+        onSubmitUpdate={updateTask}
+        clearStoreError={clearError}
+      />
     </div>
   );
 };

@@ -6,12 +6,9 @@ import {
   Plus,
   CheckCircle2,
   Clock,
-  Flame,
   ListTodo,
   TrendingUp,
   BookOpen,
-  CalendarDays,
-  Bot,
   Zap,
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
@@ -19,7 +16,6 @@ import { TaskList } from '@/components/tasks/TaskList';
 import { ProgressTracker } from '@/components/tasks/ProgressTracker';
 import { StudyPlannerModal } from '@/components/tasks/StudyPlannerModal';
 import { CreateTaskModal } from '@/components/tasks/CreateTaskModal';
-import { cn } from '@/lib/utils';
 
 export default function TasksPage() {
   const { tasks, fetchTasks, openPlannerModal, openCreateModal } = useTaskStore();

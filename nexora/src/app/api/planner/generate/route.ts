@@ -13,7 +13,7 @@ async function generateStudyPlan(
 ): Promise<PlannerTaskItem[]> {
   // TODO: Replace with actual LLM call (Gemini Flash / Claude)
   // This is a placeholder that returns the prompt back as a single task
-  return [
+  const items: PlannerTaskItem[] = [
     {
       title: `Study Plan: ${prompt.slice(0, 100)}`,
       description: 'AI-generated study plan. Replace this placeholder with actual LLM integration.',
@@ -21,6 +21,7 @@ async function generateStudyPlan(
       children: [],
     },
   ];
+  return items.slice(0, maxTasks);
 }
 
 export async function POST(req: NextRequest) {

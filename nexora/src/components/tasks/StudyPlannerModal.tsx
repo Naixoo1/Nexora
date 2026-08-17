@@ -8,7 +8,6 @@ import {
   Layers,
   Tag,
   Loader2,
-  BookOpen,
   GraduationCap,
   Calculator,
   Code,

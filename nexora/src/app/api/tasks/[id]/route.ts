@@ -6,7 +6,6 @@ import { tasks } from '@/db/schema/tasks';
 import { UpdateTaskSchema } from '@/lib/validators/task';
 import { successResponse, errorResponse, validationErrorResponse } from '@/lib/api-response';
 
-import type { TaskWithChildren } from '@/types/task';
 import type { TaskSelect } from '@/db/schema/tasks';
 
 // Helper: Calculate sub-task depth
