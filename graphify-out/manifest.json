@@ -1,0 +1,22 @@
+{
+  ".agents/DESIGN.md": {
+    "mtime": 1786956582.6306405,
+    "ast_hash": "94802fc9614f636a850e793f27a56d0e",
+    "semantic_hash": "94802fc9614f636a850e793f27a56d0e"
+  },
+  ".agents/GEMINI.md": {
+    "mtime": 1786956319.3080897,
+    "ast_hash": "0aad5c29a7889c77506ed961661ce6ec",
+    "semantic_hash": "0aad5c29a7889c77506ed961661ce6ec"
+  },
+  ".agents/PRD.md": {
+    "mtime": 1786632244.9653523,
+    "ast_hash": "9cd487f4ab77da6ef6a294615094d129",
+    "semantic_hash": "9cd487f4ab77da6ef6a294615094d129"
+  },
+  "README.md": {
+    "mtime": 1786632246.1303265,
+    "ast_hash": "715c737bfe6cccf0487dd9ea699edcbb",
+    "semantic_hash": "715c737bfe6cccf0487dd9ea699edcbb"
+  }
+}
