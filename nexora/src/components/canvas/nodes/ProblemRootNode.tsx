@@ -2,12 +2,12 @@
 
 import React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Target, Sparkles, BookOpen, Layers, Sliders } from 'lucide-react';
-import type { StemCanvasNode, ProblemRootData } from '@/types/canvas';
+import { Target, Sparkles, Sliders } from 'lucide-react';
+import type { StemCanvasNode } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
 import { cn } from '@/lib/utils';
 
-export const ProblemRootNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data, selected }) => {
+export const ProblemRootNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, selected }) => {
   const customData = (data.customData as Record<string, unknown>) || {};
   const domain = (customData.domain as string) || 'Calculus & Physics';
   const targetGoal = (customData.targetGoal as string) || (data.content ? '' : 'Solve & prove equation');

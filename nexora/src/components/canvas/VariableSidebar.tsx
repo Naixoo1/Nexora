@@ -6,13 +6,10 @@ import {
   Sliders,
   Plus,
   Trash2,
-  HelpCircle,
   TrendingUp,
-  RefreshCw,
 } from 'lucide-react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import type { CanvasVariable } from '@/types/canvas';
-import { cn } from '@/lib/utils';
 
 export const VariableSidebar: React.FC = () => {
   const {
@@ -30,7 +27,7 @@ export const VariableSidebar: React.FC = () => {
   const [defaultValue, setDefaultValue] = useState('10');
   const [min, setMin] = useState('0');
   const [max, setMax] = useState('100');
-  const [step, setStep] = useState('1');
+  const [step] = useState('1');
   const [unit, setUnit] = useState('');
 
   if (!isVariableSidebarOpen) return null;

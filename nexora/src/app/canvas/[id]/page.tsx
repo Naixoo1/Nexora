@@ -6,12 +6,8 @@ import {
   ArrowLeft,
   Network,
   Sliders,
-  Sparkles,
-  Zap,
   Save,
-  Check,
   Loader2,
-  Share2,
 } from 'lucide-react';
 import { StemCanvas } from '@/components/canvas/StemCanvas';
 import { useCanvasStore } from '@/stores/useCanvasStore';

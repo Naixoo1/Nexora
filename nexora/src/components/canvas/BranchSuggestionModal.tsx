@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { LatexRenderer } from './LatexRenderer';
-import type { SuggestedBranchItem } from '@/types/canvas';
 import { cn } from '@/lib/utils';
 
 export const BranchSuggestionModal: React.FC = () => {

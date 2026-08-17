@@ -22,8 +22,7 @@ import { LogicEdge } from './edges/LogicEdge';
 import { CanvasToolbar } from './CanvasToolbar';
 import { VariableSidebar } from './VariableSidebar';
 import { BranchSuggestionModal } from './BranchSuggestionModal';
-import { Check, Loader2, Sparkles, AlertCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Check, Loader2, AlertCircle } from 'lucide-react';
 
 export interface StemCanvasProps {
   canvasId: string;
@@ -46,7 +45,6 @@ export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
     selectNode,
     selectEdge,
     deleteNode,
-    deleteEdge,
     undo,
     redo,
     clearError,

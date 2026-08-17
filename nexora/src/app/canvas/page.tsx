@@ -7,20 +7,15 @@ import {
   Network,
   Plus,
   Search,
-  Sparkles,
-  Layers,
-  Calendar,
   ChevronRight,
   Trash2,
   Cpu,
-  Binary,
-  Atom,
+  Layers,
   Loader2,
   X,
-  Sliders,
 } from 'lucide-react';
 import type { CanvasSummary, ApiResponse } from '@/types/canvas';
-import { formatDate, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 export default function CanvasListPage() {
   const router = useRouter();
@@ -39,23 +34,30 @@ export default function CanvasListPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCanvases = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/canvas');
-      const json: ApiResponse<{ items: CanvasSummary[] }> = await response.json();
-      if (response.ok && json.success && json.data) {
-        setCanvases(json.data.items || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch canvases:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchCanvases();
+    let isCancelled = false;
+
+    const load = async () => {
+      try {
+        const response = await fetch('/api/canvas');
+        const json: ApiResponse<{ items: CanvasSummary[] }> = await response.json();
+        if (!isCancelled && response.ok && json.success && json.data) {
+          setCanvases(json.data.items || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch canvases:', err);
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   const handleCreateCanvas = async (e: React.FormEvent) => {
@@ -177,7 +179,7 @@ export default function CanvasListPage() {
               STEM Logic Tree Canvases
             </h1>
             <p className="mt-1 text-xs sm:text-sm text-slate-400">
-              Deconstruct complex mathematical derivations, simulate "What-If" variable shifts, and verify proofs step by step.
+              Deconstruct complex mathematical derivations, simulate &quot;What-If&quot; variable shifts, and verify proofs step by step.
             </p>
           </div>
 
@@ -242,7 +244,7 @@ export default function CanvasListPage() {
             </div>
             <h3 className="mt-4 text-base font-semibold text-white">No STEM Canvases Yet</h3>
             <p className="mt-1 max-w-md text-xs sm:text-sm text-slate-400">
-              Create your first interactive logic tree canvas to deconstruct algorithms and explore mathematical "What-If" simulations.
+              Create your first interactive logic tree canvas to deconstruct algorithms and explore mathematical &quot;What-If&quot; simulations.
             </p>
             <button
               type="button"
@@ -370,6 +372,19 @@ export default function CanvasListPage() {
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="e.g. Fisika Klasik, Kalkulus Integral"
                   className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3.5 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">
+                  Description (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Ringkasan atau tujuan dari logic tree canvas ini..."
+                  className="w-full rounded-xl border border-white/10 bg-[#0B0F17] p-3 text-xs text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
                 />
               </div>
 

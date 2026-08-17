@@ -2,12 +2,12 @@
 
 import React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Scroll, CheckSquare, BookOpen, Award } from 'lucide-react';
-import type { StemCanvasNode, TheoremProofData } from '@/types/canvas';
+import { CheckSquare, BookOpen, Award } from 'lucide-react';
+import type { StemCanvasNode } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
 import { cn } from '@/lib/utils';
 
-export const TheoremProofNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data, selected }) => {
+export const TheoremProofNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, selected }) => {
   const customData = (data.customData as Record<string, unknown>) || {};
   const theoremName = (customData.theoremName as string) || data.title || 'Mathematical Theorem';
   const applicabilityConditions =

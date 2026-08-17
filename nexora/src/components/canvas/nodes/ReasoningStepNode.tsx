@@ -10,7 +10,6 @@ import {
   ChevronUp,
   Cpu,
   Sparkles,
-  GitBranch,
 } from 'lucide-react';
 import type { StemCanvasNode, NodeValidationStatus } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
@@ -19,8 +18,6 @@ import { cn } from '@/lib/utils';
 
 export const ReasoningStepNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data, selected }) => {
   const toggleNodeCollapse = useCanvasStore((state) => state.toggleNodeCollapse);
-  const evaluateNode = useCanvasStore((state) => state.evaluateNode);
-  const isEvaluating = useCanvasStore((state) => state.isEvaluating);
 
   const isCollapsed = data.isCollapsed ?? false;
   const status: NodeValidationStatus = data.validationStatus || 'tentative';

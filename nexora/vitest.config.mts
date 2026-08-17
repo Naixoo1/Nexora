@@ -5,12 +5,12 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   test: {
-    environment: 'node',
+    environment: 'jsdom',
     globals: true,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary', 'json', 'html'],
-      include: ['src/lib/validators/**', 'src/stores/**'],
+      include: ['src/lib/validators/**', 'src/stores/**', 'src/components/canvas/LatexRenderer.tsx'],
       exclude: ['src/**/*.d.ts', 'src/**/index.ts'],
       thresholds: {
         lines: 75,

@@ -2,13 +2,13 @@
 
 import React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { GitFork, Sliders, TrendingUp, Sparkles, HelpCircle } from 'lucide-react';
-import type { StemCanvasNode, WhatIfBranchData, CanvasVariable } from '@/types/canvas';
+import { GitFork, Sliders, TrendingUp, HelpCircle } from 'lucide-react';
+import type { StemCanvasNode } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { cn } from '@/lib/utils';
 
-export const WhatIfBranchNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data, selected }) => {
+export const WhatIfBranchNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, selected }) => {
   const updateVariable = useCanvasStore((state) => state.updateVariable);
   const globalVariables = useCanvasStore((state) => state.globalVariables);
 
