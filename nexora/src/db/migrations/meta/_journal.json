@@ -15,6 +15,13 @@
       "when": 1786973461181,
       "tag": "0001_sharp_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787142694941,
+      "tag": "0002_happy_vertigo",
+      "breakpoints": true
     }
   ]
 }

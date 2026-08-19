@@ -12,13 +12,18 @@ import {
   Zap,
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
+import { useChatStore } from '@/stores/useChatStore';
 import { TaskList } from '@/components/tasks/TaskList';
 import { ProgressTracker } from '@/components/tasks/ProgressTracker';
 import { StudyPlannerModal } from '@/components/tasks/StudyPlannerModal';
 import { CreateTaskModal } from '@/components/tasks/CreateTaskModal';
+import { ChatDrawer } from '@/components/chat/ChatDrawer';
+import { FloatingBrainstormButton } from '@/components/chat/FloatingBrainstormButton';
+import type { TaskContextSnapshot } from '@/types/chat';
 
 export default function TasksPage() {
   const { tasks, fetchTasks, openPlannerModal, openCreateModal } = useTaskStore();
+  const { openDrawer, setTaskContext } = useChatStore();
 
   useEffect(() => {
     fetchTasks();
@@ -29,6 +34,35 @@ export default function TasksPage() {
   const inProgressCount = tasks.filter((t) => t.status === 'in_progress').length;
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
   const completionRate = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+
+  // Handle open brainstorm drawer with context
+  const handleOpenBrainstorm = () => {
+    // If there is an active / in_progress task, create a task context snapshot
+    const activeTask = tasks.find((t) => t.status === 'in_progress') || tasks[0];
+    if (activeTask) {
+      const subtasks = tasks.filter((t) => t.parentId === activeTask.id);
+      const completedSubtasks = subtasks.filter((t) => t.status === 'completed');
+
+      const snapshot: TaskContextSnapshot = {
+        taskId: activeTask.id,
+        title: activeTask.title,
+        description: activeTask.description,
+        status: activeTask.status,
+        priority: activeTask.priority,
+        category: activeTask.category,
+        dueDate: activeTask.dueDate ? new Date(activeTask.dueDate).toISOString() : null,
+        isOverdue: activeTask.dueDate ? new Date(activeTask.dueDate).getTime() < Date.now() : false,
+        subtaskCount: subtasks.length,
+        completedSubtaskCount: completedSubtasks.length,
+        milestoneProgressPct: subtasks.length > 0 ? Math.round((completedSubtasks.length / subtasks.length) * 100) : 0,
+      };
+
+      setTaskContext(snapshot);
+      openDrawer({ taskContext: snapshot });
+    } else {
+      openDrawer();
+    }
+  };
 
   return (
     <main className="min-h-screen bg-[#0B0F17] text-[#F1F5F9] antialiased">
@@ -217,9 +251,13 @@ export default function TasksPage() {
         </button>
       </div>
 
-      {/* Modals */}
+      {/* Floating Brainstorm Drawer Trigger */}
+      <FloatingBrainstormButton onClickCustom={handleOpenBrainstorm} />
+
+      {/* Modals & Slide-over Drawer */}
       <StudyPlannerModal />
       <CreateTaskModal />
+      <ChatDrawer />
     </main>
   );
 }

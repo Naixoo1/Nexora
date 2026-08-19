@@ -1,7 +1,7 @@
 # DATABASE.md — Nexora Database Architecture & Schema Reference
 
 ## Overview
-Nexora utilizes PostgreSQL (via Supabase / Neon) managed through Drizzle ORM. The database stores user authentication states, hierarchical academic task items, AI brainstorming progress snapshots, and interactive STEM Canvas logic tree graphs.
+Nexora utilizes PostgreSQL (via Supabase / Neon) managed through Drizzle ORM. The database stores user authentication states, hierarchical academic task items, AI brainstorming progress snapshots, interactive STEM Canvas logic tree graphs, and context-aware chat conversation sessions.
 
 ---
 
@@ -13,12 +13,16 @@ erDiagram
     user ||--o{ account : "has many"
     user ||--o{ tasks : "owns"
     user ||--o{ canvases : "owns"
+    user ||--o{ chat_sessions : "owns"
     user ||--o{ progress_snapshots : "tracks"
     tasks ||--o{ tasks : "parent/child subtasks"
     tasks ||--o{ progress_snapshots : "has sessions"
     tasks ||--o{ canvases : "linked canvas"
+    tasks ||--o{ chat_sessions : "linked chat"
     canvases ||--o{ canvas_nodes : "contains"
     canvases ||--o{ canvas_edges : "contains"
+    canvases ||--o{ chat_sessions : "linked chat"
+    chat_sessions ||--o{ chat_messages : "contains"
 
     user {
         text id PK
@@ -149,6 +153,29 @@ erDiagram
         jsonb data
         timestamptz created_at
         timestamptz updated_at
+    }
+
+    chat_sessions {
+        uuid id PK
+        text user_id FK
+        uuid task_id FK
+        uuid canvas_id FK
+        varchar title
+        varchar tutor_mode
+        jsonb metadata
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    chat_messages {
+        uuid id PK
+        uuid session_id FK
+        text user_id FK
+        varchar role
+        text content
+        jsonb citations
+        jsonb context_snapshot
+        timestamptz created_at
     }
 ```
 
@@ -311,3 +338,42 @@ erDiagram
 - `idx_canvas_edges_canvas_id` on (`canvas_id`)
 - `idx_canvas_edges_source` on (`canvas_id`, `source_node_id`)
 - `idx_canvas_edges_target` on (`canvas_id`, `target_node_id`)
+
+---
+
+### 2.8 `chat_sessions` (AI Chat Conversations)
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `UUID` | `PRIMARY KEY, DEFAULT gen_random_uuid()` | Conversation session identifier |
+| `user_id` | `TEXT` | `NOT NULL, REFERENCES user(id) ON DELETE CASCADE` | Session owner |
+| `task_id` | `UUID` | `NULL, REFERENCES tasks(id) ON DELETE SET NULL` | Optional associated task |
+| `canvas_id` | `UUID` | `NULL, REFERENCES canvases(id) ON DELETE SET NULL`| Optional associated canvas |
+| `title` | `VARCHAR(255)`| `NOT NULL, DEFAULT 'New Brainstorming Session'` | Conversation header |
+| `tutor_mode`| `VARCHAR(30)` | `NOT NULL, DEFAULT 'socratic'` | `'socratic' \| 'olympiad' \| 'step_breakdown' \| 'thesis_mentor'` |
+| `metadata` | `JSONB` | `NOT NULL, DEFAULT '{}'` | Custom parameters |
+| `created_at`| `TIMESTAMPTZ`| `NOT NULL, DEFAULT now()` | Creation timestamp |
+| `updated_at`| `TIMESTAMPTZ`| `NOT NULL, DEFAULT now()` | Last update timestamp |
+
+**Indexes:**
+- `idx_chat_sessions_user` on (`user_id`)
+- `idx_chat_sessions_task` on (`task_id`)
+- `idx_chat_sessions_canvas` on (`canvas_id`)
+- `idx_chat_sessions_updated` on (`user_id`, `updated_at`)
+
+---
+
+### 2.9 `chat_messages` (Chat History & Citations)
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `UUID` | `PRIMARY KEY, DEFAULT gen_random_uuid()` | Message identifier |
+| `session_id`| `UUID` | `NOT NULL, REFERENCES chat_sessions(id) ON DELETE CASCADE` | Parent session |
+| `user_id` | `TEXT` | `NOT NULL, REFERENCES user(id) ON DELETE CASCADE` | Message author |
+| `role` | `VARCHAR(20)` | `NOT NULL` | `'user' \| 'assistant' \| 'system'` |
+| `content` | `TEXT` | `NOT NULL` | Message markdown with LaTeX math |
+| `citations` | `JSONB` | `NOT NULL, DEFAULT '[]'` | Array of `ChatSourceCitation` references |
+| `context_snapshot` | `JSONB` | `NULL` | Task/Canvas snapshot attached at message time |
+| `created_at`| `TIMESTAMPTZ`| `NOT NULL, DEFAULT now()` | Timestamp |
+
+**Indexes:**
+- `idx_chat_messages_session` on (`session_id`, `created_at`)
+- `idx_chat_messages_user` on (`user_id`)
