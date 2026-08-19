@@ -15,6 +15,7 @@ export default defineConfig({
       include: [
         'src/lib/validators/**',
         'src/stores/**',
+        'src/hooks/**',
         'src/services/chat-prompt.ts',
         'src/services/canvas-task.ts',
         'src/components/canvas/LatexRenderer.tsx',

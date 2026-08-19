@@ -10,10 +10,8 @@ import {
   Paperclip,
   Mic,
   MicOff,
-  Image as ImageIcon,
   FileText,
   FileCode,
-  Sparkles,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
 import { useSpeechToText } from '@/hooks/useSpeechToText';
@@ -339,6 +337,7 @@ export const ChatInputArea: React.FC = () => {
                 {/* Thumbnail or Icon */}
                 {isImg ? (
                   <div className="relative h-10 w-10 overflow-hidden rounded-lg border border-white/10 bg-black/50 shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`data:${att.mimeType};base64,${att.data}`}
                       alt={att.name}

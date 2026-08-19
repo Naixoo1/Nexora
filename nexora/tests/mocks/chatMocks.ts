@@ -6,6 +6,8 @@ import type {
   CanvasContextSnapshot,
   ChatContextPayload,
   ChatSourceCitation,
+  ChatAttachment,
+  ChatAttachmentMeta,
 } from '@/types/chat';
 import type { ApiResponse } from '@/types/canvas';
 
@@ -103,27 +105,65 @@ export const mockChatContextPayload: ChatContextPayload = {
   tutorMode: 'socratic',
   taskContext: mockTaskContext,
   canvasContext: mockCanvasContext,
-  customInstructions: 'Gunakan Bahasa Indonesia formal dan berikan petunjuk bertahap tanpa langsung memberikan hasil akhir.',
+  customInstructions: 'Gunakan Bahasa Indonesia formal dan berikan penekanan pada konsep dasar sebelum rumus.',
 };
 
-export const mockCitations: ChatSourceCitation[] = [
+export const mockCitation1: ChatSourceCitation = {
+  id: 'cite-1',
+  sourceType: 'canvas_node',
+  referenceId: 'node-root-1',
+  label: 'Problem Root: Proyektil 2D',
+};
+
+export const mockCitation2: ChatSourceCitation = {
+  id: 'cite-2',
+  sourceType: 'task',
+  referenceId: mockTaskId,
+  label: 'Task: Kalkulus Integral',
+};
+
+// ── Multimodal Attachments Mock Fixtures ──────────────────
+export const mockImageAttachment: ChatAttachment = {
+  id: 'att-img-1',
+  name: 'calculus_problem.png',
+  type: 'image',
+  mimeType: 'image/png',
+  data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  size: 1024,
+};
+
+export const mockPdfAttachment: ChatAttachment = {
+  id: 'att-pdf-1',
+  name: 'physics_homework.pdf',
+  type: 'pdf',
+  mimeType: 'application/pdf',
+  data: 'data:application/pdf;base64,JVBERi0xLjQKJcOkw7zDtsOfCjIgMCBvYmoKPDwvTGVuZ3RoIDM=',
+  size: 20480,
+};
+
+export const mockTextAttachment: ChatAttachment = {
+  id: 'att-txt-1',
+  name: 'derivation_notes.txt',
+  type: 'text',
+  mimeType: 'text/plain',
+  data: 'Rumus energi kinetik: E_k = 1/2 m v^2 dan energi potensial: E_p = m g h',
+  size: 256,
+};
+
+export const mockAttachmentMetaList: ChatAttachmentMeta[] = [
   {
-    id: 'cite-1',
-    sourceType: 'canvas_node',
-    referenceId: 'node-step-1',
-    label: 'Dekomposisi Vektor Kecepatan',
+    id: mockImageAttachment.id,
+    name: mockImageAttachment.name,
+    type: mockImageAttachment.type,
+    mimeType: mockImageAttachment.mimeType,
+    size: mockImageAttachment.size,
   },
   {
-    id: 'cite-2',
-    sourceType: 'task',
-    referenceId: mockTaskId,
-    label: 'Derivasi Persamaan Bernoulli',
-  },
-  {
-    id: 'cite-3',
-    sourceType: 'formula',
-    referenceId: 'formula-bernoulli',
-    label: 'P + \\frac{1}{2}\\rho v^2 + \\rho gh = \\text{konstan}',
+    id: mockPdfAttachment.id,
+    name: mockPdfAttachment.name,
+    type: mockPdfAttachment.type,
+    mimeType: mockPdfAttachment.mimeType,
+    size: mockPdfAttachment.size,
   },
 ];
 
@@ -132,28 +172,30 @@ export const mockUserMessage: ChatMessage = {
   sessionId: mockSessionId,
   userId: mockUserId,
   role: 'user',
-  content: 'Bagaimana cara membuktikan bahwa sudut elevasi 45 derajat menghasilkan jangkauan maksimum pada gerak parabola?',
+  content: 'Bagaimana membuktikan bahwa jangkauan horisontal $R$ mencapai maksimum saat sudut elevasi $\\theta = 45^\\circ$?',
   contextSnapshot: mockChatContextPayload,
   createdAt: '2026-08-19T10:00:00.000Z',
+};
+
+export const mockMultimodalUserMessage: ChatMessage = {
+  id: 'msg-user-multi',
+  sessionId: mockSessionId,
+  userId: mockUserId,
+  role: 'user',
+  content: 'Tolong analisis soal pada gambar terlampir dan berikan langkah penurunannya.',
+  attachments: mockAttachmentMetaList,
+  contextSnapshot: mockChatContextPayload,
+  createdAt: '2026-08-19T10:05:00.000Z',
 };
 
 export const mockAssistantMessage: ChatMessage = {
   id: 'msg-asst-1',
   sessionId: mockSessionId,
-  userId: 'assistant',
+  userId: mockUserId,
   role: 'assistant',
-  content: `Mari kita periksa formula jangkauan horizontal proyektil dari [[node:node-root-1|Problem Root: Proyektil 2D]]:
-$$R = \\frac{v_0^2 \\sin(2\\theta)}{g}$$
-Faktor yang bergantung pada $\\theta$ adalah $\\sin(2\\theta)$. Berapa nilai maksimum yang mungkin dari fungsi sinus, dan sudut $2\\theta$ berapakah yang memenuhinya?`,
-  citations: [
-    {
-      id: 'cite-1',
-      sourceType: 'canvas_node',
-      referenceId: 'node-root-1',
-      label: 'Problem Root: Proyektil 2D',
-    },
-  ],
-  createdAt: '2026-08-19T10:00:05.000Z',
+  content: 'Mari kita telaah fungsi jangkauan horisontal:\n\n$$\nR(\\theta) = \\frac{v_0^2 \\sin(2\\theta)}{g}\n$$\n\nPerhatikan bahwa nilai maksimum fungsi $\\sin(x)$ adalah $1$, yang terjadi ketika argumen bernilai $90^\\circ$. Berdasarkan [[node:node-root-1|Problem Root: Proyektil 2D]], apakah ada faktor lain seperti hambatan udara yang perlu dipertimbangkan?',
+  citations: [mockCitation1],
+  createdAt: '2026-08-19T10:00:02.000Z',
 };
 
 export const mockChatSession: ChatSession = {
@@ -161,19 +203,18 @@ export const mockChatSession: ChatSession = {
   userId: mockUserId,
   taskId: mockTaskId,
   canvasId: mockCanvasId,
-  title: 'Analisis Sudut Optimum Proyektil',
+  title: 'Diskusi Gerak Parabola & Pembuktian Sudut Optimal',
   tutorMode: 'socratic',
-  metadata: { domain: 'Kinematics' },
-  createdAt: '2026-08-19T09:50:00.000Z',
-  updatedAt: '2026-08-19T10:00:05.000Z',
+  createdAt: '2026-08-19T10:00:00.000Z',
+  updatedAt: '2026-08-19T10:00:02.000Z',
 };
 
 export const mockOlympiadChatSession: ChatSession = {
   id: '55555555-5555-5555-a555-555555555555',
   userId: mockUserId,
   taskId: null,
-  canvasId: null,
-  title: 'Invarian dan Ketaksamaan Cauchy-Schwarz',
+  canvasId: mockCanvasId,
+  title: 'Olimpiade Fisika: Mekanika Lagrange & Hamilton',
   tutorMode: 'olympiad',
   createdAt: '2026-08-19T09:00:00.000Z',
   updatedAt: '2026-08-19T09:30:00.000Z',
@@ -184,7 +225,7 @@ export const mockStepBreakdownChatSession: ChatSession = {
   userId: mockUserId,
   taskId: mockTaskId,
   canvasId: null,
-  title: 'Step by Step: Integral Parsial Trigonometri',
+  title: 'Langkah Penurunan Persamaan Diferensial Orde 2',
   tutorMode: 'step_breakdown',
   createdAt: '2026-08-19T08:00:00.000Z',
   updatedAt: '2026-08-19T08:20:00.000Z',

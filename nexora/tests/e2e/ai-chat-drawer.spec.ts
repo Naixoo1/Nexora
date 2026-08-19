@@ -119,4 +119,78 @@ test.describe('E2E: AI Chat & Brainstorming Drawer with Tutor Modes & Citations'
     // 6. Verify Citation Badge Rendering
     await expect(page.getByText('Problem Root').first()).toBeVisible();
   });
+
+  test('should attach an image/document file, display preview chip, and send multimodal payload', async ({ page }) => {
+    let capturedPayload: unknown = null;
+
+    await page.route('**/api/chat/sessions**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { items: [], total: 0 },
+          message: 'Sessions retrieved',
+        }),
+      });
+    });
+
+    await page.route('**/api/chat', async (route) => {
+      capturedPayload = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Chat-Session-Id': sessionId,
+        },
+        body: 'Berikut adalah analisis formula matematika dari gambar yang Anda lampirkan.',
+      });
+    });
+
+    await page.route('**/api/tasks**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { items: [], pagination: { total: 0, page: 1, limit: 50, totalPages: 0 } },
+          message: 'Tasks loaded',
+        }),
+      });
+    });
+
+    // 1. Navigate and open drawer
+    await page.goto('/tasks');
+    const brainstormBtn = page.getByRole('button', { name: /ai brainstorm/i }).last();
+    await brainstormBtn.click();
+
+    // 2. Attach an image file using hidden input[type="file"]
+    const fileInput = page.locator('input[type="file"]');
+    await fileInput.setInputFiles({
+      name: 'calculus_problem.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64'
+      ),
+    });
+
+    // 3. Verify attachment preview chip is displayed
+    await expect(page.getByText('calculus_problem.png')).toBeVisible();
+
+    // 4. Submit prompt with attachment
+    const sendBtn = page.getByRole('button', { name: /send prompt/i });
+    await expect(sendBtn).toBeVisible();
+    await sendBtn.click();
+
+    // 5. Verify response received
+    await expect(page.getByText('analisis formula matematika')).toBeVisible();
+
+    // 6. Verify payload contained attachment
+    expect(capturedPayload).toBeTruthy();
+    // @ts-expect-error - assert captured payload
+    expect(capturedPayload.attachments).toHaveLength(1);
+    // @ts-expect-error - assert captured payload
+    expect(capturedPayload.attachments[0].name).toBe('calculus_problem.png');
+  });
 });

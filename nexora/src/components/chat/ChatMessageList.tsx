@@ -9,9 +9,8 @@ import {
   FileText,
   FileCode,
   Image as ImageIcon,
-  ExternalLink,
 } from 'lucide-react';
-import type { ChatMessage, ChatSourceCitation, ChatAttachmentMeta } from '@/types/chat';
+import type { ChatMessage, ChatSourceCitation } from '@/types/chat';
 import { LatexRenderer } from '../canvas/LatexRenderer';
 import { ChatCitationBadge } from './ChatCitationBadge';
 import { cn } from '@/lib/utils';

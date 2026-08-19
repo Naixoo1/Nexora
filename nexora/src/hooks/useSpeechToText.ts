@@ -53,7 +53,14 @@ export interface UseSpeechToTextReturn {
 
 export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false);
-  const [isSupported, setIsSupported] = useState(false);
+  const [isSupported] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognitionConstructor =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+      return Boolean(SpeechRecognitionConstructor);
+    }
+    return false;
+  });
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -64,15 +71,6 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
   useEffect(() => {
     onResultCallbackRef.current = defaultOptions.onResult;
   }, [defaultOptions.onResult]);
-
-  // Check browser support on client mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognitionConstructor =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      setIsSupported(Boolean(SpeechRecognitionConstructor));
-    }
-  }, []);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {

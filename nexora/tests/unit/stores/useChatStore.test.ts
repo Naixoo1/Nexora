@@ -490,6 +490,57 @@ describe('useChatStore', () => {
       expect(requestBody.attachments).toHaveLength(1);
       expect(requestBody.attachments[0].name).toBe('integral.png');
     });
+
+    it('should default user message prompt when sending attachment with empty text content', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'X-Chat-Session-Id': mockSessionId }),
+        body: createMockStream(['PDF analysis complete.']),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      useChatStore.getState().addAttachment({
+        id: 'att-pdf',
+        name: 'syllabus.pdf',
+        type: 'pdf',
+        mimeType: 'application/pdf',
+        data: 'base64pdf',
+        size: 4096,
+      });
+
+      // Send with empty content
+      await useChatStore.getState().sendMessage('');
+
+      expect(mockFetch).toHaveBeenCalled();
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.message).toBe('Analyze the attached image/document.');
+      expect(requestBody.attachments).toHaveLength(1);
+      expect(requestBody.attachments[0].name).toBe('syllabus.pdf');
+
+      // Check temporary message in store messages
+      const lastMsg = useChatStore.getState().messages[0];
+      expect(lastMsg.content).toBe('Analyze the attached image/document.');
+      expect(lastMsg.attachments).toEqual([
+        {
+          id: 'att-pdf',
+          name: 'syllabus.pdf',
+          type: 'pdf',
+          mimeType: 'application/pdf',
+          size: 4096,
+        },
+      ]);
+    });
+
+    it('should not send message if both content and attachments are empty', async () => {
+      const mockFetch = vi.fn();
+      vi.stubGlobal('fetch', mockFetch);
+
+      await useChatStore.getState().sendMessage('   ');
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(useChatStore.getState().messages).toHaveLength(0);
+    });
   });
 });
+
 
