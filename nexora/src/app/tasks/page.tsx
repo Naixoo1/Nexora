@@ -19,6 +19,8 @@ import { StudyPlannerModal } from '@/components/tasks/StudyPlannerModal';
 import { CreateTaskModal } from '@/components/tasks/CreateTaskModal';
 import { ChatDrawer } from '@/components/chat/ChatDrawer';
 import { FloatingBrainstormButton } from '@/components/chat/FloatingBrainstormButton';
+import { GlobalNavbar } from '@/components/layout/GlobalNavbar';
+import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import type { TaskContextSnapshot } from '@/types/chat';
 
 export default function TasksPage() {
@@ -66,6 +68,8 @@ export default function TasksPage() {
 
   return (
     <main className="min-h-screen bg-[#0B0F17] text-[#F1F5F9] antialiased">
+      <GlobalNavbar />
+
       {/* Top Background Glow Elements */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-40 left-1/4 h-96 w-96 rounded-full bg-indigo-600/10 blur-3xl" />
@@ -254,10 +258,11 @@ export default function TasksPage() {
       {/* Floating Brainstorm Drawer Trigger */}
       <FloatingBrainstormButton onClickCustom={handleOpenBrainstorm} />
 
-      {/* Modals & Slide-over Drawer */}
+      {/* Modals, Tutorial & Slide-over Drawer */}
       <StudyPlannerModal />
       <CreateTaskModal />
       <ChatDrawer />
+      <OnboardingModal />
     </main>
   );
 }

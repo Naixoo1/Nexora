@@ -13,6 +13,8 @@ import {
 import { StemCanvas } from '@/components/canvas/StemCanvas';
 import { ChatDrawer } from '@/components/chat/ChatDrawer';
 import { FloatingBrainstormButton } from '@/components/chat/FloatingBrainstormButton';
+import { NexoraLogo } from '@/components/brand/NexoraLogo';
+import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { useChatStore } from '@/stores/useChatStore';
 import type { CanvasContextSnapshot, CanvasDerivationStep } from '@/types/chat';
@@ -91,8 +93,12 @@ export default function CanvasStudioPage({
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0B0F17] text-[#F1F5F9]">
       {/* Top Studio Navbar */}
       <header className="relative z-30 flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-[#131926]/90 px-4 backdrop-blur-xl">
-        {/* Left: Back & Title */}
+        {/* Left: Brand Logo, Back & Title */}
         <div className="flex items-center gap-3">
+          <NexoraLogo size="sm" showVersion={false} />
+
+          <div className="h-5 w-px bg-white/10" />
+
           <Link
             href="/canvas"
             className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
@@ -108,7 +114,7 @@ export default function CanvasStudioPage({
               <Network className="h-4 w-4" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-white truncate max-w-[200px] sm:max-w-md">
+              <h1 className="text-sm font-bold text-white truncate max-w-[160px] sm:max-w-md">
                 {title || 'STEM Logic Tree Canvas'}
               </h1>
               <div className="flex items-center gap-2 text-[10px] text-slate-400">
@@ -184,6 +190,9 @@ export default function CanvasStudioPage({
 
       {/* Slide-over Chat Drawer */}
       <ChatDrawer />
+
+      {/* Student Onboarding Tutorial */}
+      <OnboardingModal />
     </div>
   );
 }

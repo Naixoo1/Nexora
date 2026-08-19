@@ -15,6 +15,8 @@ import {
   X,
 } from 'lucide-react';
 import type { CanvasSummary, ApiResponse } from '@/types/canvas';
+import { GlobalNavbar } from '@/components/layout/GlobalNavbar';
+import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { cn } from '@/lib/utils';
 
 export default function CanvasListPage() {
@@ -161,6 +163,8 @@ export default function CanvasListPage() {
 
   return (
     <main className="min-h-screen bg-[#0B0F17] text-[#F1F5F9] antialiased">
+      <GlobalNavbar />
+
       {/* Glow Effects */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-40 left-1/3 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
@@ -434,6 +438,8 @@ export default function CanvasListPage() {
           </div>
         </div>
       )}
+
+      <OnboardingModal />
     </main>
   );
 }

@@ -1,69 +1,175 @@
-import Image from "next/image";
+'use client';
+
+import React from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import {
+  Sparkles,
+  ArrowRight,
+  Network,
+  CheckSquare,
+  Mic,
+  Brain,
+  Layers,
+  ChevronRight,
+  GraduationCap,
+  Calculator,
+  Atom,
+  Binary,
+} from 'lucide-react';
+import { NexoraLogo } from '@/components/brand/NexoraLogo';
+import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 
 export default function Home() {
+  const handleOpenTutorial = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('nexora:restart-onboarding'));
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="min-h-screen bg-[#0B0F17] text-[#F1F5F9] antialiased flex flex-col justify-between">
+      {/* Background Ambient Glows */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-40 left-1/4 h-[500px] w-[500px] rounded-full bg-indigo-600/15 blur-[128px]" />
+        <div className="absolute top-1/3 right-1/4 h-[400px] w-[400px] rounded-full bg-cyan-500/10 blur-[128px]" />
+        <div className="absolute -bottom-20 left-1/3 h-[450px] w-[450px] rounded-full bg-purple-600/10 blur-[128px]" />
+      </div>
+
+      {/* Top Header Navigation */}
+      <header className="relative z-20 border-b border-white/10 bg-[#0B0F17]/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <NexoraLogo size="lg" />
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleOpenTutorial}
+              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#131926] px-3.5 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 active:scale-95"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              <GraduationCap className="h-4 w-4 text-cyan-400" />
+              <span>Orientation Tutorial</span>
+            </button>
+
+            <Link
+              href="/tasks"
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 px-4 py-2 text-xs font-bold text-white shadow-[0_0_20px_rgba(6,182,212,0.35)] transition-all hover:opacity-95 active:scale-95"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              <span>Launch Studio</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </header>
+
+      {/* Hero Section */}
+      <main className="relative z-10 mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8 flex-1 flex flex-col justify-center">
+        <div className="text-center max-w-3xl mx-auto space-y-6">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1 text-xs font-semibold text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+            <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
+            <span>AI Academic Companion for High School & University</span>
+          </div>
+
+          {/* Headline */}
+          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-tight">
+            Master complex derivations with{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-sky-300 to-teal-300">
+              Interactive AI Logic Trees
+            </span>
+          </h1>
+
+          {/* Subheading */}
+          <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+            Deconstruct advanced mathematics and physics into verifiable DAG proof trees. Transform derivations into study tasks and brainstorm with multimodal voice AI tutors.
+          </p>
+
+          {/* Action CTAs */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+            <Link
+              href="/tasks"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 px-6 py-3.5 text-sm font-bold text-white shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all hover:opacity-95 active:scale-95"
+            >
+              <CheckSquare className="h-4 w-4" />
+              <span>Study Planner & Tasks</span>
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </Link>
+
+            <Link
+              href="/canvas"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#131926] px-6 py-3.5 text-sm font-bold text-white transition-all hover:border-cyan-500/40 hover:bg-cyan-950/20 hover:text-cyan-300 active:scale-95 shadow-md"
+            >
+              <Network className="h-4 w-4 text-cyan-400" />
+              <span>STEM Logic Studio</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Feature Cards Grid */}
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-5">
+          {/* Card 1 */}
+          <Link
+            href="/canvas"
+            className="group rounded-3xl border border-white/10 bg-[#131926]/70 p-6 backdrop-blur-xl transition-all hover:border-cyan-500/40 hover:bg-[#131926] hover:shadow-[0_0_30px_rgba(6,182,212,0.15)]"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-400 text-white shadow-md">
+              <Network className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
+              STEM Logic Canvas & KaTeX
+            </h3>
+            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
+              Formulate mathematical hypotheses, explore What-If simulations, and verify step-by-step logic graph nodes.
+            </p>
+          </Link>
+
+          {/* Card 2 */}
+          <Link
+            href="/tasks"
+            className="group rounded-3xl border border-white/10 bg-[#131926]/70 p-6 backdrop-blur-xl transition-all hover:border-indigo-500/40 hover:bg-[#131926] hover:shadow-[0_0_30px_rgba(99,102,241,0.15)]"
           >
-            Documentation
-          </a>
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-400 text-white shadow-md">
+              <CheckSquare className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-white group-hover:text-indigo-300 transition-colors">
+              Atomic Study Planner & Tasks
+            </h3>
+            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
+              Break syllabus materials into structured sub-tasks with real-time milestone completion tracking and exam drills.
+            </p>
+          </Link>
+
+          {/* Card 3 */}
+          <div
+            onClick={handleOpenTutorial}
+            className="group cursor-pointer rounded-3xl border border-white/10 bg-[#131926]/70 p-6 backdrop-blur-xl transition-all hover:border-purple-500/40 hover:bg-[#131926] hover:shadow-[0_0_30px_rgba(168,85,247,0.15)]"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-md">
+              <Brain className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-white group-hover:text-purple-300 transition-colors">
+              Multimodal Voice AI Copilot
+            </h3>
+            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
+              4 specialized tutor modes with speech recognition, textbook screenshot analysis, and bidirectional node citations.
+            </p>
+          </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="relative z-20 border-t border-white/10 bg-[#0B0F17] py-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <NexoraLogo size="sm" showVersion={false} />
+            <span>&bull; Academic Study & STEM Logic Suite</span>
+          </div>
+          <p>&copy; {new Date().getFullYear()} Nexora. Powered by Next.js 15 & Vercel AI SDK.</p>
+        </div>
+      </footer>
+
+      {/* Student Onboarding Modal */}
+      <OnboardingModal />
     </div>
   );
 }
