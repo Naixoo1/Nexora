@@ -65,3 +65,13 @@ For any new feature or major refactoring task, follow this sequential execution 
 - **Single Source of Truth:** `PRD.md` defines what gets built, `GEMINI.md` defines how code is written, and `DESIGN.md` defines how elements appear.
 - **Strict Role Boundaries:** Agents must not cross boundaries without handoff (e.g., Frontend agents should consume interfaces created by Architect/Backend rather than inventing uncoordinated payload types).
 - **Security Checkpoint:** No agent may output or stage production secrets, unencrypted tokens, or unrestricted API endpoints.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
