@@ -715,4 +715,71 @@ describe('useCanvasStore', () => {
       expect(useCanvasStore.getState().error).toBeNull();
     });
   });
+
+  describe('Node to Task Conversion & Linked Tasks', () => {
+    it('should open and close node to task modal', () => {
+      useCanvasStore.getState().openNodeToTaskModal('node-1');
+      expect(useCanvasStore.getState().isNodeToTaskModalOpen).toBe(true);
+      expect(useCanvasStore.getState().convertingNodeId).toBe('node-1');
+
+      useCanvasStore.getState().closeNodeToTaskModal();
+      expect(useCanvasStore.getState().isNodeToTaskModalOpen).toBe(false);
+      expect(useCanvasStore.getState().convertingNodeId).toBeNull();
+    });
+
+    it('should fetch linked tasks and populate linkedTasks map', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            items: [
+              { id: 'task-101', canvasNodeId: 'node-1' },
+              { id: 'task-102', canvasNodeId: 'node-2' },
+            ],
+          },
+        }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      await useCanvasStore.getState().fetchLinkedTasks('canvas-1');
+
+      expect(useCanvasStore.getState().linkedTasks).toEqual({
+        'node-1': 'task-101',
+        'node-2': 'task-102',
+      });
+    });
+
+    it('should convert node to task and update linkedTasks state', async () => {
+      const mockTask = {
+        id: 'task-new',
+        title: '[Derivation Step] Apply Chain Rule',
+        status: 'todo',
+        priority: 'medium',
+        source: 'canvas_export',
+      };
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: mockTask,
+        }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const result = await useCanvasStore.getState().convertNodeToTask('canvas-1', 'node-1', {
+        title: '[Derivation Step] Apply Chain Rule',
+        priority: 'medium',
+        includeLatexInDescription: true,
+        includeVariablesInDescription: true,
+      });
+
+      expect(result).toEqual(mockTask);
+      expect(useCanvasStore.getState().linkedTasks['node-1']).toBe('task-new');
+      expect(useCanvasStore.getState().isNodeToTaskModalOpen).toBe(false);
+      expect(useCanvasStore.getState().convertingNodeId).toBeNull();
+    });
+  });
 });
+

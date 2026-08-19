@@ -10,6 +10,7 @@ import {
   ChevronUp,
   Cpu,
   Sparkles,
+  CheckSquare,
 } from 'lucide-react';
 import type { StemCanvasNode, NodeValidationStatus } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
@@ -18,6 +19,9 @@ import { cn } from '@/lib/utils';
 
 export const ReasoningStepNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data, selected }) => {
   const toggleNodeCollapse = useCanvasStore((state) => state.toggleNodeCollapse);
+  const openNodeToTaskModal = useCanvasStore((state) => state.openNodeToTaskModal);
+  const linkedTasks = useCanvasStore((state) => state.linkedTasks);
+  const isLinked = Boolean(linkedTasks[id]);
 
   const isCollapsed = data.isCollapsed ?? false;
   const status: NodeValidationStatus = data.validationStatus || 'tentative';
@@ -60,7 +64,7 @@ export const ReasoningStepNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, dat
         selected && 'ring-2 ring-indigo-400 shadow-[0_0_25px_rgba(99,102,241,0.3)]'
       )}
     >
-      {/* Target Handle (Inputs from Root or Previous Step) */}
+      {/* Target Handle */}
       <Handle
         type="target"
         position={Position.Top}
@@ -76,16 +80,36 @@ export const ReasoningStepNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, dat
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-400 shrink-0">
             <Cpu className="h-3.5 w-3.5" />
           </div>
-          <h4 className="text-xs font-semibold text-white truncate max-w-[150px]">
+          <h4 className="text-xs font-semibold text-white truncate max-w-[130px]">
             {data.title || 'Reasoning Step'}
           </h4>
         </div>
 
-        {/* Status Pill & Collapse Toggle */}
+        {/* Right Header Badges & Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {isLinked ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              Task Linked
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openNodeToTaskModal(id);
+              }}
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 hover:bg-indigo-500/25 hover:border-indigo-400 transition-colors"
+              title="Convert this derivation step to a task"
+            >
+              <CheckSquare className="h-3 w-3" />
+              <span>To Task</span>
+            </button>
+          )}
+
           <span
             className={cn(
-              'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+              'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
               statusConfig.pill
             )}
           >
@@ -122,33 +146,26 @@ export const ReasoningStepNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, dat
             </p>
           )}
 
-          {/* LaTeX Step Formula */}
+          {/* Mathematical Formula Preview */}
           {data.latexFormula && (
             <div className="rounded-xl border border-white/5 bg-[#0B0F17]/90 p-1">
               <LatexRenderer latex={data.latexFormula} displayMode="block" showCopyButton />
             </div>
           )}
 
-          {/* Validation Message / AI Feedback */}
-          {validationMessage && (
-            <div
-              className={cn(
-                'rounded-lg border p-2 text-xs',
-                status === 'valid'
-                  ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-                  : status === 'erroneous'
-                  ? 'border-rose-500/20 bg-rose-500/10 text-rose-300'
-                  : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
-              )}
-            >
-              <span className="font-semibold">AI Auditor: </span>
-              <span>{validationMessage}</span>
+          {/* Error Message Alert if Erroneous */}
+          {status === 'erroneous' && validationMessage && (
+            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-300">
+              <div className="flex items-start gap-1.5 font-medium">
+                <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-rose-400" />
+                <span>{validationMessage}</span>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Source Handle (Outputs to Next Steps or Branches) */}
+      {/* Source Handle */}
       <Handle
         type="source"
         position={Position.Bottom}

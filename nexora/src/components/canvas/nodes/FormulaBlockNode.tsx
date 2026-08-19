@@ -2,15 +2,17 @@
 
 import React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Binary, Sliders, Calculator } from 'lucide-react';
+import { Binary, Sliders, Calculator, CheckSquare, CheckCircle2 } from 'lucide-react';
 import type { StemCanvasNode } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { cn } from '@/lib/utils';
 
-export const FormulaBlockNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, selected }) => {
+export const FormulaBlockNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data, selected }) => {
   const updateVariable = useCanvasStore((state) => state.updateVariable);
-  const globalVariables = useCanvasStore((state) => state.globalVariables);
+  const openNodeToTaskModal = useCanvasStore((state) => state.openNodeToTaskModal);
+  const linkedTasks = useCanvasStore((state) => state.linkedTasks);
+  const isLinked = Boolean(linkedTasks[id]);
 
   const variables = data.variables || [];
   const customData = (data.customData as Record<string, unknown>) || {};
@@ -36,78 +38,100 @@ export const FormulaBlockNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, se
 
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-indigo-950/40 via-cyan-950/20 to-transparent px-4 py-2.5 rounded-t-2xl">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md shrink-0">
             <Binary className="h-4 w-4" />
           </div>
-          <div>
+          <div className="min-w-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
               Formula Block
             </span>
-            <h4 className="text-xs font-semibold text-white truncate max-w-[180px]">
-              {data.title || 'Mathematical Expression'}
+            <h4 className="text-xs font-semibold text-white truncate max-w-[130px]">
+              {data.title || 'Expression'}
             </h4>
           </div>
         </div>
 
-        <span className="rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-300">
-          Interactive
-        </span>
+        {/* Right Header Badges & Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isLinked ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              Task Linked
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openNodeToTaskModal(id);
+              }}
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 hover:bg-indigo-500/25 hover:border-indigo-400 transition-colors"
+              title="Convert this formula to a task"
+            >
+              <CheckSquare className="h-3 w-3" />
+              <span>To Task</span>
+            </button>
+          )}
+
+          <span className="rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-300">
+            Formula
+          </span>
+        </div>
       </div>
 
       {/* Body */}
       <div className="p-4 space-y-3">
         {/* Main Formula */}
-        {data.latexFormula ? (
-          <div className="rounded-xl border border-indigo-500/20 bg-[#0B0F17]/90 p-1">
+        {data.latexFormula && (
+          <div className="rounded-xl border border-white/5 bg-[#0B0F17]/90 p-1">
             <LatexRenderer latex={data.latexFormula} displayMode="block" showCopyButton />
           </div>
-        ) : (
-          <div className="text-xs text-slate-500 italic p-2 text-center">
-            No formula defined.
-          </div>
         )}
 
-        {/* Evaluated Result Preview if available */}
+        {/* Live Evaluated Output */}
         {renderedResult && (
-          <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-300">
-            <span className="flex items-center gap-1 font-semibold">
-              <Calculator className="h-3.5 w-3.5" />
-              Evaluated:
+          <div className="flex items-center justify-between rounded-lg border border-cyan-500/20 bg-cyan-950/20 p-2.5 text-xs text-cyan-200">
+            <span className="flex items-center gap-1 font-semibold text-slate-300">
+              <Calculator className="h-3.5 w-3.5 text-cyan-400" />
+              Evaluated Value:
             </span>
-            <span className="font-mono font-bold text-white">{renderedResult}</span>
+            <span className="font-mono font-bold text-white text-sm">{renderedResult}</span>
           </div>
         )}
 
-        {/* Attached Variables Sliders */}
+        {/* Dynamic Variable Sliders */}
         {variables.length > 0 && (
-          <div className="space-y-2 rounded-xl border border-white/5 bg-[#0B0F17]/50 p-2.5">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <Sliders className="h-3 w-3 text-indigo-400" />
-              Active Parameters
+          <div className="space-y-2 pt-1 border-t border-white/5">
+            <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <span className="flex items-center gap-1">
+                <Sliders className="h-3 w-3 text-indigo-400" />
+                Parameters
+              </span>
             </div>
-            {variables.map((v) => {
-              const matchingGlobal = globalVariables.find((gv) => gv.id === v.id);
-              const currentValue = matchingGlobal ? matchingGlobal.value : v.value;
 
-              return (
-                <div key={v.id} className="space-y-1">
+            <div className="space-y-2">
+              {variables.map((v) => (
+                <div key={v.id} className="rounded-lg bg-[#0B0F17]/80 p-2 border border-white/5 space-y-1">
                   <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-slate-300">{v.name}:</span>
-                    <span className="font-bold text-cyan-300">{currentValue} {v.unit || ''}</span>
+                    <span className="text-indigo-300">${v.symbol}$ ({v.name})</span>
+                    <span className="text-white font-bold">
+                      {v.value} {v.unit}
+                    </span>
                   </div>
+
                   <input
                     type="range"
-                    min={v.min || 0}
-                    max={v.max || 100}
-                    step={v.step || 1}
-                    value={currentValue}
+                    min={v.min ?? 0}
+                    max={v.max ?? 100}
+                    step={v.step ?? 1}
+                    value={v.value}
                     onChange={(e) => updateVariable(v.id, parseFloat(e.target.value))}
-                    className="w-full h-1.5 rounded-lg bg-slate-800 accent-indigo-400 cursor-pointer"
+                    className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-400"
                   />
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
         )}
       </div>

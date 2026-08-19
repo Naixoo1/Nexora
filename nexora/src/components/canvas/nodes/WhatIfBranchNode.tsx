@@ -2,15 +2,17 @@
 
 import React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { GitFork, Sliders, TrendingUp, HelpCircle } from 'lucide-react';
+import { GitFork, Sliders, TrendingUp, CheckSquare, CheckCircle2 } from 'lucide-react';
 import type { StemCanvasNode } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { cn } from '@/lib/utils';
 
-export const WhatIfBranchNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, selected }) => {
+export const WhatIfBranchNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data, selected }) => {
   const updateVariable = useCanvasStore((state) => state.updateVariable);
-  const globalVariables = useCanvasStore((state) => state.globalVariables);
+  const openNodeToTaskModal = useCanvasStore((state) => state.openNodeToTaskModal);
+  const linkedTasks = useCanvasStore((state) => state.linkedTasks);
+  const isLinked = Boolean(linkedTasks[id]);
 
   const customData = (data.customData as Record<string, unknown>) || {};
   const hypothesis = (customData.hypothesis as string) || data.title || 'What-If Simulation';
@@ -39,91 +41,96 @@ export const WhatIfBranchNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, se
 
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-cyan-950/40 via-indigo-950/30 to-transparent px-4 py-2.5 rounded-t-2xl">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-indigo-500 text-white shadow-md">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-indigo-500 text-white shadow-md shrink-0">
             <GitFork className="h-4 w-4" />
           </div>
-          <div>
+          <div className="min-w-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">
               What-If Simulation
             </span>
-            <h4 className="text-xs font-semibold text-white truncate max-w-[170px]">
+            <h4 className="text-xs font-semibold text-white truncate max-w-[130px]">
               {hypothesis}
             </h4>
           </div>
         </div>
 
-        {/* Sensitivity Badge */}
-        <span className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-mono text-cyan-300">
-          <TrendingUp className="h-3 w-3" />
-          {Math.round(sensitivityScore * 100)}% Sens.
-        </span>
+        {/* Right Badges & Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isLinked ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              Task Linked
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openNodeToTaskModal(id);
+              }}
+              className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-300 hover:bg-cyan-500/25 hover:border-cyan-400 transition-colors"
+              title="Convert this simulation to a task"
+            >
+              <CheckSquare className="h-3 w-3" />
+              <span>To Task</span>
+            </button>
+          )}
+
+          <span className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-mono text-cyan-300">
+            <TrendingUp className="h-3 w-3" />
+            {Math.round(sensitivityScore * 100)}%
+          </span>
+        </div>
       </div>
 
       {/* Body */}
       <div className="p-4 space-y-3.5">
         {/* Hypothesis Narrative */}
-        <p className="text-xs text-slate-300 leading-relaxed font-sans">
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/20 p-2.5 text-xs text-cyan-200 leading-relaxed font-sans">
+          <span className="font-semibold text-white">Hypothesis: </span>
           {outcomeComparison}
-        </p>
+        </div>
 
-        {/* Simulated Formula */}
+        {/* Simulated Formula Display */}
         {data.latexFormula && (
-          <div className="rounded-xl border border-cyan-500/20 bg-[#0B0F17]/90 p-1">
+          <div className="rounded-xl border border-white/5 bg-[#0B0F17]/90 p-1">
             <LatexRenderer latex={data.latexFormula} displayMode="block" showCopyButton />
           </div>
         )}
 
-        {/* Live Variable Delta Sliders */}
-        {variables.length > 0 ? (
-          <div className="space-y-2 rounded-xl border border-white/5 bg-[#0B0F17]/60 p-3">
+        {/* Dynamic Parameter Delta Sliders */}
+        {variables.length > 0 && (
+          <div className="space-y-2 pt-1 border-t border-white/5">
             <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               <span className="flex items-center gap-1">
                 <Sliders className="h-3 w-3 text-cyan-400" />
-                Parameter Delta Sliders
+                Live Variable Perturbations
               </span>
-              <span>Live Updates</span>
             </div>
 
-            {variables.map((v) => {
-              // Find matching global value if present
-              const matchingGlobal = globalVariables.find((gv) => gv.id === v.id);
-              const currentValue = matchingGlobal ? matchingGlobal.value : v.value;
-
-              return (
-                <div key={v.id} className="space-y-1">
+            <div className="space-y-2">
+              {variables.map((v) => (
+                <div key={v.id} className="rounded-lg bg-[#0B0F17]/80 p-2 border border-white/5 space-y-1">
                   <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-slate-300 flex items-center gap-1">
-                      <span className="font-semibold text-cyan-400">{v.name}</span>
-                      {v.unit && <span className="text-[10px] text-slate-500">({v.unit})</span>}
-                    </span>
-                    <span className="font-bold text-white bg-white/5 px-1.5 py-0.5 rounded text-[11px]">
-                      {currentValue}
+                    <span className="text-cyan-300">${v.symbol}$ ({v.name})</span>
+                    <span className="text-white font-bold">
+                      {v.value} {v.unit}
                     </span>
                   </div>
 
                   <input
                     type="range"
-                    min={v.min || 0}
-                    max={v.max || 100}
-                    step={v.step || 1}
-                    value={currentValue}
+                    min={v.min ?? 0}
+                    max={v.max ?? 100}
+                    step={v.step ?? 1}
+                    value={v.value}
                     onChange={(e) => updateVariable(v.id, parseFloat(e.target.value))}
-                    className="w-full h-1.5 rounded-lg bg-slate-800 accent-cyan-400 cursor-pointer"
+                    className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400"
                   />
-
-                  <div className="flex justify-between text-[9px] font-mono text-slate-500">
-                    <span>min: {v.min || 0}</span>
-                    <span>max: {v.max || 100}</span>
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-            <HelpCircle className="h-3.5 w-3.5 text-cyan-400" />
-            <span>Connect to global variables via the Variable Sidebar.</span>
+              ))}
+            </div>
           </div>
         )}
       </div>

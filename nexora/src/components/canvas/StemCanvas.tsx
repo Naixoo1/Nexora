@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   ReactFlow,
   Background,
@@ -22,6 +23,7 @@ import { LogicEdge } from './edges/LogicEdge';
 import { CanvasToolbar } from './CanvasToolbar';
 import { VariableSidebar } from './VariableSidebar';
 import { BranchSuggestionModal } from './BranchSuggestionModal';
+import { NodeToTaskModal } from './NodeToTaskModal';
 import { Check, Loader2, AlertCircle } from 'lucide-react';
 
 export interface StemCanvasProps {
@@ -29,6 +31,9 @@ export interface StemCanvasProps {
 }
 
 export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
+  const searchParams = useSearchParams();
+  const targetNodeIdFromQuery = searchParams.get('nodeId');
+
   const {
     nodes,
     edges,
@@ -56,6 +61,16 @@ export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
       loadCanvas(canvasId);
     }
   }, [canvasId, loadCanvas]);
+
+  // Select target node if requested in query parameter (?nodeId=...)
+  useEffect(() => {
+    if (targetNodeIdFromQuery && nodes.length > 0) {
+      const found = nodes.find((n) => n.id === targetNodeIdFromQuery);
+      if (found) {
+        selectNode(targetNodeIdFromQuery);
+      }
+    }
+  }, [targetNodeIdFromQuery, nodes, selectNode]);
 
   // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Delete)
   useEffect(() => {
@@ -112,68 +127,67 @@ export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
     []
   );
 
-  const onNodeClick = useCallback(
+  // Node selection handlers
+  const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       selectNode(node.id);
     },
     [selectNode]
   );
 
-  const onEdgeClick = useCallback(
+  const handleEdgeClick = useCallback(
     (_: React.MouseEvent, edge: Edge) => {
       selectEdge(edge.id);
     },
     [selectEdge]
   );
 
-  const onPaneClick = useCallback(() => {
+  const handlePaneClick = useCallback(() => {
     selectNode(null);
     selectEdge(null);
   }, [selectNode, selectEdge]);
 
   return (
-    <div className="relative h-full w-full select-none overflow-hidden bg-[#0B0F17]">
-      {/* Top Floating Bar: Title & Auto-save Status */}
-      <div className="pointer-events-none absolute left-4 top-4 z-20 flex items-center gap-3">
-        {/* Status Indicator */}
-        <div className="pointer-events-auto flex items-center gap-2 rounded-xl border border-white/10 bg-[#131926]/90 px-3 py-1.5 text-xs shadow-lg backdrop-blur-md">
-          {isSaving ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
-              <span className="text-slate-300">Saving changes...</span>
-            </>
-          ) : lastSavedAt ? (
-            <>
-              <Check className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-slate-400">
-                Saved {new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(lastSavedAt)}
-              </span>
-            </>
-          ) : (
-            <span className="text-slate-500">Ready</span>
-          )}
-        </div>
-
-        {/* Error notification */}
-        {error && (
-          <div className="pointer-events-auto flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-400 shadow-lg backdrop-blur-md">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+    <div className="relative h-full w-full overflow-hidden bg-[#0B0F17]">
+      {/* Auto-Save & Status Float Indicator */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-2 rounded-xl border border-white/10 bg-[#131926]/90 px-3 py-1.5 text-xs text-slate-300 shadow-xl backdrop-blur-md">
+        {isSaving ? (
+          <>
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
+            <span className="font-medium text-cyan-300">Auto-saving...</span>
+          </>
+        ) : error ? (
+          <div className="flex items-center gap-1 text-rose-400">
+            <AlertCircle className="h-3.5 w-3.5" />
             <span>{error}</span>
             <button
               type="button"
               onClick={clearError}
-              className="ml-1 rounded px-1 text-slate-400 hover:text-white"
+              className="ml-1 rounded px-1 text-[10px] bg-rose-500/20 hover:bg-rose-500/30"
             >
-              ✕
+              dismiss
             </button>
           </div>
+        ) : (
+          <>
+            <Check className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-slate-400">
+              {lastSavedAt
+                ? `Saved ${new Intl.DateTimeFormat('id-ID', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  }).format(lastSavedAt)}`
+                : 'Synced'}
+            </span>
+          </>
         )}
       </div>
 
-      {/* Floating Canvas Toolbar */}
+      {/* Floating Action Toolbar */}
       <CanvasToolbar />
 
-      {/* React Flow Viewport */}
+      {/* Main React Flow Graph Canvas */}
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -182,19 +196,16 @@ export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeClick={onNodeClick}
-        onEdgeClick={onEdgeClick}
-        onPaneClick={onPaneClick}
-        onViewportChange={setViewport}
+        onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
+        onPaneClick={handlePaneClick}
         defaultViewport={viewport}
-        fitView
-        fitViewOptions={{ padding: 0.25 }}
+        onViewportChange={setViewport}
         minZoom={0.2}
         maxZoom={2.5}
-        snapToGrid
-        snapGrid={[16, 16]}
-        colorMode="dark"
-        className="touch-none"
+        fitViewOptions={{ padding: 0.2 }}
+        proOptions={{ hideAttribution: true }}
+        className="touch-none select-none bg-[#0B0F17]"
       >
         <Background
           variant={BackgroundVariant.Dots}
@@ -237,6 +248,9 @@ export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
 
       {/* AI Branch Suggestion Modal */}
       <BranchSuggestionModal />
+
+      {/* Node to Task Conversion Modal */}
+      <NodeToTaskModal />
     </div>
   );
 };

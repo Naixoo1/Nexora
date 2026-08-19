@@ -1,7 +1,7 @@
 // Union types for enums
 export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'cancelled';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
-export type TaskSource = 'manual' | 'ai_planner' | 'ai_brainstorm';
+export type TaskSource = 'manual' | 'ai_planner' | 'ai_brainstorm' | 'canvas_export';
 export type ProgressStatus = 'active' | 'paused' | 'completed' | 'cancelled';
 
 // Max sub-task depth

@@ -54,6 +54,12 @@ export interface CanvasState {
   evaluationResult: NodeEvaluationResult | null;
   branchSuggestions: SuggestedBranchItem[];
 
+  // Task Conversion & Linked Tasks
+  linkedTasks: Record<string, string>; // maps nodeId -> taskId
+  isNodeToTaskModalOpen: boolean;
+  convertingNodeId: string | null;
+  isConvertingNodeToTask: boolean;
+
   // Undo / Redo History
   history: {
     past: HistoryState[];
@@ -62,6 +68,15 @@ export interface CanvasState {
 
   // Actions
   loadCanvas: (id: string) => Promise<boolean>;
+  fetchLinkedTasks: (canvasId: string) => Promise<void>;
+  openNodeToTaskModal: (nodeId: string) => void;
+  closeNodeToTaskModal: () => void;
+  convertNodeToTask: (
+    canvasId: string,
+    nodeId: string,
+    payload?: import('@/lib/validators/canvas-task').NodeToTaskConvert
+  ) => Promise<import('@/types/task').Task | null>;
+
   setCanvasMeta: (title: string, description?: string | null, category?: string | null) => void;
   setNodes: (nodes: StemCanvasNode[]) => void;
   setEdges: (edges: StemCanvasEdge[]) => void;
@@ -134,6 +149,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   evaluationResult: null,
   branchSuggestions: [],
 
+  linkedTasks: {},
+  isNodeToTaskModalOpen: false,
+  convertingNodeId: null,
+  isConvertingNodeToTask: false,
+
   history: {
     past: [],
     future: [],
@@ -164,6 +184,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         lastSavedAt: new Date(canvas.updatedAt),
         history: { past: [], future: [] },
       });
+
+      // Load existing task linkages
+      get().fetchLinkedTasks(canvas.id);
 
       return true;
     } catch (err) {
@@ -618,7 +641,80 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     get().saveGraph();
   },
 
+  fetchLinkedTasks: async (canvasId: string) => {
+    try {
+      const response = await fetch(`/api/canvas/${canvasId}/tasks`);
+      const json: ApiResponse<{ items: { id: string; canvasNodeId?: string | null }[] }> =
+        await response.json();
+
+      if (response.ok && json.success && json.data?.items) {
+        const linkMap: Record<string, string> = {};
+        for (const item of json.data.items) {
+          if (item.canvasNodeId) {
+            linkMap[item.canvasNodeId] = item.id;
+          }
+        }
+        set({ linkedTasks: linkMap });
+      }
+    } catch (err) {
+      console.warn('Failed to fetch canvas linked tasks:', err);
+    }
+  },
+
+  openNodeToTaskModal: (nodeId: string) => {
+    set({
+      isNodeToTaskModalOpen: true,
+      convertingNodeId: nodeId,
+      error: null,
+    });
+  },
+
+  closeNodeToTaskModal: () => {
+    set({
+      isNodeToTaskModalOpen: false,
+      convertingNodeId: null,
+      isConvertingNodeToTask: false,
+    });
+  },
+
+  convertNodeToTask: async (canvasId: string, nodeId: string, payload) => {
+    set({ isConvertingNodeToTask: true, error: null });
+    try {
+      const response = await fetch(`/api/canvas/${canvasId}/nodes/${nodeId}/to-task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {}),
+      });
+
+      const json: ApiResponse<import('@/types/task').Task> = await response.json();
+
+      if (!response.ok || !json.success || !json.data) {
+        throw new Error(json.message || 'Failed to convert node to task');
+      }
+
+      const createdTask = json.data;
+
+      // Update linked tasks mapping
+      set((state) => ({
+        linkedTasks: {
+          ...state.linkedTasks,
+          [nodeId]: createdTask.id,
+        },
+        isNodeToTaskModalOpen: false,
+        convertingNodeId: null,
+        isConvertingNodeToTask: false,
+      }));
+
+      return createdTask;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error converting node to task';
+      set({ error: msg, isConvertingNodeToTask: false });
+      return null;
+    }
+  },
+
   setVariableSidebarOpen: (isOpen) => set({ isVariableSidebarOpen: isOpen }),
   setBranchModalOpen: (isOpen) => set({ isBranchModalOpen: isOpen }),
   clearError: () => set({ error: null }),
 }));
+

@@ -2,12 +2,17 @@
 
 import React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Target, Sparkles, Sliders } from 'lucide-react';
+import { Target, Sparkles, Sliders, CheckSquare, CheckCircle2 } from 'lucide-react';
 import type { StemCanvasNode } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
+import { useCanvasStore } from '@/stores/useCanvasStore';
 import { cn } from '@/lib/utils';
 
-export const ProblemRootNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, selected }) => {
+export const ProblemRootNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data, selected }) => {
+  const openNodeToTaskModal = useCanvasStore((state) => state.openNodeToTaskModal);
+  const linkedTasks = useCanvasStore((state) => state.linkedTasks);
+  const isLinked = Boolean(linkedTasks[id]);
+
   const customData = (data.customData as Record<string, unknown>) || {};
   const domain = (customData.domain as string) || 'Calculus & Physics';
   const targetGoal = (customData.targetGoal as string) || (data.content ? '' : 'Solve & prove equation');
@@ -34,16 +39,38 @@ export const ProblemRootNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, sel
             <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">
               Problem Root
             </span>
-            <h4 className="text-xs font-semibold text-white truncate max-w-[180px]">
+            <h4 className="text-xs font-semibold text-white truncate max-w-[150px]">
               {data.title || 'Initial Problem'}
             </h4>
           </div>
         </div>
 
-        {/* Domain Badge */}
-        <span className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-300">
-          {domain}
-        </span>
+        {/* Right Badges & Actions */}
+        <div className="flex items-center gap-1.5">
+          {isLinked ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              Task Linked
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openNodeToTaskModal(id);
+              }}
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-300 hover:bg-indigo-500/25 hover:border-indigo-400 transition-colors"
+              title="Convert this problem to a tracked task"
+            >
+              <CheckSquare className="h-3 w-3" />
+              <span>To Task</span>
+            </button>
+          )}
+
+          <span className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-300">
+            {domain}
+          </span>
+        </div>
       </div>
 
       {/* Node Body */}
@@ -99,7 +126,7 @@ export const ProblemRootNode: React.FC<NodeProps<StemCanvasNode>> = ({ data, sel
         )}
       </div>
 
-      {/* Source Connection Handle (Outputs to Reasoning Steps) */}
+      {/* Source Connection Handle */}
       <Handle
         type="source"
         position={Position.Bottom}

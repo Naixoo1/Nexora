@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const TaskStatusSchema = z.enum(['todo', 'in_progress', 'completed', 'cancelled']);
 export const TaskPrioritySchema = z.enum(['low', 'medium', 'high', 'urgent']);
-export const TaskSourceSchema = z.enum(['manual', 'ai_planner', 'ai_brainstorm']);
+export const TaskSourceSchema = z.enum(['manual', 'ai_planner', 'ai_brainstorm', 'canvas_export']);
 export const ProgressStatusSchema = z.enum(['active', 'paused', 'completed', 'cancelled']);
 
 export const ProgressTargetSchema = z.object({

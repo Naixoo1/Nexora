@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Calendar,
   ChevronRight,
@@ -15,6 +16,7 @@ import {
   Clock,
   AlertCircle,
   MoreVertical,
+  Network,
 } from 'lucide-react';
 import type { Task, TaskWithChildren, TaskStatus, TaskPriority } from '@/types/task';
 import { cn, formatDate, isOverdue } from '@/lib/utils';
@@ -195,6 +197,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 <Brain className="h-3 w-3" />
                 Brainstorm
               </span>
+            )}
+            {task.source === 'canvas_export' && (
+              <Link
+                href={`/canvas?nodeId=${task.canvasNodeId || ''}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-cyan-950/50 to-indigo-950/50 px-2 py-0.5 text-[11px] font-medium text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400 transition-colors"
+                title="Exported from STEM Canvas. Click to open in canvas studio."
+              >
+                <Network className="h-3 w-3 text-cyan-400" />
+                STEM Canvas Origin
+              </Link>
             )}
 
             {/* Category Tag */}
