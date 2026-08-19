@@ -1,93 +1,197 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt } from '@/services/chat-prompt';
-import { extractCitations } from '@/services/chat';
+import {
+  mockTaskContext,
+  mockOverdueTaskContext,
+  mockCanvasContext,
+  mockChatContextPayload,
+} from '../../mocks/chatMocks';
+import type { ChatContextPayload, AcademicTutorMode } from '@/types/chat';
 
-describe('Chat Prompt & Citation Services', () => {
-  describe('buildSystemPrompt', () => {
-    it('builds socratic prompt by default with mathematical formatting rules', () => {
+describe('chat-prompt service (buildSystemPrompt)', () => {
+  describe('Tutor Mode Personas', () => {
+    it('should build Socratic persona and default when no context is passed', () => {
+      // Arrange & Act
       const prompt = buildSystemPrompt();
-      expect(prompt).toContain("Socratic Academic Tutor");
-      expect(prompt).toContain("MATHEMATICAL FORMATTING RULES");
-      expect(prompt).toContain("`[[node:NODE_ID|NODE_TITLE]]`");
+
+      // Assert
+      expect(prompt).toContain("You are Nexora's Socratic Academic Tutor.");
+      expect(prompt).toContain('NEVER provide full final answers immediately');
+      expect(prompt).toContain('MATHEMATICAL FORMATTING RULES');
+      expect(prompt).toContain('[[node:NODE_ID|NODE_TITLE]]');
     });
 
-    it('injects active task and canvas context into prompt correctly', () => {
-      const prompt = buildSystemPrompt({
+    it('should build Olympiad persona when tutorMode is olympiad', () => {
+      // Arrange
+      const context: ChatContextPayload = {
         tutorMode: 'olympiad',
-        taskContext: {
-          taskId: 't-1',
-          title: 'Solve IMO 2024 Problem 1',
-          status: 'in_progress',
-          priority: 'urgent',
-          dueDate: '2026-08-30T00:00:00.000Z',
-          isOverdue: false,
-          subtaskCount: 4,
-          completedSubtaskCount: 2,
-          milestoneProgressPct: 50,
-        },
-        canvasContext: {
-          canvasId: 'c-1',
-          canvasTitle: 'IMO 2024 Algebra Graph',
-          selectedNodeId: 'node-3',
-          selectedNodeTitle: 'Assume x > y',
-          selectedNodeFormula: 'f(x) - f(y) > 0',
-          derivationPath: [
-            {
-              nodeId: 'node-1',
-              title: 'Root Hypothesis',
-              nodeType: 'problem_root',
-              latexFormula: 'f: \\mathbb{R} \\to \\mathbb{R}',
-            },
-          ],
-          activeVariables: [
-            {
-              id: 'var-eps',
-              name: 'epsilon',
-              symbol: '\\varepsilon',
-              label: 'Error Bound',
-              value: 0.01,
-              defaultValue: 0.01,
-              min: 0.001,
-              max: 0.1,
-              step: 0.001,
-              isIndependent: true,
-            },
-          ],
-        },
-      });
+      };
 
-      expect(prompt).toContain("Olympiad & Advanced STEM Problem-Solving Coach");
-      expect(prompt).toContain("Solve IMO 2024 Problem 1");
-      expect(prompt).toContain("50% milestone progress");
-      expect(prompt).toContain("IMO 2024 Algebra Graph");
-      expect(prompt).toContain("$f(x) - f(y) > 0$");
-      expect(prompt).toContain("$\\varepsilon$");
+      // Act
+      const prompt = buildSystemPrompt(context);
+
+      // Assert
+      expect(prompt).toContain("You are Nexora's Olympiad & Advanced STEM Problem-Solving Coach.");
+      expect(prompt).toContain('invariant properties, monovariants, bounding arguments');
+      expect(prompt).toContain('Cauchy-Schwarz');
+    });
+
+    it('should build Step Breakdown persona when tutorMode is step_breakdown', () => {
+      // Arrange
+      const context: ChatContextPayload = {
+        tutorMode: 'step_breakdown',
+      };
+
+      // Act
+      const prompt = buildSystemPrompt(context);
+
+      // Assert
+      expect(prompt).toContain("You are Nexora's Step-by-Step Solver & Algorithm Deconstructor.");
+      expect(prompt).toContain('State the applied identity or rule at each transition');
+      expect(prompt).toContain('clean KaTeX formatting');
+    });
+
+    it('should build Thesis Mentor persona when tutorMode is thesis_mentor', () => {
+      // Arrange
+      const context: ChatContextPayload = {
+        tutorMode: 'thesis_mentor',
+      };
+
+      // Act
+      const prompt = buildSystemPrompt(context);
+
+      // Assert
+      expect(prompt).toContain("You are Nexora's Academic Research & Thesis Mentor.");
+      expect(prompt).toContain('Identify gaps in literature, formulate testable hypotheses');
+      expect(prompt).toContain('scientific writing, thesis architecture');
+    });
+
+    it('should fallback to Socratic persona when unknown tutorMode is provided', () => {
+      // Arrange
+      const context = {
+        tutorMode: 'unknown_mode' as unknown as AcademicTutorMode,
+      };
+
+      // Act
+      const prompt = buildSystemPrompt(context);
+
+      // Assert
+      expect(prompt).toContain("You are Nexora's Socratic Academic Tutor.");
     });
   });
 
-  describe('extractCitations', () => {
-    it('extracts node and task citations correctly', () => {
-      const assistantText = `According to [[node:node-1|Initial Problem Formulation]], we know that $v_0 = 20$. Next, in [[task:task-10|Derive Acceleration Function]], the second derivative is computed.`;
-      const citations = extractCitations(assistantText);
+  describe('Task Context Injection', () => {
+    it('should inject active task metadata, progress, and category into system prompt', () => {
+      // Arrange
+      const context: ChatContextPayload = {
+        tutorMode: 'step_breakdown',
+        taskContext: mockTaskContext,
+      };
 
-      expect(citations).toHaveLength(2);
-      expect(citations[0]).toEqual({
-        id: 'cite-1',
-        sourceType: 'canvas_node',
-        referenceId: 'node-1',
-        label: 'Initial Problem Formulation',
-      });
-      expect(citations[1]).toEqual({
-        id: 'cite-2',
-        sourceType: 'task',
-        referenceId: 'task-10',
-        label: 'Derive Acceleration Function',
-      });
+      // Act
+      const prompt = buildSystemPrompt(context);
+
+      // Assert
+      expect(prompt).toContain('ACTIVE TASK CONTEXT:');
+      expect(prompt).toContain('Task: "Kalkulus Integral: Derivasi Persamaan Bernoulli"');
+      expect(prompt).toContain('Status: in_progress, Priority: high');
+      expect(prompt).toContain('Category: Fisika & Matematika');
+      expect(prompt).toContain('Progress: 3/4 subtasks completed (75% milestone progress)');
+      expect(prompt).toContain('Turunkan hukum kontinuitas fluida');
+      expect(prompt).not.toContain('(OVERDUE)');
     });
 
-    it('returns empty array if no citations present', () => {
-      const text = 'Here is the step by step explanation.';
-      expect(extractCitations(text)).toEqual([]);
+    it('should append (OVERDUE) tag when task isOverdue is true', () => {
+      // Arrange
+      const context: ChatContextPayload = {
+        tutorMode: 'socratic',
+        taskContext: mockOverdueTaskContext,
+      };
+
+      // Act
+      const prompt = buildSystemPrompt(context);
+
+      // Assert
+      expect(prompt).toContain('Task: "Tugas Aljabar Linear: Nilai Eigen & Vektor Eigen"');
+      expect(prompt).toContain('(OVERDUE)');
+      expect(prompt).toContain('Progress: 1/5 subtasks completed (20% milestone progress)');
+    });
+  });
+
+  describe('Canvas Context Injection', () => {
+    it('should inject active canvas context including selected node, formula, derivation path, and dynamic variables', () => {
+      // Arrange
+      const context: ChatContextPayload = {
+        tutorMode: 'olympiad',
+        canvasContext: mockCanvasContext,
+      };
+
+      // Act
+      const prompt = buildSystemPrompt(context);
+
+      // Assert
+      expect(prompt).toContain('ACTIVE STEM CANVAS CONTEXT:');
+      expect(prompt).toContain('Canvas: "Derivasi Gerak Parabola & Jangkauan Maksimum"');
+      expect(prompt).toContain('Selected Node: "Dekomposisi Vektor Kecepatan"');
+      expect(prompt).toContain('Selected Formula: $v_x = v_0 \\cos(\\theta), \\quad v_y = v_0 \\sin(\\theta) - gt$');
+      expect(prompt).toContain('Derivation Chain:');
+      expect(prompt).toContain('1. [node-root-1] Problem Root: Proyektil 2D');
+      expect(prompt).toContain('2. [node-step-1] Dekomposisi Vektor Kecepatan');
+      expect(prompt).toContain('Dynamic Variables:');
+      expect(prompt).toContain('* $v_0$ (v_0) = 25 m/s');
+      expect(prompt).toContain('* $\\theta$ (theta) = 45 deg');
+    });
+
+    it('should handle canvas context with minimal fields and empty path/variables', () => {
+      // Arrange
+      const minimalCanvasContext = {
+        canvasId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+        canvasTitle: 'Analisis Fourier',
+        derivationPath: [],
+        activeVariables: [],
+      };
+
+      const context: ChatContextPayload = {
+        tutorMode: 'socratic',
+        canvasContext: minimalCanvasContext,
+      };
+
+      // Act
+      const prompt = buildSystemPrompt(context);
+
+      // Assert
+      expect(prompt).toContain('Canvas: "Analisis Fourier"');
+      expect(prompt).not.toContain('Derivation Chain:');
+      expect(prompt).not.toContain('Dynamic Variables:');
+    });
+  });
+
+  describe('Custom User Instructions & Combined Rich Context', () => {
+    it('should append user custom instructions section when present', () => {
+      // Arrange
+      const context: ChatContextPayload = {
+        tutorMode: 'socratic',
+        customInstructions: 'Gunakan analogi fisika klasik dan hindari istilah kalkulus lanjutan.',
+      };
+
+      // Act
+      const prompt = buildSystemPrompt(context);
+
+      // Assert
+      expect(prompt).toContain('USER CUSTOM INSTRUCTIONS:');
+      expect(prompt).toContain('Gunakan analogi fisika klasik dan hindari istilah kalkulus lanjutan.');
+    });
+
+    it('should integrate task context, canvas context, and custom instructions together seamlessly', () => {
+      // Arrange & Act
+      const prompt = buildSystemPrompt(mockChatContextPayload);
+
+      // Assert
+      expect(prompt).toContain("You are Nexora's Socratic Academic Tutor.");
+      expect(prompt).toContain('ACTIVE TASK CONTEXT:');
+      expect(prompt).toContain('ACTIVE STEM CANVAS CONTEXT:');
+      expect(prompt).toContain('USER CUSTOM INSTRUCTIONS:');
+      expect(prompt).toContain('Gunakan Bahasa Indonesia formal');
     });
   });
 });

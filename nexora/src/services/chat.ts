@@ -15,17 +15,18 @@ import type { ChatSessionListQuery } from '@/lib/validators/chat';
  * Extract bracket citations from assistant content: [[node:id|Label]] or [[task:id|Label]]
  */
 export function extractCitations(content: string): ChatSourceCitation[] {
-  const regex = /\[\[(node|task|formula):([^|]+)\|([^\]]+)\]\]/g;
+  const regex = /\[\[(node|task|formula):([^:|\]]+)(?:[:|]([^\]]+))?\]\]/g;
   const citations: ChatSourceCitation[] = [];
   let match;
 
   while ((match = regex.exec(content)) !== null) {
-    const type = match[1] === 'node' ? 'canvas_node' : match[1] === 'task' ? 'task' : 'formula';
+    const [, type, refId, label] = match;
+    const sourceType = type === 'node' ? 'canvas_node' : type === 'task' ? 'task' : 'formula';
     citations.push({
       id: `cite-${citations.length + 1}`,
-      sourceType: type,
-      referenceId: match[2].trim(),
-      label: match[3].trim(),
+      sourceType,
+      referenceId: refId.trim(),
+      label: (label && label.trim()) || (sourceType === 'canvas_node' ? `Node: ${refId.trim()}` : `Task: ${refId.trim()}`),
     });
   }
 

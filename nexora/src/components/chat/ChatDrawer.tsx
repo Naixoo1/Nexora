@@ -5,11 +5,6 @@ import {
   Sparkles,
   X,
   Plus,
-  Trash2,
-  Maximize2,
-  Minimize2,
-  History,
-  Bot,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
 import { TutorModeSelector } from './TutorModeSelector';
@@ -26,7 +21,6 @@ export const ChatDrawer: React.FC = () => {
     currentSession,
     closeDrawer,
     createSession,
-    clearMessages,
   } = useChatStore();
 
   // Escape key closes drawer

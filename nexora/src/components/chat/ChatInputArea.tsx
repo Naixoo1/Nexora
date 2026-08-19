@@ -3,14 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Send,
-  Sparkles,
   CheckSquare,
   Cpu,
   X,
   Loader2,
-  Paperclip,
-  Flame,
-  Lightbulb,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
 import type { AcademicTutorMode } from '@/types/chat';

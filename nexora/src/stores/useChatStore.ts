@@ -62,7 +62,7 @@ export interface ChatStoreState {
  */
 export function extractCitations(text: string): ChatSourceCitation[] {
   const citations: ChatSourceCitation[] = [];
-  const regex = /\[\[(node|task|formula):([^:]+):?([^\]]*)\]\]/g;
+  const regex = /\[\[(node|task|formula):([^:|\]]+)(?:[:|]([^\]]+))?\]\]/g;
   let match;
 
   while ((match = regex.exec(text)) !== null) {
@@ -72,7 +72,7 @@ export function extractCitations(text: string): ChatSourceCitation[] {
       id: `cite-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       sourceType,
       referenceId: refId.trim(),
-      label: (label && label.trim()) || (sourceType === 'canvas_node' ? `Node: ${refId}` : `Task: ${refId}`),
+      label: (label && label.trim()) || (sourceType === 'canvas_node' ? `Node: ${refId.trim()}` : `Task: ${refId.trim()}`),
     });
   }
 

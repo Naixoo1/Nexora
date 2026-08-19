@@ -6,20 +6,16 @@ import {
   User,
   Copy,
   Check,
-  Bot,
-  Brain,
-  RotateCcw,
 } from 'lucide-react';
 import type { ChatMessage, ChatSourceCitation } from '@/types/chat';
 import { LatexRenderer } from '../canvas/LatexRenderer';
 import { ChatCitationBadge } from './ChatCitationBadge';
-import { useChatStore } from '@/stores/useChatStore';
 import { cn } from '@/lib/utils';
 
 export interface ChatMessageListProps {
   messages: ChatMessage[];
   streamingMessage: string | null;
-  isSending: boolean;
+  isSending?: boolean;
 }
 
 /**
@@ -175,7 +171,6 @@ function renderFormattedMarkdownText(text: string, key: string): React.ReactNode
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   messages,
   streamingMessage,
-  isSending,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);

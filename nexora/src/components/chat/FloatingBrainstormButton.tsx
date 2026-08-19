@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, MessageSquare } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
 import { cn } from '@/lib/utils';
 
