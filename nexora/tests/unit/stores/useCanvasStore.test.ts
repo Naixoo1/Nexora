@@ -780,6 +780,45 @@ describe('useCanvasStore', () => {
       expect(useCanvasStore.getState().isNodeToTaskModalOpen).toBe(false);
       expect(useCanvasStore.getState().convertingNodeId).toBeNull();
     });
+
+    it('should set error state and return null when convertNodeToTask fails or throws', async () => {
+      // Arrange: API failure
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({
+          success: false,
+          message: 'Maximum sub-task depth of 3 levels exceeded',
+        }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      // Act
+      const result = await useCanvasStore.getState().convertNodeToTask('canvas-1', 'node-1', {
+        priority: 'medium',
+        includeLatexInDescription: true,
+        includeVariablesInDescription: true,
+      });
+
+      // Assert
+      expect(result).toBeNull();
+      expect(useCanvasStore.getState().error).toBe('Maximum sub-task depth of 3 levels exceeded');
+      expect(useCanvasStore.getState().isConvertingNodeToTask).toBe(false);
+
+      // Arrange: Network exception
+      const mockFetchThrow = vi.fn().mockRejectedValue(new Error('Network disconnected'));
+      vi.stubGlobal('fetch', mockFetchThrow);
+
+      // Act
+      const resultThrow = await useCanvasStore.getState().convertNodeToTask('canvas-1', 'node-1', {
+        priority: 'medium',
+        includeLatexInDescription: true,
+        includeVariablesInDescription: true,
+      });
+
+      // Assert
+      expect(resultThrow).toBeNull();
+      expect(useCanvasStore.getState().error).toBe('Network disconnected');
+    });
   });
 });
 

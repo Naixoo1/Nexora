@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   CheckSquare,
   Sparkles,
   X,
-  Sliders,
   Calendar,
   Layers,
   AlertCircle,
@@ -18,6 +17,7 @@ import { useTaskStore } from '@/stores/useTaskStore';
 import { LatexRenderer } from './LatexRenderer';
 import type { TaskPriority } from '@/types/task';
 import type { NodeToTaskConvert } from '@/lib/validators/canvas-task';
+import type { StemCanvasNode } from '@/types/canvas';
 import { cn } from '@/lib/utils';
 
 function formatNodeTypeLabel(nodeType?: string): string {
@@ -37,53 +37,37 @@ function formatNodeTypeLabel(nodeType?: string): string {
   }
 }
 
-export const NodeToTaskModal: React.FC = () => {
-  const {
-    canvasId,
-    nodes,
-    convertingNodeId,
-    isNodeToTaskModalOpen,
-    isConvertingNodeToTask,
-    closeNodeToTaskModal,
-    convertNodeToTask,
-  } = useCanvasStore();
+interface NodeToTaskFormProps {
+  canvasId: string;
+  targetNode: StemCanvasNode;
+  onClose: () => void;
+}
 
+const NodeToTaskForm: React.FC<NodeToTaskFormProps> = ({
+  canvasId,
+  targetNode,
+  onClose,
+}) => {
+  const { isConvertingNodeToTask, convertNodeToTask } = useCanvasStore();
   const { tasks, fetchTasks } = useTaskStore();
 
-  const targetNode = nodes.find((n) => n.id === convertingNodeId);
+  const nodeTypeLabel = formatNodeTypeLabel(
+    targetNode.data.nodeType || targetNode.type
+  );
 
-  // Form states
-  const [title, setTitle] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [category, setCategory] = useState('');
+  const [title, setTitle] = useState(
+    () => `[${nodeTypeLabel}] ${targetNode.data.title || 'Untitled Node'}`
+  );
+  const [priority, setPriority] = useState<TaskPriority>(
+    () => (targetNode.data.validationStatus === 'erroneous' ? 'high' : 'medium')
+  );
+  const [category, setCategory] = useState('Calculus & STEM');
   const [dueDate, setDueDate] = useState('');
-  const [parentTaskId, setParentTaskId] = useState<string>('');
+  const [parentTaskId, setParentTaskId] = useState('');
   const [includeLatex, setIncludeLatex] = useState(true);
   const [includeVariables, setIncludeVariables] = useState(true);
-  const [customDescription, setCustomDescription] = useState('');
+  const [customDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
-
-  // Initialize form when targetNode changes
-  useEffect(() => {
-    if (targetNode) {
-      const nodeTypeLabel = formatNodeTypeLabel(
-        targetNode.data.nodeType || targetNode.type
-      );
-      setTitle(`[${nodeTypeLabel}] ${targetNode.data.title || 'Untitled Node'}`);
-      setPriority(
-        targetNode.data.validationStatus === 'erroneous' ? 'high' : 'medium'
-      );
-      setCategory('Calculus & STEM');
-      setDueDate('');
-      setParentTaskId('');
-      setIncludeLatex(true);
-      setIncludeVariables(true);
-      setCustomDescription('');
-      setError(null);
-    }
-  }, [targetNode]);
-
-  if (!isNodeToTaskModalOpen || !targetNode || !canvasId) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,14 +104,16 @@ export const NodeToTaskModal: React.FC = () => {
   ];
 
   // Filter possible parent tasks to those that are root tasks or level 1 subtasks
-  const eligibleParentTasks = tasks.filter((t) => !t.parentId || tasks.some((p) => p.id === t.parentId && !p.parentId));
+  const eligibleParentTasks = tasks.filter(
+    (t) => !t.parentId || tasks.some((p) => p.id === t.parentId && !p.parentId)
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Frosted Backdrop */}
       <div
         className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity"
-        onClick={closeNodeToTaskModal}
+        onClick={onClose}
       />
 
       {/* Modal Card */}
@@ -147,7 +133,7 @@ export const NodeToTaskModal: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={closeNodeToTaskModal}
+            onClick={onClose}
             className="rounded-xl p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
           >
             <X className="h-4 w-4" />
@@ -327,7 +313,7 @@ export const NodeToTaskModal: React.FC = () => {
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
             <button
               type="button"
-              onClick={closeNodeToTaskModal}
+              onClick={onClose}
               disabled={isConvertingNodeToTask}
               className="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-all"
             >
@@ -355,5 +341,28 @@ export const NodeToTaskModal: React.FC = () => {
         </form>
       </div>
     </div>
+  );
+};
+
+export const NodeToTaskModal: React.FC = () => {
+  const {
+    canvasId,
+    nodes,
+    convertingNodeId,
+    isNodeToTaskModalOpen,
+    closeNodeToTaskModal,
+  } = useCanvasStore();
+
+  const targetNode = nodes.find((n) => n.id === convertingNodeId);
+
+  if (!isNodeToTaskModalOpen || !targetNode || !canvasId) return null;
+
+  return (
+    <NodeToTaskForm
+      key={targetNode.id}
+      canvasId={canvasId}
+      targetNode={targetNode}
+      onClose={closeNodeToTaskModal}
+    />
   );
 };

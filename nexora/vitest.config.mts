@@ -14,6 +14,7 @@ export default defineConfig({
         'src/lib/validators/**',
         'src/stores/**',
         'src/services/chat-prompt.ts',
+        'src/services/canvas-task.ts',
         'src/components/canvas/LatexRenderer.tsx',
       ],
       exclude: ['src/**/*.d.ts', 'src/**/index.ts'],
