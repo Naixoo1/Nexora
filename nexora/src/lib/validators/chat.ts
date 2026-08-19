@@ -56,12 +56,90 @@ export const ChatContextPayloadSchema = z.object({
   customInstructions: z.string().max(2000).optional(),
 });
 
+// ── Multimodal Attachment Validation ─────────────────────
+export const ChatAttachmentTypeSchema = z.enum(['image', 'pdf', 'text']);
+
+const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
+const ALLOWED_PDF_MIMES = ['application/pdf'] as const;
+const ALLOWED_TEXT_MIMES = ['text/plain', 'text/markdown'] as const;
+
+const MAX_IMAGE_SIZE = 4 * 1024 * 1024;   // 4 MB
+const MAX_PDF_SIZE = 10 * 1024 * 1024;     // 10 MB
+const MAX_TEXT_SIZE = 512 * 1024;           // 500 KB
+
+export const ChatAttachmentSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1).max(255),
+    type: ChatAttachmentTypeSchema,
+    mimeType: z.string().min(1),
+    data: z.string().min(1),
+    size: z.number().int().min(1),
+  })
+  .superRefine((att, ctx) => {
+    switch (att.type) {
+      case 'image': {
+        if (!(ALLOWED_IMAGE_MIMES as readonly string[]).includes(att.mimeType)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Invalid image MIME type "${att.mimeType}". Allowed: ${ALLOWED_IMAGE_MIMES.join(', ')}`,
+            path: ['mimeType'],
+          });
+        }
+        if (att.size > MAX_IMAGE_SIZE) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Image exceeds maximum size of ${MAX_IMAGE_SIZE / (1024 * 1024)} MB`,
+            path: ['size'],
+          });
+        }
+        break;
+      }
+      case 'pdf': {
+        if (!(ALLOWED_PDF_MIMES as readonly string[]).includes(att.mimeType)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Invalid PDF MIME type "${att.mimeType}". Allowed: ${ALLOWED_PDF_MIMES.join(', ')}`,
+            path: ['mimeType'],
+          });
+        }
+        if (att.size > MAX_PDF_SIZE) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `PDF exceeds maximum size of ${MAX_PDF_SIZE / (1024 * 1024)} MB`,
+            path: ['size'],
+          });
+        }
+        break;
+      }
+      case 'text': {
+        if (!(ALLOWED_TEXT_MIMES as readonly string[]).includes(att.mimeType)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Invalid text MIME type "${att.mimeType}". Allowed: ${ALLOWED_TEXT_MIMES.join(', ')}`,
+            path: ['mimeType'],
+          });
+        }
+        if (att.size > MAX_TEXT_SIZE) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Text file exceeds maximum size of ${MAX_TEXT_SIZE / 1024} KB`,
+            path: ['size'],
+          });
+        }
+        break;
+      }
+    }
+  });
+
+// ── Request Schemas ──────────────────────────────────────
 export const SendChatMessageSchema = z.object({
   sessionId: z.string().uuid().optional(),
   taskId: z.string().uuid().optional(),
   canvasId: z.string().uuid().optional(),
   message: z.string().min(1, 'Message cannot be empty').max(10000),
   context: ChatContextPayloadSchema.optional(),
+  attachments: z.array(ChatAttachmentSchema).max(5).optional(),
 });
 
 export const CreateChatSessionSchema = z.object({

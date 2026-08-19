@@ -7,6 +7,8 @@ import type {
   TaskContextSnapshot,
   CanvasContextSnapshot,
   ChatSourceCitation,
+  ChatAttachment,
+  ChatAttachmentMeta,
   ChatRole,
 } from '@/types/chat';
 import type { ApiResponse } from '@/types/canvas';
@@ -15,11 +17,12 @@ export interface ChatStoreState {
   // Drawer UI
   isDrawerOpen: boolean;
 
-  // Active Context
+  // Active Context & Multimodal Attachments
   activeTutorMode: AcademicTutorMode;
   taskContext?: TaskContextSnapshot;
   canvasContext?: CanvasContextSnapshot;
   customInstructions?: string;
+  attachments: ChatAttachment[];
 
   // Session & Message State
   sessions: ChatSession[];
@@ -47,12 +50,17 @@ export interface ChatStoreState {
   setCustomInstructions: (instructions?: string) => void;
   clearContext: () => void;
 
+  // Actions - Attachments
+  addAttachment: (attachment: ChatAttachment) => void;
+  removeAttachment: (id: string) => void;
+  clearAttachments: () => void;
+
   // Actions - Sessions & Messages
   fetchSessions: (params?: { taskId?: string; canvasId?: string }) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   createSession: (title?: string, taskId?: string, canvasId?: string) => Promise<ChatSession | null>;
   deleteSession: (sessionId: string) => Promise<boolean>;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content?: string) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -86,6 +94,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   taskContext: undefined,
   canvasContext: undefined,
   customInstructions: undefined,
+  attachments: [],
 
   sessions: [],
   currentSession: null,
@@ -136,6 +145,29 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   clearContext: () => {
     set({ taskContext: undefined, canvasContext: undefined, customInstructions: undefined });
+  },
+
+  addAttachment: (attachment) => {
+    set((state) => {
+      // Max 5 attachments allowed
+      if (state.attachments.length >= 5) {
+        return { error: 'Maximum 5 attachments allowed per message.' };
+      }
+      return {
+        attachments: [...state.attachments, attachment],
+        error: null,
+      };
+    });
+  },
+
+  removeAttachment: (id) => {
+    set((state) => ({
+      attachments: state.attachments.filter((a) => a.id !== id),
+    }));
+  },
+
+  clearAttachments: () => {
+    set({ attachments: [] });
   },
 
   fetchSessions: async (params) => {
@@ -229,14 +261,27 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
   },
 
-  sendMessage: async (content: string) => {
-    if (!content.trim() || get().isSending) return;
+  sendMessage: async (content?: string) => {
+    const rawContent = (content !== undefined ? content : '').trim();
+    const currentAttachments = [...get().attachments];
 
-    const userMessageContent = content.trim();
+    // Check if there is text or at least one attachment
+    if ((!rawContent && currentAttachments.length === 0) || get().isSending) return;
+
+    const userMessageContent = rawContent || 'Analyze the attached image/document.';
     const activeMode = get().activeTutorMode;
     const taskCtx = get().taskContext;
     const canvasCtx = get().canvasContext;
     const customInst = get().customInstructions;
+
+    // Convert to lightweight metadata for storage
+    const attachmentMetas: ChatAttachmentMeta[] = currentAttachments.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: a.type,
+      mimeType: a.mimeType,
+      size: a.size,
+    }));
 
     // Temporary User Message
     const tempUserMessage: ChatMessage = {
@@ -245,6 +290,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       userId: 'current-user',
       role: 'user' as ChatRole,
       content: userMessageContent,
+      attachments: attachmentMetas.length > 0 ? attachmentMetas : undefined,
       contextSnapshot: {
         tutorMode: activeMode,
         taskContext: taskCtx,
@@ -256,6 +302,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     set((state) => ({
       messages: [...state.messages, tempUserMessage],
+      attachments: [], // Clear attachments buffer upon sending
       isSending: true,
       streamingMessage: '',
       error: null,
@@ -267,6 +314,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         taskId: taskCtx?.taskId,
         canvasId: canvasCtx?.canvasId,
         message: userMessageContent,
+        attachments: currentAttachments.length > 0 ? currentAttachments : undefined,
         context: {
           tutorMode: activeMode,
           taskContext: taskCtx,

@@ -8,6 +8,8 @@ import type {
   ChatSessionWithMessages,
   ChatSourceCitation,
   ChatContextPayload,
+  ChatAttachment,
+  ChatAttachmentMeta,
 } from '@/types/chat';
 import type { ChatSessionListQuery } from '@/lib/validators/chat';
 
@@ -15,7 +17,7 @@ import type { ChatSessionListQuery } from '@/lib/validators/chat';
  * Extract bracket citations from assistant content: [[node:id|Label]] or [[task:id|Label]]
  */
 export function extractCitations(content: string): ChatSourceCitation[] {
-  const regex = /\[\[(node|task|formula):([^:|\]]+)(?:[:|]([^\]]+))?\]\]/g;
+  const regex = /\[\[(node|task|formula):([^:|]+)(?:[:|]([^\]]+))?\]\]/g;
   const citations: ChatSourceCitation[] = [];
   let match;
 
@@ -31,6 +33,21 @@ export function extractCitations(content: string): ChatSourceCitation[] {
   }
 
   return citations;
+}
+
+/**
+ * Strip raw base64 data from attachments, keeping only lightweight metadata for DB storage.
+ */
+export function toAttachmentMeta(attachments?: ChatAttachment[]): ChatAttachmentMeta[] {
+  if (!attachments || attachments.length === 0) return [];
+
+  return attachments.map((att) => ({
+    id: att.id,
+    name: att.name,
+    type: att.type,
+    mimeType: att.mimeType,
+    size: att.size,
+  }));
 }
 
 export async function getOrCreateChatSession(
@@ -65,9 +82,11 @@ export async function saveChatMessage(
   userId: string,
   role: 'user' | 'assistant' | 'system',
   content: string,
-  contextSnapshot?: ChatContextPayload
+  contextSnapshot?: ChatContextPayload,
+  attachments?: ChatAttachment[]
 ): Promise<ChatMessage> {
   const citations = role === 'assistant' ? extractCitations(content) : [];
+  const attachmentMeta = toAttachmentMeta(attachments);
 
   const [msg] = await db
     .insert(chatMessages)
@@ -78,6 +97,7 @@ export async function saveChatMessage(
       content,
       citations,
       contextSnapshot: contextSnapshot ?? null,
+      attachments: attachmentMeta,
     })
     .returning();
 

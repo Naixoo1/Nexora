@@ -10,6 +10,27 @@ export type AcademicTutorMode =
   | 'step_breakdown'  // Progressive derivation with explicit KaTeX displays
   | 'thesis_mentor';  // Literature gap identification, methodology structure
 
+// ── Multimodal Attachments ───────────────────────────────
+export type ChatAttachmentType = 'image' | 'pdf' | 'text';
+
+export interface ChatAttachment {
+  id: string;
+  name: string;                              // Original filename: "calculus_hw.jpg"
+  type: ChatAttachmentType;                  // Discriminator for processing strategy
+  mimeType: string;                          // IANA MIME: "image/jpeg", "application/pdf", "text/plain"
+  data: string;                              // base64 for images/PDFs, raw text for text attachments
+  size: number;                              // Byte size of original file (pre-encoding)
+}
+
+/** Lightweight metadata envelope stored in DB (excludes raw base64 data). */
+export interface ChatAttachmentMeta {
+  id: string;
+  name: string;
+  type: ChatAttachmentType;
+  mimeType: string;
+  size: number;
+}
+
 // ── Dynamic Context Snapshots ────────────────────────────
 export interface TaskContextSnapshot {
   taskId: string;
@@ -71,6 +92,7 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
   citations?: ChatSourceCitation[];
+  attachments?: ChatAttachmentMeta[];
   contextSnapshot?: ChatContextPayload;
   createdAt: Date | string;
 }

@@ -22,6 +22,7 @@ describe('useChatStore', () => {
       taskContext: undefined,
       canvasContext: undefined,
       customInstructions: undefined,
+      attachments: [],
       sessions: [],
       currentSession: null,
       messages: [],
@@ -400,4 +401,95 @@ describe('useChatStore', () => {
       expect(state.error).toBeNull();
     });
   });
+
+  describe('Multimodal Attachments Management', () => {
+    it('should add, remove, and clear attachments', () => {
+      const att1 = {
+        id: 'att-1',
+        name: 'hw1.jpg',
+        type: 'image' as const,
+        mimeType: 'image/jpeg',
+        data: 'base64data1',
+        size: 1024,
+      };
+      const att2 = {
+        id: 'att-2',
+        name: 'notes.pdf',
+        type: 'pdf' as const,
+        mimeType: 'application/pdf',
+        data: 'base64data2',
+        size: 2048,
+      };
+
+      useChatStore.getState().addAttachment(att1);
+      useChatStore.getState().addAttachment(att2);
+
+      expect(useChatStore.getState().attachments).toHaveLength(2);
+      expect(useChatStore.getState().attachments[0].name).toBe('hw1.jpg');
+
+      useChatStore.getState().removeAttachment('att-1');
+      expect(useChatStore.getState().attachments).toHaveLength(1);
+      expect(useChatStore.getState().attachments[0].id).toBe('att-2');
+
+      useChatStore.getState().clearAttachments();
+      expect(useChatStore.getState().attachments).toHaveLength(0);
+    });
+
+    it('should limit attachments to maximum 5 items', () => {
+      for (let i = 1; i <= 5; i++) {
+        useChatStore.getState().addAttachment({
+          id: `att-${i}`,
+          name: `file${i}.png`,
+          type: 'image',
+          mimeType: 'image/png',
+          data: 'data',
+          size: 100,
+        });
+      }
+
+      expect(useChatStore.getState().attachments).toHaveLength(5);
+
+      // Attempt 6th
+      useChatStore.getState().addAttachment({
+        id: 'att-6',
+        name: 'file6.png',
+        type: 'image',
+        mimeType: 'image/png',
+        data: 'data',
+        size: 100,
+      });
+
+      expect(useChatStore.getState().attachments).toHaveLength(5);
+      expect(useChatStore.getState().error).toBe('Maximum 5 attachments allowed per message.');
+    });
+
+    it('should send message with attachments and clear attachment buffer', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'X-Chat-Session-Id': mockSessionId }),
+        body: createMockStream(['Image analysis result']),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      useChatStore.getState().addAttachment({
+        id: 'att-calc',
+        name: 'integral.png',
+        type: 'image',
+        mimeType: 'image/png',
+        data: 'base64calc',
+        size: 2048,
+      });
+
+      await useChatStore.getState().sendMessage('Please solve this step');
+
+      // Attachments buffer in store should be reset
+      expect(useChatStore.getState().attachments).toHaveLength(0);
+      expect(mockFetch).toHaveBeenCalled();
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.attachments).toHaveLength(1);
+      expect(requestBody.attachments[0].name).toBe('integral.png');
+    });
+  });
 });
+

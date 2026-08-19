@@ -55,6 +55,7 @@ export const chatMessages = pgTable(
     content: text('content').notNull(),
     citations: jsonb('citations').notNull().default([]),
     contextSnapshot: jsonb('context_snapshot'),
+    attachments: jsonb('attachments').notNull().default([]),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

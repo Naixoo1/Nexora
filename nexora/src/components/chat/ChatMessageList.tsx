@@ -6,8 +6,12 @@ import {
   User,
   Copy,
   Check,
+  FileText,
+  FileCode,
+  Image as ImageIcon,
+  ExternalLink,
 } from 'lucide-react';
-import type { ChatMessage, ChatSourceCitation } from '@/types/chat';
+import type { ChatMessage, ChatSourceCitation, ChatAttachmentMeta } from '@/types/chat';
 import { LatexRenderer } from '../canvas/LatexRenderer';
 import { ChatCitationBadge } from './ChatCitationBadge';
 import { cn } from '@/lib/utils';
@@ -16,6 +20,12 @@ export interface ChatMessageListProps {
   messages: ChatMessage[];
   streamingMessage: string | null;
   isSending?: boolean;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /**
@@ -198,9 +208,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 text-cyan-300 ring-1 ring-cyan-400/30 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
             <Sparkles className="h-6 w-6" />
           </div>
-          <h4 className="mt-3 text-sm font-bold text-white">Nexora AI Brainstorming</h4>
+          <h4 className="mt-3 text-sm font-bold text-white">Nexora AI Multimodal Brainstorming</h4>
           <p className="mt-1 text-xs text-slate-400 max-w-xs leading-relaxed">
-            Ask conceptual questions, request step-by-step mathematical proofs, or brainstorm thesis methodologies.
+            Attach textbook screenshots, PDF problem sets, or dictate questions via voice.
           </p>
         </div>
       )}
@@ -234,6 +244,30 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                   : 'bg-[#131926] border border-white/10 text-slate-200 rounded-tl-sm shadow-xl'
               )}
             >
+              {/* Attachments (e.g. uploaded images / PDFs) */}
+              {msg.attachments && msg.attachments.length > 0 && (
+                <div className="mb-2.5 flex flex-wrap gap-2">
+                  {msg.attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#0B0F17]/80 px-2.5 py-1 text-[11px] text-slate-300"
+                    >
+                      {att.type === 'image' ? (
+                        <ImageIcon className="h-3.5 w-3.5 text-cyan-400" />
+                      ) : att.type === 'pdf' ? (
+                        <FileText className="h-3.5 w-3.5 text-rose-400" />
+                      ) : (
+                        <FileCode className="h-3.5 w-3.5 text-indigo-400" />
+                      )}
+                      <span className="font-semibold truncate max-w-[120px]">{att.name}</span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        ({formatFileSize(att.size)})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <RenderMessageContent content={msg.content} citations={msg.citations} />
 
               {/* Citations footer if present */}
@@ -290,7 +324,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             ) : (
               <div className="flex items-center gap-1.5 py-1 text-xs text-cyan-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
-                <span>Nexora AI is formulating response...</span>
+                <span>Nexora AI is formulating multimodal analysis...</span>
               </div>
             )}
           </div>
