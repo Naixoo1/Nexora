@@ -64,15 +64,19 @@ function buildGeminiContentParts(
 
 export async function POST(req: NextRequest): Promise<Response> {
   try {
-    const session = await auth.api.getSession({
-      headers: req.headers,
-    });
-
-    if (!session?.user) {
-      return errorResponse('Unauthorized', 401);
+    // 1. Attempt to get session from Better-Auth (support Guest mode if unauthenticated)
+    let userId: string | null = null;
+    try {
+      const session = await auth.api.getSession({
+        headers: req.headers,
+      });
+      if (session?.user?.id) {
+        userId = session.user.id;
+      }
+    } catch (authErr) {
+      console.warn('POST /api/chat: Session check unauthenticated, proceeding as Guest:', authErr);
     }
 
-    const userId = session.user.id;
     const body: unknown = await req.json();
     const parsed = SendChatMessageSchema.safeParse(body);
 
@@ -84,24 +88,32 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     const { sessionId, taskId, canvasId, message, context, attachments } = parsed.data;
 
-    // 1. Get or create session & save user message (with attachment metadata)
-    const chatSession = await getOrCreateChatSession(userId, {
-      sessionId,
-      taskId,
-      canvasId,
-      firstMessageTitle: message,
-    });
+    // 2. If authenticated user, persist session & user message to database
+    let chatSessionId = sessionId || `guest-${Date.now()}`;
+    if (userId) {
+      try {
+        const chatSession = await getOrCreateChatSession(userId, {
+          sessionId,
+          taskId,
+          canvasId,
+          firstMessageTitle: message,
+        });
+        chatSessionId = chatSession.id;
 
-    await saveChatMessage(
-      chatSession.id,
-      userId,
-      'user',
-      message,
-      context,
-      attachments as ChatAttachment[] | undefined
-    );
+        await saveChatMessage(
+          chatSession.id,
+          userId,
+          'user',
+          message,
+          context,
+          attachments as ChatAttachment[] | undefined
+        );
+      } catch (dbErr) {
+        console.error('Failed to persist user chat message to database:', dbErr);
+      }
+    }
 
-    // 2. Build dynamic academic system prompt
+    // 3. Build dynamic academic system prompt
     const systemInstruction = buildSystemPrompt(context);
     const apiKey = process.env.GEMINI_API_KEY;
 
@@ -110,23 +122,28 @@ export async function POST(req: NextRequest): Promise<Response> {
         ? `\n\n*${attachments.length} attachment(s) received: ${attachments.map((a) => `${a.name} (${a.type})`).join(', ')}*`
         : '';
       const fallbackResponse = `**[Offline Mode Demo]**\n\nI have received your prompt:\n> *${message}*${attachmentSummary}\n\nUnder mode **${context?.tutorMode || 'socratic'}**, let's analyze the problem step by step. Have you verified the initial boundary conditions?`;
-      await saveChatMessage(chatSession.id, userId, 'assistant', fallbackResponse);
+
+      if (userId) {
+        saveChatMessage(chatSessionId, userId, 'assistant', fallbackResponse).catch((err) =>
+          console.error('Failed to save fallback assistant message:', err)
+        );
+      }
 
       return new Response(fallbackResponse, {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
-          'X-Chat-Session-Id': chatSession.id,
+          'X-Chat-Session-Id': chatSessionId,
         },
       });
     }
 
-    // 3. Build multipart content (text + images + PDFs + text files)
+    // 4. Build multipart content (text + images + PDFs + text files)
     const contentParts = buildGeminiContentParts(
       message,
       attachments as ChatAttachment[] | undefined
     );
 
-    // 4. Stream from Google GenAI SDK
+    // 5. Stream from Google GenAI SDK
     const ai = new GoogleGenAI({ apiKey });
     const responseStream = await ai.models.generateContentStream({
       model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
@@ -150,10 +167,12 @@ export async function POST(req: NextRequest): Promise<Response> {
           }
           controller.close();
 
-          // Save completed assistant response asynchronously
-          saveChatMessage(chatSession.id, userId, 'assistant', fullAssistantResponse).catch((err) =>
-            console.error('Failed to async save assistant message:', err)
-          );
+          // Save completed assistant response asynchronously if authenticated
+          if (userId) {
+            saveChatMessage(chatSessionId, userId, 'assistant', fullAssistantResponse).catch((err) =>
+              console.error('Failed to async save assistant message:', err)
+            );
+          }
         } catch (err) {
           controller.error(err);
         }
@@ -163,7 +182,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'X-Chat-Session-Id': chatSession.id,
+        'X-Chat-Session-Id': chatSessionId,
       },
     });
   } catch (error) {

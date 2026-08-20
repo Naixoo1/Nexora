@@ -227,7 +227,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       const json: ApiResponse<ChatSession> = await response.json();
 
       if (!response.ok || !json.success || !json.data) {
-        throw new Error(json.message || 'Failed to create session');
+        // Fallback for guest mode: create local in-memory session
+        const guestSession: ChatSession = {
+          id: `guest-${Date.now()}`,
+          userId: 'guest',
+          title,
+          tutorMode: get().activeTutorMode,
+          taskId: taskId || get().taskContext?.taskId,
+          canvasId: canvasId || get().canvasContext?.canvasId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        set({
+          currentSession: guestSession,
+          messages: [],
+        });
+        return guestSession;
       }
 
       const newSession = json.data;
@@ -239,8 +254,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       return newSession;
     } catch (err) {
-      console.error('Failed to create chat session:', err);
-      return null;
+      console.warn('Fallback to local guest chat session:', err);
+      const guestSession: ChatSession = {
+        id: `guest-${Date.now()}`,
+        userId: 'guest',
+        title,
+        tutorMode: get().activeTutorMode,
+        taskId: taskId || get().taskContext?.taskId,
+        canvasId: canvasId || get().canvasContext?.canvasId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      set({
+        currentSession: guestSession,
+        messages: [],
+      });
+      return guestSession;
     }
   },
 

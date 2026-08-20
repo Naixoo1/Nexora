@@ -246,11 +246,6 @@ export const ChatInputArea: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session?.user) {
-      handleGoogleSignIn();
-      return;
-    }
-
     if ((!input.trim() && attachments.length === 0) || isSending) return;
 
     if (isListening) {
@@ -425,15 +420,17 @@ export const ChatInputArea: React.FC = () => {
         ))}
       </div>
 
-      {/* Auth Banner if logged out */}
+      {/* Subtle Informational Guest Banner if logged out */}
       {!isAuthPending && !isAuthenticated && (
-        <div className="flex items-center justify-between gap-2 rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-2.5 text-xs text-cyan-200">
-          <span className="text-[11px] truncate">Sign in to save and stream conversations.</span>
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-cyan-500/20 bg-cyan-950/30 px-3 py-2 text-xs text-cyan-200 backdrop-blur-sm">
+          <span className="text-[11px] text-slate-300 truncate">
+            Browsing as Guest — Sign in with Google to save your chat history across devices.
+          </span>
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={isSigningIn}
-            className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 px-2.5 py-1 text-[11px] font-semibold text-white shadow shrink-0"
+            className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-90 active:scale-95 transition-all shrink-0"
           >
             {isSigningIn ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogIn className="h-3 w-3" />}
             <span>Sign in</span>
@@ -490,8 +487,6 @@ export const ChatInputArea: React.FC = () => {
             placeholder={
               isListening
                 ? '🎙️ Listening... Speak your question now'
-                : !isAuthenticated
-                ? 'Sign in with Google to ask Nexora AI...'
                 : 'Ask Nexora AI, paste screenshot, or drag & drop files...'
             }
             disabled={isSending}
