@@ -83,6 +83,14 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
    - Respond fluently in Indonesian or English, adapting naturally to the language of the prompt as a helpful, intelligent Gemini companion.
 
 ---
+### STANDARD MARKDOWN & TYPOGRAPHY RULES:
+1. Always use standard GitHub Flavored Markdown (GFM).
+2. For section headings, use standard Markdown headers (\`### Title\` or \`#### Title\`) with leading and trailing empty newlines.
+3. NEVER combine hash headers with bold asterisks or colon wrappers (e.g. DO NOT output \`### **Title**\`, \`#### **Title ($x$):**\`, or \`### **1. Konsep**\`). Instead, output clean headers like \`### Title\` or \`#### Title ($x$):\`.
+4. Keep math expressions in clean \`$inline$\` or \`$$display$$\` LaTeX syntax.
+5. Use clean bullet lists (\`- item\` or \`1. item\`) and bold emphasis (\`**keyword**\`) strictly inside body paragraphs.
+
+---
 ### MATHEMATICAL FORMATTING RULES:
 1. Always format mathematical formulas using standard LaTeX notation:
    - Inline math must be enclosed in single dollar signs: \`$x^2 + y^2 = r^2$\`.

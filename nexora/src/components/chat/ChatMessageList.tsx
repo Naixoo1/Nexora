@@ -15,6 +15,7 @@ import {
 import type { ChatMessage, ChatSourceCitation } from '@/types/chat';
 import { LatexRenderer } from '../canvas/LatexRenderer';
 import { ChatCitationBadge } from './ChatCitationBadge';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { cn } from '@/lib/utils';
 
 export interface ChatMessageListProps {
@@ -92,48 +93,10 @@ const NexoraNodePreviewCard: React.FC<{ rawJson: string }> = ({ rawJson }) => {
 };
 
 /**
- * Parses block math equations ($$...$$) within a text fragment
- */
-function renderContentWithBlockMath(
-  content: string,
-  citations: ChatSourceCitation[],
-  keyPrefix: string
-): React.ReactNode {
-  const blockMathRegex = /\$\$([\s\S]*?)\$\$/g;
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = blockMathRegex.exec(content)) !== null) {
-    const textBefore = content.substring(lastIndex, match.index);
-    if (textBefore) {
-      parts.push(renderTextWithInlineMathAndCitations(textBefore, citations, `${keyPrefix}-text-${lastIndex}`));
-    }
-
-    const formula = match[1].trim();
-    parts.push(
-      <div key={`${keyPrefix}-math-block-${match.index}`} className="my-2">
-        <LatexRenderer latex={formula} displayMode="block" showCopyButton />
-      </div>
-    );
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  const remainingText = content.substring(lastIndex);
-  if (remainingText) {
-    parts.push(renderTextWithInlineMathAndCitations(remainingText, citations, `${keyPrefix}-text-end-${lastIndex}`));
-  }
-
-  return <React.Fragment key={keyPrefix}>{parts}</React.Fragment>;
-}
-
-/**
- * Parses message text containing mixed markdown, nexora-node blocks, LaTeX blocks ($$..$$ and $..$), and citation tags
+ * Parses message text containing mixed markdown, nexora-node blocks, and LaTeX math
  */
 const RenderMessageContent: React.FC<{ content: string; citations?: ChatSourceCitation[] }> = ({
   content,
-  citations = [],
 }) => {
   // First, parse out ```nexora-node ... ``` blocks
   const nexoraNodeRegex = /```nexora-node\s*([\s\S]*?)\s*```/g;
@@ -143,8 +106,10 @@ const RenderMessageContent: React.FC<{ content: string; citations?: ChatSourceCi
 
   while ((nodeMatch = nexoraNodeRegex.exec(content)) !== null) {
     const textBefore = content.substring(lastSecIndex, nodeMatch.index);
-    if (textBefore) {
-      sections.push(renderContentWithBlockMath(textBefore, citations, `sec-${lastSecIndex}`));
+    if (textBefore.trim()) {
+      sections.push(
+        <MarkdownRenderer key={`sec-${lastSecIndex}`} content={textBefore} />
+      );
     }
 
     sections.push(
@@ -155,125 +120,14 @@ const RenderMessageContent: React.FC<{ content: string; citations?: ChatSourceCi
   }
 
   const remainingText = content.substring(lastSecIndex);
-  if (remainingText) {
-    sections.push(renderContentWithBlockMath(remainingText, citations, `sec-end-${lastSecIndex}`));
+  if (remainingText.trim() || sections.length === 0) {
+    sections.push(
+      <MarkdownRenderer key={`sec-end-${lastSecIndex}`} content={remainingText} />
+    );
   }
 
   return <div className="space-y-1.5 text-xs sm:text-sm leading-relaxed">{sections}</div>;
 };
-
-/**
- * Helper to parse inline math $...$ and citation tags [[type:id:label]]
- */
-function renderTextWithInlineMathAndCitations(
-  text: string,
-  citations: ChatSourceCitation[],
-  keyPrefix: string
-): React.ReactNode {
-  // Match inline math ($...$) OR citation tags ([[...]])
-  const combinedRegex = /(\$([^\$\n]+)\$)|(\[\[(node|task|formula):([^:]+):?([^\]]*)\]\])/g;
-  const elements: React.ReactNode[] = [];
-  let lastIdx = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = combinedRegex.exec(text)) !== null) {
-    const plainText = text.substring(lastIdx, match.index);
-    if (plainText) {
-      elements.push(renderFormattedMarkdownText(plainText, `${keyPrefix}-plain-${lastIdx}`));
-    }
-
-    if (match[1]) {
-      // Inline math $...$
-      const inlineLatex = match[2].trim();
-      elements.push(
-        <LatexRenderer
-          key={`${keyPrefix}-inline-${match.index}`}
-          latex={inlineLatex}
-          displayMode="inline"
-          className="mx-0.5"
-        />
-      );
-    } else if (match[3]) {
-      // Citation tag [[node:id:Label]]
-      const type = match[4];
-      const refId = match[5].trim();
-      const label = (match[6] && match[6].trim()) || (type === 'node' ? `Node: ${refId}` : `Task: ${refId}`);
-      const citation: ChatSourceCitation = {
-        id: `cite-${match.index}`,
-        sourceType: type === 'node' ? 'canvas_node' : type === 'task' ? 'task' : 'formula',
-        referenceId: refId,
-        label,
-      };
-
-      elements.push(
-        <ChatCitationBadge key={`${keyPrefix}-cite-${match.index}`} citation={citation} />
-      );
-    }
-
-    lastIdx = match.index + match[0].length;
-  }
-
-  const remaining = text.substring(lastIdx);
-  if (remaining) {
-    elements.push(renderFormattedMarkdownText(remaining, `${keyPrefix}-plain-end`));
-  }
-
-  return <span key={keyPrefix}>{elements}</span>;
-}
-
-/**
- * Basic markdown renderer for bold, italic, lists, and linebreaks
- */
-function renderFormattedMarkdownText(text: string, key: string): React.ReactNode {
-  const lines = text.split('\n');
-
-  return (
-    <span key={key}>
-      {lines.map((line, i) => {
-        // Bullet list item
-        const isBullet = line.trim().startsWith('* ') || line.trim().startsWith('- ');
-        const cleanLine = isBullet ? line.trim().substring(2) : line;
-
-        // Bold formatting **text**
-        const boldParts = cleanLine.split(/(\*\*[^*]+\*\*)/g);
-
-        return (
-          <React.Fragment key={i}>
-            {isBullet ? (
-              <span className="flex items-start gap-1.5 my-0.5 pl-2">
-                <span className="text-cyan-400 font-bold">•</span>
-                <span>
-                  {boldParts.map((p, j) =>
-                    p.startsWith('**') && p.endsWith('**') ? (
-                      <strong key={j} className="font-bold text-white">
-                        {p.slice(2, -2)}
-                      </strong>
-                    ) : (
-                      p
-                    )
-                  )}
-                </span>
-              </span>
-            ) : (
-              <span>
-                {boldParts.map((p, j) =>
-                  p.startsWith('**') && p.endsWith('**') ? (
-                    <strong key={j} className="font-bold text-white">
-                      {p.slice(2, -2)}
-                    </strong>
-                  ) : (
-                    p
-                  )
-                )}
-              </span>
-            )}
-            {i < lines.length - 1 && !isBullet && <br />}
-          </React.Fragment>
-        );
-      })}
-    </span>
-  );
-}
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   messages,
