@@ -7,24 +7,13 @@ import {
   ArrowRight,
   Network,
   CheckSquare,
-  Mic,
   Brain,
   Layers,
-  GraduationCap,
-  Calculator,
-  Atom,
-  Binary,
 } from 'lucide-react';
 import { GlobalNavbar } from '@/components/layout/GlobalNavbar';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 
 export default function Home() {
-  const handleOpenTutorial = () => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('nexora:restart-onboarding'));
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#0B0F17] text-[#F1F5F9] antialiased flex flex-col justify-between">
       {/* Background Ambient Glows */}
@@ -34,7 +23,7 @@ export default function Home() {
         <div className="absolute -bottom-20 left-1/3 h-[450px] w-[450px] rounded-full bg-purple-600/10 blur-[128px]" />
       </div>
 
-      {/* Top Header Navigation */}
+      {/* Top Header Navigation — contains auth sign-in/sign-out */}
       <GlobalNavbar />
 
       {/* Hero Section */}
