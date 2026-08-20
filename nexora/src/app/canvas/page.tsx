@@ -13,19 +13,23 @@ import {
   Layers,
   Loader2,
   X,
+  LogIn,
 } from 'lucide-react';
 import type { CanvasSummary, ApiResponse } from '@/types/canvas';
 import { GlobalNavbar } from '@/components/layout/GlobalNavbar';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
+import { authClient } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
 
 export default function CanvasListPage() {
   const router = useRouter();
+  const { data: session, isPending: isAuthPending } = authClient.useSession();
   const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   // New Canvas Form State
   const [title, setTitle] = useState('');
@@ -35,6 +39,20 @@ export default function CanvasListPage() {
   const [latexFormula, setLatexFormula] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsSigningIn(true);
+      await authClient.signIn.social({
+        provider: 'google',
+        callbackURL: '/canvas',
+      });
+    } catch (err) {
+      console.error('Sign-in failed:', err);
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -60,10 +78,15 @@ export default function CanvasListPage() {
     return () => {
       isCancelled = true;
     };
-  }, []);
+  }, [session]);
 
   const handleCreateCanvas = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!session?.user) {
+      setError('Please sign in with Google to create and save canvases to your account.');
+      return;
+    }
+
     if (!title.trim()) return;
 
     setIsSubmitting(true);
@@ -147,6 +170,8 @@ export default function CanvasListPage() {
       console.error('Failed to delete canvas:', err);
     }
   };
+
+  const isAuthenticated = Boolean(session?.user);
 
   const filteredCanvases = canvases.filter((c) => {
     if (selectedCategory !== 'all' && c.category !== selectedCategory) return false;
@@ -345,6 +370,25 @@ export default function CanvasListPage() {
               </div>
             </div>
 
+            {/* Auth Guard Banner if not logged in */}
+            {!isAuthPending && !isAuthenticated && (
+              <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 p-3.5 text-xs text-cyan-200">
+                <div className="flex items-center gap-2">
+                  <LogIn className="h-4 w-4 shrink-0 text-cyan-400" />
+                  <span>Sign in with Google required to save STEM Canvases.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={isSigningIn}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-400 px-3 py-1.5 font-semibold text-white shadow transition-all hover:opacity-90 active:scale-95 shrink-0"
+                >
+                  {isSigningIn ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  <span>Sign in</span>
+                </button>
+              </div>
+            )}
+
             {error && (
               <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
                 {error}
@@ -419,20 +463,32 @@ export default function CanvasListPage() {
               </div>
 
               <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-400 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg hover:opacity-95 active:scale-98 transition-all disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Creating Canvas Studio...</span>
-                    </>
-                  ) : (
-                    <span>Launch STEM Canvas</span>
-                  )}
-                </button>
+                {!isAuthenticated ? (
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isSigningIn}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg hover:opacity-95 active:scale-98 transition-all"
+                  >
+                    {isSigningIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                    <span>Sign in with Google to Launch Canvas</span>
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-400 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg hover:opacity-95 active:scale-98 transition-all disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Creating Canvas Studio...</span>
+                      </>
+                    ) : (
+                      <span>Launch STEM Canvas</span>
+                    )}
+                  </button>
+                )}
               </div>
             </form>
           </div>

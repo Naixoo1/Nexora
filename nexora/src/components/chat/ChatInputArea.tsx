@@ -12,9 +12,11 @@ import {
   MicOff,
   FileText,
   FileCode,
+  LogIn,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
 import { useSpeechToText } from '@/hooks/useSpeechToText';
+import { authClient } from '@/lib/auth-client';
 import type { AcademicTutorMode, ChatAttachment, ChatAttachmentType } from '@/types/chat';
 import { cn } from '@/lib/utils';
 
@@ -52,6 +54,7 @@ function formatFileSize(bytes: number): string {
 }
 
 export const ChatInputArea: React.FC = () => {
+  const { data: session, isPending: isAuthPending } = authClient.useSession();
   const {
     activeTutorMode,
     taskContext,
@@ -67,8 +70,23 @@ export const ChatInputArea: React.FC = () => {
 
   const [input, setInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsSigningIn(true);
+      await authClient.signIn.social({
+        provider: 'google',
+        callbackURL: typeof window !== 'undefined' ? window.location.pathname : '/',
+      });
+    } catch (err) {
+      console.error('Sign-in failed:', err);
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
 
   // Speech-to-Text integration
   const {
@@ -228,6 +246,11 @@ export const ChatInputArea: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!session?.user) {
+      handleGoogleSignIn();
+      return;
+    }
+
     if ((!input.trim() && attachments.length === 0) || isSending) return;
 
     if (isListening) {
@@ -248,10 +271,6 @@ export const ChatInputArea: React.FC = () => {
     }
   };
 
-  const handleApplyStarter = (starter: string) => {
-    sendMessage(starter);
-  };
-
   const toggleMic = () => {
     if (isListening) {
       stopListening();
@@ -260,8 +279,14 @@ export const ChatInputArea: React.FC = () => {
     }
   };
 
+  const handleApplyStarter = (starterText: string) => {
+    setInput(starterText);
+    textareaRef.current?.focus();
+  };
+
   const starters = PROMPT_STARTERS[activeTutorMode] || PROMPT_STARTERS.socratic;
-  const canSend = Boolean(input.trim() || attachments.length > 0) && !isSending;
+  const canSend = (input.trim().length > 0 || attachments.length > 0) && !isSending;
+  const isAuthenticated = Boolean(session?.user);
 
   return (
     <div
@@ -269,62 +294,69 @@ export const ChatInputArea: React.FC = () => {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'border-t border-white/10 bg-[#131926]/95 p-3.5 space-y-2.5 backdrop-blur-xl transition-all',
-        isDragging && 'ring-2 ring-cyan-400 bg-cyan-950/20'
+        'relative shrink-0 border-t border-white/10 bg-[#131926]/95 p-3 sm:p-4 backdrop-blur-xl transition-all space-y-2.5',
+        isDragging && 'border-cyan-400 bg-cyan-950/30'
       )}
     >
-      {/* Hidden File Input */}
+      {/* Hidden File Input for Paperclip */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,text/markdown"
+        accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/markdown"
         onChange={handleFileChange}
         className="hidden"
       />
 
-      {/* Active Workspace Context Chips */}
+      {/* Drag & Drop Visual Overlay */}
+      {isDragging && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-cyan-950/80 backdrop-blur-sm rounded-t-xl border-2 border-dashed border-cyan-400">
+          <p className="text-xs font-bold text-cyan-300 animate-pulse">
+            📎 Drop textbook photos, math formulas, or PDF notes here
+          </p>
+        </div>
+      )}
+
+      {/* Active Context Chips */}
       {(taskContext || canvasContext) && (
-        <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
           {taskContext && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[11px] text-indigo-300">
-              <CheckSquare className="h-3 w-3 text-indigo-400 shrink-0" />
-              <span className="truncate max-w-[140px]">Task: {taskContext.title}</span>
+            <span className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-indigo-300 font-mono">
+              <CheckSquare className="h-3 w-3 text-indigo-400" />
+              <span className="truncate max-w-[140px]">{taskContext.title}</span>
               <button
                 type="button"
                 onClick={() => setTaskContext(undefined)}
-                className="rounded text-slate-400 hover:text-white"
-                title="Detach task context"
+                className="hover:text-white ml-0.5"
+                title="Detach Task Context"
               >
                 <X className="h-2.5 w-2.5" />
               </button>
-            </div>
+            </span>
           )}
 
           {canvasContext && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-300">
-              <Cpu className="h-3 w-3 text-cyan-400 shrink-0" />
+            <span className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-cyan-300 font-mono">
+              <Cpu className="h-3 w-3 text-cyan-400" />
               <span className="truncate max-w-[140px]">
-                {canvasContext.selectedNodeTitle
-                  ? `Node: ${canvasContext.selectedNodeTitle}`
-                  : `Canvas: ${canvasContext.canvasTitle}`}
+                {canvasContext.selectedNodeTitle || canvasContext.canvasTitle}
               </span>
               <button
                 type="button"
                 onClick={() => setCanvasContext(undefined)}
-                className="rounded text-slate-400 hover:text-white"
-                title="Detach canvas context"
+                className="hover:text-white ml-0.5"
+                title="Detach Canvas Context"
               >
                 <X className="h-2.5 w-2.5" />
               </button>
-            </div>
+            </span>
           )}
         </div>
       )}
 
-      {/* Multimodal Attachment Preview Strip */}
+      {/* Attached Files Preview Grid */}
       {attachments.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 pb-1">
+        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 rounded-xl bg-[#0B0F17]/50 border border-white/5">
           {attachments.map((att) => {
             const isImg = att.type === 'image';
             const isPdf = att.type === 'pdf';
@@ -332,14 +364,17 @@ export const ChatInputArea: React.FC = () => {
             return (
               <div
                 key={att.id}
-                className="group relative flex items-center gap-2 rounded-xl border border-white/10 bg-[#0B0F17] p-1.5 pr-3 shadow-md"
+                className="relative group flex items-center gap-2 rounded-xl border border-white/10 bg-[#131926] p-1.5 shadow-md max-w-[210px]"
               >
-                {/* Thumbnail or Icon */}
+                {/* Visual Thumbnail */}
                 {isImg ? (
-                  <div className="relative h-10 w-10 overflow-hidden rounded-lg border border-white/10 bg-black/50 shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <div className="relative h-10 w-10 rounded-lg overflow-hidden border border-white/10 shrink-0 bg-black/40">
                     <img
-                      src={`data:${att.mimeType};base64,${att.data}`}
+                      src={
+                        att.data.startsWith('data:')
+                          ? att.data
+                          : `data:${att.mimeType};base64,${att.data}`
+                      }
                       alt={att.name}
                       className="h-full w-full object-cover"
                     />
@@ -390,6 +425,22 @@ export const ChatInputArea: React.FC = () => {
         ))}
       </div>
 
+      {/* Auth Banner if logged out */}
+      {!isAuthPending && !isAuthenticated && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-2.5 text-xs text-cyan-200">
+          <span className="text-[11px] truncate">Sign in to save and stream conversations.</span>
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isSigningIn}
+            className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 px-2.5 py-1 text-[11px] font-semibold text-white shadow shrink-0"
+          >
+            {isSigningIn ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogIn className="h-3 w-3" />}
+            <span>Sign in</span>
+          </button>
+        </div>
+      )}
+
       {/* Main Input Form with Voice & Attachment Actions */}
       <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
         {/* Paperclip Attachment Button */}
@@ -439,6 +490,8 @@ export const ChatInputArea: React.FC = () => {
             placeholder={
               isListening
                 ? '🎙️ Listening... Speak your question now'
+                : !isAuthenticated
+                ? 'Sign in with Google to ask Nexora AI...'
                 : 'Ask Nexora AI, paste screenshot, or drag & drop files...'
             }
             disabled={isSending}

@@ -10,8 +10,10 @@ import {
   Edit3,
   Loader2,
   GitBranch,
+  LogIn,
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
+import { authClient } from '@/lib/auth-client';
 import type { TaskPriority, CreateTaskPayload, UpdateTaskPayload, Task } from '@/types/task';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +40,7 @@ const CreateTaskFormContent: React.FC<CreateTaskFormContentProps> = ({
   onSubmitUpdate,
   clearStoreError,
 }) => {
+  const { data: session, isPending: isAuthPending } = authClient.useSession();
   const [title, setTitle] = useState(editingTask?.title ?? '');
   const [description, setDescription] = useState(editingTask?.description ?? '');
   const [priority, setPriority] = useState<TaskPriority>(editingTask?.priority ?? 'medium');
@@ -48,9 +51,29 @@ const CreateTaskFormContent: React.FC<CreateTaskFormContentProps> = ({
       : ''
   );
   const [localError, setLocalError] = useState<string | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsSigningIn(true);
+      await authClient.signIn.social({
+        provider: 'google',
+        callbackURL: typeof window !== 'undefined' ? window.location.pathname : '/tasks',
+      });
+    } catch (err) {
+      console.error('Sign-in failed:', err);
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!session?.user) {
+      setLocalError('Please sign in with Google to save tasks to your account.');
+      return;
+    }
+
     if (!title.trim()) {
       setLocalError('Please enter a task title.');
       return;
@@ -90,6 +113,8 @@ const CreateTaskFormContent: React.FC<CreateTaskFormContentProps> = ({
     }
   };
 
+  const isAuthenticated = Boolean(session?.user);
+
   return (
     <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#131926] p-6 sm:p-7 shadow-2xl transition-all">
       {/* Close Button */}
@@ -124,6 +149,25 @@ const CreateTaskFormContent: React.FC<CreateTaskFormContentProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Auth Guard Banner if not logged in */}
+      {!isAuthPending && !isAuthenticated && (
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 p-3.5 text-xs text-indigo-200">
+          <div className="flex items-center gap-2">
+            <LogIn className="h-4 w-4 shrink-0 text-indigo-400" />
+            <span>Sign in with Google required to save tasks to your database.</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isSigningIn}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 font-semibold text-white shadow transition-all hover:bg-indigo-500 active:scale-95 shrink-0"
+          >
+            {isSigningIn ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            <span>Sign in</span>
+          </button>
+        </div>
+      )}
 
       {/* Parent Task Context Banner if creating subtask */}
       {parentTask && !editingTask && (
@@ -241,24 +285,40 @@ const CreateTaskFormContent: React.FC<CreateTaskFormContentProps> = ({
 
         {/* Submit Button */}
         <div className="pt-2">
-          <button
-            type="submit"
-            disabled={isCreating}
-            className={cn(
-              'w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white shadow-lg transition-all',
-              'bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99]',
-              isCreating && 'opacity-70 cursor-wait'
-            )}
-          >
-            {isCreating ? (
-              <>
+          {!isAuthenticated ? (
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isSigningIn}
+              className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white shadow-lg bg-indigo-600 hover:bg-indigo-500 transition-all"
+            >
+              {isSigningIn ? (
                 <Loader2 className="h-4 w-4 animate-spin text-white" />
-                <span>Saving...</span>
-              </>
-            ) : (
-              <span>{editingTask ? 'Update Task' : 'Create Task'}</span>
-            )}
-          </button>
+              ) : (
+                <LogIn className="h-4 w-4 text-white" />
+              )}
+              <span>Sign in with Google to Save</span>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={isCreating}
+              className={cn(
+                'w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white shadow-lg transition-all',
+                'bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99]',
+                isCreating && 'opacity-70 cursor-wait'
+              )}
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <span>{editingTask ? 'Update Task' : 'Create Task'}</span>
+              )}
+            </button>
+          )}
         </div>
       </form>
     </div>

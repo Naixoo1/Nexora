@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import {
   Sparkles,
   ArrowRight,
@@ -11,13 +10,12 @@ import {
   Mic,
   Brain,
   Layers,
-  ChevronRight,
   GraduationCap,
   Calculator,
   Atom,
   Binary,
 } from 'lucide-react';
-import { NexoraLogo } from '@/components/brand/NexoraLogo';
+import { GlobalNavbar } from '@/components/layout/GlobalNavbar';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 
 export default function Home() {
@@ -37,30 +35,7 @@ export default function Home() {
       </div>
 
       {/* Top Header Navigation */}
-      <header className="relative z-20 border-b border-white/10 bg-[#0B0F17]/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <NexoraLogo size="lg" />
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleOpenTutorial}
-              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#131926] px-3.5 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 active:scale-95"
-            >
-              <GraduationCap className="h-4 w-4 text-cyan-400" />
-              <span>Orientation Tutorial</span>
-            </button>
-
-            <Link
-              href="/tasks"
-              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 px-4 py-2 text-xs font-bold text-white shadow-[0_0_20px_rgba(6,182,212,0.35)] transition-all hover:opacity-95 active:scale-95"
-            >
-              <span>Launch Studio</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        </div>
-      </header>
+      <GlobalNavbar />
 
       {/* Hero Section */}
       <main className="relative z-10 mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8 flex-1 flex flex-col justify-center">
@@ -100,75 +75,61 @@ export default function Home() {
               className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#131926] px-6 py-3.5 text-sm font-bold text-white transition-all hover:border-cyan-500/40 hover:bg-cyan-950/20 hover:text-cyan-300 active:scale-95 shadow-md"
             >
               <Network className="h-4 w-4 text-cyan-400" />
-              <span>STEM Logic Studio</span>
+              <span>STEM Logic Canvas</span>
             </Link>
           </div>
         </div>
 
-        {/* Feature Cards Grid */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* Card 1 */}
-          <Link
-            href="/canvas"
-            className="group rounded-3xl border border-white/10 bg-[#131926]/70 p-6 backdrop-blur-xl transition-all hover:border-cyan-500/40 hover:bg-[#131926] hover:shadow-[0_0_30px_rgba(6,182,212,0.15)]"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-400 text-white shadow-md">
-              <Network className="h-5 w-5" />
+        {/* Feature Grid */}
+        <div className="mt-16 sm:mt-24 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-white/10 bg-[#131926]/80 p-6 shadow-xl backdrop-blur-md transition-all hover:border-cyan-500/30">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-400 text-white shadow-md">
+              <Network className="h-6 w-6" />
             </div>
-            <h3 className="mt-4 text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
-              STEM Logic Canvas & KaTeX
-            </h3>
-            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
-              Formulate mathematical hypotheses, explore What-If simulations, and verify step-by-step logic graph nodes.
+            <h3 className="mt-4 text-base font-bold text-white">STEM Logic Trees</h3>
+            <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+              Step-by-step mathematical expansions with live KaTeX formulas, dynamic parameter sliders, and rule verification.
             </p>
-          </Link>
+          </div>
 
-          {/* Card 2 */}
-          <Link
-            href="/tasks"
-            className="group rounded-3xl border border-white/10 bg-[#131926]/70 p-6 backdrop-blur-xl transition-all hover:border-indigo-500/40 hover:bg-[#131926] hover:shadow-[0_0_30px_rgba(99,102,241,0.15)]"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-400 text-white shadow-md">
-              <CheckSquare className="h-5 w-5" />
+          <div className="rounded-2xl border border-white/10 bg-[#131926]/80 p-6 shadow-xl backdrop-blur-md transition-all hover:border-indigo-500/30">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+              <Sparkles className="h-6 w-6" />
             </div>
-            <h3 className="mt-4 text-base font-bold text-white group-hover:text-indigo-300 transition-colors">
-              Atomic Study Planner & Tasks
-            </h3>
-            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
-              Break syllabus materials into structured sub-tasks with real-time milestone completion tracking and exam drills.
+            <h3 className="mt-4 text-base font-bold text-white">AI Study Planner</h3>
+            <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+              Synthesize UTBK, semester exam, and thesis roadmaps into hierarchical tasks with estimated completion dates.
             </p>
-          </Link>
+          </div>
 
-          {/* Card 3 */}
-          <div
-            onClick={handleOpenTutorial}
-            className="group cursor-pointer rounded-3xl border border-white/10 bg-[#131926]/70 p-6 backdrop-blur-xl transition-all hover:border-purple-500/40 hover:bg-[#131926] hover:shadow-[0_0_30px_rgba(168,85,247,0.15)]"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-md">
-              <Brain className="h-5 w-5" />
+          <div className="rounded-2xl border border-white/10 bg-[#131926]/80 p-6 shadow-xl backdrop-blur-md transition-all hover:border-cyan-500/30">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+              <Brain className="h-6 w-6" />
             </div>
-            <h3 className="mt-4 text-base font-bold text-white group-hover:text-purple-300 transition-colors">
-              Multimodal Voice AI Copilot
-            </h3>
-            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
-              4 specialized tutor modes with speech recognition, textbook screenshot analysis, and bidirectional node citations.
+            <h3 className="mt-4 text-base font-bold text-white">Multimodal Tutor</h3>
+            <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+              Brainstorm with voice dictation, attach textbook photos, and explore Olympiad or Socratic pedagogical reasoning.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-[#131926]/80 p-6 shadow-xl backdrop-blur-md transition-all hover:border-teal-500/30">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
+              <Layers className="h-6 w-6" />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-white">Canvas & Task Sync</h3>
+            <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+              Convert difficult derivation steps or theorem proof nodes into tracked study subtasks with a single click.
             </p>
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="relative z-20 border-t border-white/10 bg-[#0B0F17] py-6">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-          <div className="flex items-center gap-2">
-            <NexoraLogo size="sm" showVersion={false} />
-            <span>&bull; Academic Study & STEM Logic Suite</span>
-          </div>
-          <p>&copy; {new Date().getFullYear()} Nexora. Powered by Next.js 15 & Vercel AI SDK.</p>
-        </div>
+      <footer className="border-t border-white/10 bg-[#0B0F17] py-6 text-center text-xs text-slate-500">
+        <p>Nexora &bull; AI-Powered Academic Assistant for High School & University Students</p>
       </footer>
 
-      {/* Student Onboarding Modal */}
+      {/* Interactive Orientation Modal */}
       <OnboardingModal />
     </div>
   );

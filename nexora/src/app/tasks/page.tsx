@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
 import { useChatStore } from '@/stores/useChatStore';
+import { authClient } from '@/lib/auth-client';
 import { TaskList } from '@/components/tasks/TaskList';
 import { ProgressTracker } from '@/components/tasks/ProgressTracker';
 import { StudyPlannerModal } from '@/components/tasks/StudyPlannerModal';
@@ -24,12 +25,13 @@ import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import type { TaskContextSnapshot } from '@/types/chat';
 
 export default function TasksPage() {
+  const { data: session } = authClient.useSession();
   const { tasks, fetchTasks, openPlannerModal, openCreateModal } = useTaskStore();
   const { openDrawer, setTaskContext } = useChatStore();
 
   useEffect(() => {
     fetchTasks();
-  }, [fetchTasks]);
+  }, [fetchTasks, session]);
 
   // Statistics
   const totalTasks = tasks.length;

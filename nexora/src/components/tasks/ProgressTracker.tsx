@@ -10,53 +10,24 @@ import {
   Sparkles,
   Flame,
   BrainCircuit,
-  Plus,
-  RefreshCw,
   Award,
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
-import type { ProgressSnapshot, ProgressStatus, ProgressTarget } from '@/types/task';
+import type { ProgressStatus } from '@/types/task';
 import { cn } from '@/lib/utils';
 
 export const ProgressTracker: React.FC = () => {
   const {
     activeProgressSnapshot,
-    setActiveProgressSnapshot,
     toggleProgressTarget,
     cancelProgressSnapshot,
     updateProgressStatus,
+    openPlannerModal,
   } = useTaskStore();
 
   const [isConfirmingCancel, setIsConfirmingCancel] = useState(false);
 
-  // Initialize a demo/active brainstorming session if none currently loaded
-  const handleStartSampleSession = () => {
-    const sampleTargets: ProgressTarget[] = [
-      { label: 'Identifikasi topik & batasan masalah riset', completed: true },
-      { label: 'Eksplorasi literatur & studi pustaka terdahulu', completed: true },
-      { label: 'Formulasi hipotesis & rancangan metodologi', completed: false },
-      { label: 'Ekstraksi logic tree penurunan rumus', completed: false },
-      { label: 'Validasi & simulasi skenario "What-if"', completed: false },
-    ];
-
-    const sampleSnapshot: ProgressSnapshot = {
-      id: crypto.randomUUID(),
-      taskId: crypto.randomUUID(),
-      userId: 'user-demo',
-      aiSessionId: crypto.randomUUID(),
-      totalSteps: sampleTargets.length,
-      completedSteps: 2,
-      targets: sampleTargets,
-      status: 'active',
-      startedAt: new Date().toISOString(),
-      endedAt: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    setActiveProgressSnapshot(sampleSnapshot);
-  };
-
+  // Clean empty state when no active session is loaded
   if (!activeProgressSnapshot) {
     return (
       <div className="rounded-2xl border border-white/10 bg-[#131926] p-5 sm:p-6 shadow-xl backdrop-blur-md">
@@ -66,22 +37,22 @@ export const ProgressTracker: React.FC = () => {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-white">AI Progress Tracker</h3>
-            <p className="text-xs text-slate-400">Milestone session monitoring</p>
+            <p className="text-xs text-slate-400">Live milestone verification</p>
           </div>
         </div>
 
-        <div className="mt-5 rounded-xl border border-white/5 bg-[#0B0F17]/60 p-4 text-center">
-          <Sparkles className="mx-auto h-6 w-6 text-cyan-400" />
-          <p className="mt-2 text-xs text-slate-300">
-            No active brainstorming or study milestones in session.
+        <div className="mt-5 rounded-xl border border-dashed border-white/10 bg-[#0B0F17]/60 p-5 text-center">
+          <Sparkles className="mx-auto h-6 w-6 text-cyan-400 opacity-80" />
+          <p className="mt-2 text-xs leading-relaxed text-slate-300">
+            No active tracking session. Start a task or generate a study plan to track live milestones.
           </p>
           <button
             type="button"
-            onClick={handleStartSampleSession}
-            className="mt-3.5 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
+            onClick={() => openPlannerModal(true)}
+            className="mt-3.5 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md transition-all hover:opacity-95 active:scale-95"
           >
-            <Plus className="h-3.5 w-3.5" />
-            Start Brainstorming Session
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Generate Study Plan</span>
           </button>
         </div>
       </div>
@@ -262,11 +233,11 @@ export const ProgressTracker: React.FC = () => {
         ) : (
           <button
             type="button"
-            onClick={handleStartSampleSession}
+            onClick={() => openPlannerModal(true)}
             className="flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Restart / New Session
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Generate New Study Plan</span>
           </button>
         )}
       </div>
