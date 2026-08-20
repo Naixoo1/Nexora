@@ -96,6 +96,7 @@ describe('AI Cascade & Multi-Provider Architecture', () => {
 
   describe('OpenRouter Fallback Models', () => {
     it('should include free tier OpenRouter inference models', () => {
+      expect(OPENROUTER_MODELS).toContain('openrouter/free');
       expect(OPENROUTER_MODELS).toContain('meta-llama/llama-3.3-70b-instruct:free');
       expect(OPENROUTER_MODELS).toContain('google/gemini-2.0-flash-exp:free');
       expect(OPENROUTER_MODELS).toContain('openrouter/auto');

@@ -14,6 +14,7 @@ export const VALID_MODELS = [
 export type ValidGeminiModel = (typeof VALID_MODELS)[number];
 
 export const OPENROUTER_MODELS = [
+  'openrouter/free',
   'meta-llama/llama-3.3-70b-instruct:free',
   'google/gemini-2.0-flash-exp:free',
   'meta-llama/llama-3.1-8b-instruct:free',
@@ -101,11 +102,11 @@ export function getApiKeyPool(customKey?: string | null): string[] {
 
 /**
  * Streams completion from OpenRouter API (OpenAI-compatible SSE stream).
- * Primary fallback model: `meta-llama/llama-3.3-70b-instruct:free`.
+ * Defaults to `openrouter/free` zero-cost auto router.
  */
 export async function streamOpenRouterCompletion(
   messages: OpenRouterChatMessage[],
-  model: string = 'meta-llama/llama-3.3-70b-instruct:free',
+  model: string = 'openrouter/free',
   apiKey?: string
 ): Promise<ReadableStream<string>> {
   const key = apiKey || process.env.OPENROUTER_API_KEY;
@@ -131,7 +132,15 @@ export async function streamOpenRouterCompletion(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    throw new Error(`OpenRouter API returned HTTP ${response.status}: ${errorText}`);
+    console.warn(`[OpenRouter API Error] Model "${model}" returned HTTP ${response.status}:`, errorText);
+
+    // If a specific free model hits 402/429/503, automatically retry with openrouter/free
+    if (model !== 'openrouter/free') {
+      console.log('[OpenRouter Auto-Recovery] Retrying stream with openrouter/free router');
+      return streamOpenRouterCompletion(messages, 'openrouter/free', apiKey);
+    }
+
+    throw new Error(`OpenRouter API error HTTP ${response.status}: ${errorText}`);
   }
 
   const reader = response.body?.getReader();

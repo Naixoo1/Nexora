@@ -232,7 +232,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     // Tier 2: OpenRouter Free Tier Fallback Engine
     const openRouterKey = process.env.OPENROUTER_API_KEY;
     if (!responseStream && openRouterKey && openRouterKey.trim() && !openRouterKey.startsWith('your-')) {
-      const orCandidates = ['meta-llama/llama-3.3-70b-instruct:free', 'openrouter/auto'];
+      const orCandidates = ['openrouter/free', 'meta-llama/llama-3.3-70b-instruct:free'];
       for (const orModel of orCandidates) {
         try {
           console.log(`[AI Multi-Provider Cascade] Gemini exhausted, activating OpenRouter fallback with ${orModel}`);
