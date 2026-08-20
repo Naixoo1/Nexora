@@ -20,8 +20,10 @@ import type { ApiResponse, CanvasNodeType, NodeValidationStatus } from '@/types/
 import type { TaskStatus } from '@/types/task';
 
 export interface ChatStoreState {
-  // Drawer UI
+  // Drawer UI & View Layout
   isDrawerOpen: boolean;
+  isExpanded: boolean;
+  isHistoryOpen: boolean;
 
   // Active Context & Multimodal Attachments
   activeTutorMode: AcademicTutorMode;
@@ -39,7 +41,7 @@ export interface ChatStoreState {
   isLoadingHistory: boolean;
   error: string | null;
 
-  // Actions - Drawer Controls
+  // Actions - Drawer & View Controls
   openDrawer: (options?: {
     taskContext?: TaskContextSnapshot;
     canvasContext?: CanvasContextSnapshot;
@@ -48,6 +50,10 @@ export interface ChatStoreState {
   }) => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
+  toggleExpanded: () => void;
+  setExpanded: (expanded: boolean) => void;
+  toggleHistory: () => void;
+  setHistoryOpen: (open: boolean) => void;
 
   // Actions - Context Controls
   setTutorMode: (mode: AcademicTutorMode) => void;
@@ -61,13 +67,15 @@ export interface ChatStoreState {
   removeAttachment: (id: string) => void;
   clearAttachments: () => void;
 
-  // Actions - Chat API Integration
+  // Actions - Multi-Session History & Memory
   fetchSessions: (
     taskIdOrOptions?: { taskId?: string; canvasId?: string } | string,
     canvasId?: string
   ) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   createSession: (title?: string, taskId?: string, canvasId?: string) => Promise<ChatSession | null>;
+  startNewChat: (title?: string) => void;
+  renameSession: (sessionId: string, newTitle: string) => Promise<boolean>;
   deleteSession: (sessionId: string) => Promise<boolean>;
   sendMessage: (content?: string) => Promise<void>;
   clearMessages: () => void;
@@ -268,6 +276,8 @@ export function buildLiveContextPayload(): {
 
 export const useChatStore = create<ChatStoreState>((set, get) => ({
   isDrawerOpen: false,
+  isExpanded: false,
+  isHistoryOpen: false,
 
   activeTutorMode: 'socratic',
   taskContext: undefined,
@@ -299,11 +309,27 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   closeDrawer: () => {
-    set({ isDrawerOpen: false });
+    set({ isDrawerOpen: false, isExpanded: false, isHistoryOpen: false });
   },
 
   toggleDrawer: () => {
     set((state) => ({ isDrawerOpen: !state.isDrawerOpen }));
+  },
+
+  toggleExpanded: () => {
+    set((state) => ({ isExpanded: !state.isExpanded }));
+  },
+
+  setExpanded: (expanded) => {
+    set({ isExpanded: expanded });
+  },
+
+  toggleHistory: () => {
+    set((state) => ({ isHistoryOpen: !state.isHistoryOpen }));
+  },
+
+  setHistoryOpen: (open) => {
+    set({ isHistoryOpen: open });
   },
 
   setTutorMode: (mode) => {
@@ -369,6 +395,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       const res = await fetch(`/api/chat/sessions?${params.toString()}`);
       if (!res.ok) {
+        // Fallback for guest mode localStorage
+        if (typeof window !== 'undefined') {
+          const stored = localStorage.getItem('nexora_guest_chat_sessions');
+          if (stored) {
+            try {
+              const guestSessions: ChatSession[] = JSON.parse(stored);
+              set({ sessions: guestSessions, isLoadingHistory: false });
+              return;
+            } catch {
+              // ignore
+            }
+          }
+        }
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.message || errJson.error || 'Failed to load chat history');
       }
@@ -381,6 +420,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       set({ sessions: sessionsList, isLoadingHistory: false });
     } catch (err) {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('nexora_guest_chat_sessions');
+        if (stored) {
+          try {
+            const guestSessions: ChatSession[] = JSON.parse(stored);
+            set({ sessions: guestSessions, isLoadingHistory: false });
+            return;
+          } catch {
+            // ignore
+          }
+        }
+      }
+
       set({
         error: err instanceof Error ? err.message : 'Error fetching sessions',
         isLoadingHistory: false,
@@ -393,6 +445,29 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     try {
       const res = await fetch(`/api/chat/sessions/${sessionId}`);
       if (!res.ok) {
+        // Check localStorage guest fallback
+        if (typeof window !== 'undefined') {
+          const storedMessages = localStorage.getItem(`nexora_guest_messages_${sessionId}`);
+          const storedSessions = localStorage.getItem('nexora_guest_chat_sessions');
+          if (storedSessions) {
+            try {
+              const list: ChatSession[] = JSON.parse(storedSessions);
+              const found = list.find((s) => s.id === sessionId);
+              if (found) {
+                const msgs: ChatMessage[] = storedMessages ? JSON.parse(storedMessages) : [];
+                set({
+                  currentSession: found,
+                  messages: msgs,
+                  isLoadingHistory: false,
+                  activeTutorMode: found.tutorMode || 'socratic',
+                });
+                return;
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.message || errJson.error || 'Failed to load session messages');
       }
@@ -428,7 +503,33 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to create chat session');
+      if (!res.ok) {
+        // Guest mode fallback
+        const guestSession: ChatSession = {
+          id: `guest-${Date.now()}`,
+          userId: 'guest',
+          taskId,
+          canvasId,
+          title,
+          tutorMode: get().activeTutorMode,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        if (typeof window !== 'undefined') {
+          const stored = localStorage.getItem('nexora_guest_chat_sessions');
+          const list: ChatSession[] = stored ? JSON.parse(stored) : [];
+          localStorage.setItem('nexora_guest_chat_sessions', JSON.stringify([guestSession, ...list]));
+        }
+
+        set((state) => ({
+          sessions: [guestSession, ...state.sessions],
+          currentSession: guestSession,
+          messages: [],
+        }));
+        return guestSession;
+      }
+
       const data: ApiResponse<ChatSession> = await res.json();
       if (data.data) {
         set((state) => ({
@@ -440,25 +541,112 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
       return null;
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Error creating session' });
-      return null;
+      // Local fallback for guest
+      const guestSession: ChatSession = {
+        id: `guest-${Date.now()}`,
+        userId: 'guest',
+        taskId,
+        canvasId,
+        title,
+        tutorMode: get().activeTutorMode,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('nexora_guest_chat_sessions');
+        const list: ChatSession[] = stored ? JSON.parse(stored) : [];
+        localStorage.setItem('nexora_guest_chat_sessions', JSON.stringify([guestSession, ...list]));
+      }
+
+      set((state) => ({
+        sessions: [guestSession, ...state.sessions],
+        currentSession: guestSession,
+        messages: [],
+      }));
+      return guestSession;
+    }
+  },
+
+  startNewChat: (title = 'New Brainstorming Session') => {
+    set({
+      currentSession: null,
+      messages: [],
+      streamingMessage: null,
+      error: null,
+      isSending: false,
+    });
+  },
+
+  renameSession: async (sessionId: string, newTitle: string) => {
+    if (!newTitle.trim()) return false;
+    const trimmed = newTitle.trim().slice(0, 100);
+
+    // Optimistically update client state
+    set((state) => ({
+      sessions: state.sessions.map((s) => (s.id === sessionId ? { ...s, title: trimmed } : s)),
+      currentSession:
+        state.currentSession?.id === sessionId ? { ...state.currentSession, title: trimmed } : state.currentSession,
+    }));
+
+    // Update guest localStorage cache if present
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('nexora_guest_chat_sessions');
+      if (stored) {
+        try {
+          const list: ChatSession[] = JSON.parse(stored);
+          const updatedList = list.map((s) => (s.id === sessionId ? { ...s, title: trimmed } : s));
+          localStorage.setItem('nexora_guest_chat_sessions', JSON.stringify(updatedList));
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    try {
+      const res = await fetch(`/api/chat/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: trimmed }),
+      });
+
+      return res.ok;
+    } catch (err) {
+      console.warn('[Chat Store]: Rename remote failed, state updated locally:', err);
+      return true;
     }
   },
 
   deleteSession: async (sessionId: string) => {
     set({ error: null });
+
+    // Optimistically delete from state
+    set((state) => ({
+      sessions: state.sessions.filter((s) => s.id !== sessionId),
+      currentSession: state.currentSession?.id === sessionId ? null : state.currentSession,
+      messages: state.currentSession?.id === sessionId ? [] : state.messages,
+    }));
+
+    // Delete from guest localStorage if present
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('nexora_guest_chat_sessions');
+      if (stored) {
+        try {
+          const list: ChatSession[] = JSON.parse(stored);
+          const filtered = list.filter((s) => s.id !== sessionId);
+          localStorage.setItem('nexora_guest_chat_sessions', JSON.stringify(filtered));
+          localStorage.removeItem(`nexora_guest_messages_${sessionId}`);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
     try {
       const res = await fetch(`/api/chat/sessions/${sessionId}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('Failed to delete session');
-
-      set((state) => ({
-        sessions: state.sessions.filter((s) => s.id !== sessionId),
-        currentSession: state.currentSession?.id === sessionId ? null : state.currentSession,
-        messages: state.currentSession?.id === sessionId ? [] : state.messages,
-      }));
-      return true;
+      return res.ok;
     } catch (err) {
       console.error('Failed to delete chat session:', err);
       return false;
@@ -490,10 +678,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       size: a.size,
     }));
 
+    const activeSessionId = get().currentSession?.id || `guest-${Date.now()}`;
+
     // Temporary User Message
     const tempUserMessage: ChatMessage = {
       id: `temp-user-${Date.now()}`,
-      sessionId: get().currentSession?.id || '',
+      sessionId: activeSessionId,
       userId: 'current-user',
       role: 'user' as ChatRole,
       content: userMessageContent,
@@ -549,20 +739,36 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
 
       // Check session ID header
-      const returnedSessionId = response.headers.get('X-Chat-Session-Id');
-      if (returnedSessionId && (!get().currentSession || get().currentSession?.id !== returnedSessionId)) {
-        set({
-          currentSession: {
-            id: returnedSessionId,
-            userId: 'current-user',
-            taskId: taskCtx?.taskId,
-            canvasId: canvasCtx?.canvasId,
-            title: userMessageContent.slice(0, 40) || 'Brainstorming Session',
-            tutorMode: activeMode,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        });
+      const returnedSessionId = response.headers.get('X-Chat-Session-Id') || activeSessionId;
+      const sessionTitle = userMessageContent.slice(0, 45) || 'Brainstorming Session';
+
+      if (!get().currentSession || get().currentSession?.id !== returnedSessionId) {
+        const newSessionObj: ChatSession = {
+          id: returnedSessionId,
+          userId: 'current-user',
+          taskId: taskCtx?.taskId,
+          canvasId: canvasCtx?.canvasId,
+          title: sessionTitle,
+          tutorMode: activeMode,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          currentSession: newSessionObj,
+          sessions: state.sessions.some((s) => s.id === returnedSessionId)
+            ? state.sessions
+            : [newSessionObj, ...state.sessions],
+        }));
+
+        // Persist guest session
+        if (typeof window !== 'undefined') {
+          const stored = localStorage.getItem('nexora_guest_chat_sessions');
+          const list: ChatSession[] = stored ? JSON.parse(stored) : [];
+          if (!list.some((s) => s.id === returnedSessionId)) {
+            localStorage.setItem('nexora_guest_chat_sessions', JSON.stringify([newSessionObj, ...list]));
+          }
+        }
       }
 
       // Stream handling
@@ -596,7 +802,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       // Final Assistant Message
       const finalAssistantMessage: ChatMessage = {
         id: `assistant-${Date.now()}`,
-        sessionId: returnedSessionId || get().currentSession?.id || '',
+        sessionId: returnedSessionId,
         userId: 'assistant',
         role: 'assistant' as ChatRole,
         content: fullAssistantText,
@@ -604,12 +810,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         createdAt: new Date().toISOString(),
       };
 
-      set((state) => ({
-        messages: [...state.messages, finalAssistantMessage],
+      const updatedMessages = [...get().messages, finalAssistantMessage];
+
+      set({
+        messages: updatedMessages,
         streamingMessage: null,
         isSending: false,
         error: null,
-      }));
+      });
+
+      // Save to guest localStorage
+      if (typeof window !== 'undefined' && returnedSessionId.startsWith('guest-')) {
+        localStorage.setItem(`nexora_guest_messages_${returnedSessionId}`, JSON.stringify(updatedMessages));
+      }
     } catch (err) {
       console.error('[Chat Store Error]:', err);
       const errorMessageText = err instanceof Error ? err.message : 'AI failed to respond.';
@@ -619,7 +832,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         sessionId: get().currentSession?.id || '',
         userId: 'assistant',
         role: 'assistant' as ChatRole,
-        content: `⚠️ **AI failed to respond.**\n\n*Error: ${errorMessageText}*\n\nPlease check your \`GEMINI_API_KEY\` configuration in \`.env.local\` or your network connection and try again.`,
+        content: `⚠️ **AI failed to respond.**\n\n*Error: ${errorMessageText}*\n\nPlease check your \`GEMINI_API_KEY\` configuration in \`.env.local\` or try again.`,
         createdAt: new Date().toISOString(),
       };
 

@@ -158,6 +158,24 @@ export async function listUserChatSessions(
   };
 }
 
+export async function updateChatSession(
+  sessionId: string,
+  userId: string,
+  updates: { title?: string; tutorMode?: string }
+): Promise<ChatSession | null> {
+  const [updated] = await db
+    .update(chatSessions)
+    .set({
+      ...(updates.title !== undefined ? { title: updates.title.slice(0, 255) } : {}),
+      ...(updates.tutorMode !== undefined ? { tutorMode: updates.tutorMode } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)))
+    .returning();
+
+  return (updated as ChatSession) || null;
+}
+
 export async function deleteChatSession(sessionId: string, userId: string): Promise<boolean> {
   const [deleted] = await db
     .delete(chatSessions)

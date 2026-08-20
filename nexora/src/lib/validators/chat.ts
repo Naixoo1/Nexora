@@ -185,6 +185,11 @@ export const CreateChatSessionSchema = z.object({
   tutorMode: AcademicTutorModeSchema.default('socratic'),
 });
 
+export const UpdateChatSessionSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  tutorMode: AcademicTutorModeSchema.optional(),
+});
+
 export const ChatSessionListQuerySchema = z.object({
   taskId: z.string().uuid().optional(),
   canvasId: z.string().uuid().optional(),
@@ -194,4 +199,5 @@ export const ChatSessionListQuerySchema = z.object({
 
 export type SendChatMessage = z.infer<typeof SendChatMessageSchema>;
 export type CreateChatSession = z.infer<typeof CreateChatSessionSchema>;
+export type UpdateChatSession = z.infer<typeof UpdateChatSessionSchema>;
 export type ChatSessionListQuery = z.infer<typeof ChatSessionListQuerySchema>;

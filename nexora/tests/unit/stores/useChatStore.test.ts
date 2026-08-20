@@ -280,6 +280,64 @@ describe('useChatStore', () => {
       expect(state.currentSession).toBeNull();
       expect(state.messages).toHaveLength(0);
     });
+
+    it('should rename session and update state and remote', async () => {
+      // Arrange
+      useChatStore.setState({
+        sessions: [mockChatSession],
+        currentSession: mockChatSession,
+      });
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, message: 'Renamed' }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      // Act
+      const result = await useChatStore.getState().renameSession(mockSessionId, 'Judul Baru Diskusi');
+
+      // Assert
+      expect(result).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(`/api/chat/sessions/${mockSessionId}`, expect.anything());
+      const state = useChatStore.getState();
+      expect(state.sessions[0].title).toBe('Judul Baru Diskusi');
+      expect(state.currentSession?.title).toBe('Judul Baru Diskusi');
+    });
+
+    it('should start a new chat session by clearing current session and messages', () => {
+      // Arrange
+      useChatStore.setState({
+        currentSession: mockChatSession,
+        messages: [mockUserMessage, mockAssistantMessage],
+      });
+
+      // Act
+      useChatStore.getState().startNewChat();
+
+      // Assert
+      const state = useChatStore.getState();
+      expect(state.currentSession).toBeNull();
+      expect(state.messages).toHaveLength(0);
+      expect(state.streamingMessage).toBeNull();
+    });
+
+    it('should toggle and set expanded and history panel views', () => {
+      expect(useChatStore.getState().isExpanded).toBe(false);
+      expect(useChatStore.getState().isHistoryOpen).toBe(false);
+
+      useChatStore.getState().toggleExpanded();
+      expect(useChatStore.getState().isExpanded).toBe(true);
+
+      useChatStore.getState().setExpanded(false);
+      expect(useChatStore.getState().isExpanded).toBe(false);
+
+      useChatStore.getState().toggleHistory();
+      expect(useChatStore.getState().isHistoryOpen).toBe(true);
+
+      useChatStore.getState().setHistoryOpen(false);
+      expect(useChatStore.getState().isHistoryOpen).toBe(false);
+    });
   });
 
   describe('Messaging & AI Streaming (sendMessage)', () => {
