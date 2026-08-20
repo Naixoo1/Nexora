@@ -5,18 +5,23 @@ import {
   isKeyExhaustedOrInvalid,
   isTransientError,
   delayWithJitter,
+  pruneConversationHistory,
   VALID_MODELS,
+  OPENROUTER_MODELS,
+  GROQ_MODELS,
 } from '@/services/ai-cascade';
 
-describe('AI Cascade & Multi-Key Pool Architecture', () => {
+describe('AI Cascade & Multi-Provider Architecture', () => {
   const originalEnvModel = process.env.GEMINI_MODEL;
   const originalEnvKey = process.env.GEMINI_API_KEY;
   const originalEnvKeys = process.env.GEMINI_API_KEYS;
+  const originalGroqKey = process.env.GROQ_API_KEY;
 
   afterEach(() => {
     process.env.GEMINI_MODEL = originalEnvModel;
     process.env.GEMINI_API_KEY = originalEnvKey;
     process.env.GEMINI_API_KEYS = originalEnvKeys;
+    process.env.GROQ_API_KEY = originalGroqKey;
   });
 
   describe('getModelCascade', () => {
@@ -86,6 +91,60 @@ describe('AI Cascade & Multi-Key Pool Architecture', () => {
 
       const pool = getApiKeyPool(null);
       expect(pool).toEqual([]);
+    });
+  });
+
+  describe('OpenRouter Fallback Models', () => {
+    it('should include free tier OpenRouter inference models', () => {
+      expect(OPENROUTER_MODELS).toContain('meta-llama/llama-3.3-70b-instruct:free');
+      expect(OPENROUTER_MODELS).toContain('google/gemini-2.0-flash-exp:free');
+      expect(OPENROUTER_MODELS).toContain('openrouter/auto');
+    });
+  });
+
+  describe('Groq Fallback Models', () => {
+    it('should include high-speed Groq inference models', () => {
+      expect(GROQ_MODELS).toContain('llama-3.3-70b-versatile');
+      expect(GROQ_MODELS).toContain('llama-3.1-70b-versatile');
+      expect(GROQ_MODELS).toContain('llama-3.1-8b-instant');
+    });
+  });
+
+  describe('Smart History Pruning (pruneConversationHistory)', () => {
+    it('should limit conversation history to the last 6 messages', () => {
+      const longHistory = Array.from({ length: 12 }, (_, i) => ({
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `Message turn ${i + 1}`,
+      }));
+
+      const pruned = pruneConversationHistory(longHistory, 6);
+      expect(pruned).toHaveLength(6);
+      expect(pruned[0].content).toBe('Message turn 7');
+      expect(pruned[5].content).toBe('Message turn 12');
+    });
+
+    it('should strip heavy base64 media and canvas node snapshots from older turns', () => {
+      const messagesWithMedia = [
+        {
+          role: 'user',
+          content: 'Here is my diagram: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA... and note.',
+        },
+        {
+          role: 'assistant',
+          content: 'I analyzed it. ```nexora-node { "title": "Old Step" } ``` Next question?',
+        },
+        {
+          role: 'user',
+          content: 'Current question with data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA... active.',
+        },
+      ];
+
+      const cleaned = pruneConversationHistory(messagesWithMedia, 6);
+      expect(cleaned).toHaveLength(3);
+      expect(cleaned[0].content).toBe('Here is my diagram: [Attached Media] and note.');
+      expect(cleaned[1].content).toBe('I analyzed it. [Canvas Node Snapshot] Next question?');
+      // Latest message kept intact
+      expect(cleaned[2].content).toContain('data:image/png;base64');
     });
   });
 

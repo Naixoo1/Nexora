@@ -1,6 +1,7 @@
 /**
- * High-Availability AI Resilience Architecture & Multi-Key API Pool.
- * Manages valid model cascades, API key pooling with rotation, and BYOK (Bring Your Own Key).
+ * High-Availability AI Resilience Architecture, Multi-Key API Pool, and Multi-Provider Cascade.
+ * Manages valid model cascades, API key pooling with rotation, BYOK (Bring Your Own Key),
+ * OpenRouter free tier fallback, Groq fallback engine, and smart conversation history pruning.
  */
 
 export const VALID_MODELS = [
@@ -11,6 +12,31 @@ export const VALID_MODELS = [
 ] as const;
 
 export type ValidGeminiModel = (typeof VALID_MODELS)[number];
+
+export const OPENROUTER_MODELS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemini-2.0-flash-exp:free',
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'openrouter/auto',
+] as const;
+
+export type ValidOpenRouterModel = (typeof OPENROUTER_MODELS)[number];
+
+export const GROQ_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-70b-versatile',
+  'llama-3.1-8b-instant',
+] as const;
+
+export type ValidGroqModel = (typeof GROQ_MODELS)[number];
+
+export interface ChatCompletionMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export type GroqChatMessage = ChatCompletionMessage;
+export type OpenRouterChatMessage = ChatCompletionMessage;
 
 /**
  * Resolves the resilient model cascade priority list.
@@ -36,12 +62,19 @@ export function getModelCascade(): string[] {
 export function getApiKeyPool(customKey?: string | null): string[] {
   const pool: string[] = [];
 
-  // 1. Custom client-provided BYOK key
-  if (customKey && typeof customKey === 'string') {
-    const trimmed = customKey.trim();
-    if (trimmed.length > 5 && trimmed !== 'undefined' && trimmed !== 'null') {
-      pool.push(trimmed);
-    }
+  const hasClientKey = Boolean(
+    customKey &&
+    typeof customKey === 'string' &&
+    customKey.trim().length > 5 &&
+    customKey.trim() !== 'undefined' &&
+    customKey.trim() !== 'null'
+  );
+
+  console.log(`[AI Cascade] Client BYOK header present: ${hasClientKey}`);
+
+  // 1. Custom client-provided BYOK key is placed as Index 0
+  if (hasClientKey && customKey) {
+    pool.push(customKey.trim());
   }
 
   // 2. Comma-separated GEMINI_API_KEYS list
@@ -64,6 +97,198 @@ export function getApiKeyPool(customKey?: string | null): string[] {
   }
 
   return Array.from(new Set(pool));
+}
+
+/**
+ * Streams completion from OpenRouter API (OpenAI-compatible SSE stream).
+ * Primary fallback model: `meta-llama/llama-3.3-70b-instruct:free`.
+ */
+export async function streamOpenRouterCompletion(
+  messages: OpenRouterChatMessage[],
+  model: string = 'meta-llama/llama-3.3-70b-instruct:free',
+  apiKey?: string
+): Promise<ReadableStream<string>> {
+  const key = apiKey || process.env.OPENROUTER_API_KEY;
+  if (!key || key.trim() === '' || key.startsWith('your-')) {
+    throw new Error('Missing or unconfigured OPENROUTER_API_KEY for fallback engine.');
+  }
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${key.trim()}`,
+      'HTTP-Referer': 'https://nexora.vercel.app',
+      'X-Title': 'Nexora AI',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.4,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`OpenRouter API returned HTTP ${response.status}: ${errorText}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('Unable to read stream from OpenRouter API.');
+  }
+
+  const decoder = new TextDecoder();
+
+  return new ReadableStream<string>({
+    async start(controller) {
+      let buffer = '';
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(':')) continue;
+            if (trimmed === 'data: [DONE]') {
+              controller.close();
+              return;
+            }
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(trimmed.slice(6));
+                const delta = data.choices?.[0]?.delta?.content || '';
+                if (delta) {
+                  controller.enqueue(delta);
+                }
+              } catch {
+                // Ignore parse errors on partial chunks
+              }
+            }
+          }
+        }
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
+}
+
+/**
+ * Streams completion from Groq's high-speed inference API (OpenAI-compatible SSE stream).
+ */
+export async function streamGroqCompletion(
+  messages: GroqChatMessage[],
+  model: string = 'llama-3.3-70b-versatile',
+  apiKey?: string
+): Promise<ReadableStream<string>> {
+  const key = apiKey || process.env.GROQ_API_KEY;
+  if (!key || key.trim() === '' || key.startsWith('your-')) {
+    throw new Error('Missing or unconfigured GROQ_API_KEY for fallback engine.');
+  }
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${key.trim()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.4,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Groq API returned HTTP ${response.status}: ${errorText}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('Unable to read stream from Groq API.');
+  }
+
+  const decoder = new TextDecoder();
+
+  return new ReadableStream<string>({
+    async start(controller) {
+      let buffer = '';
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(':')) continue;
+            if (trimmed === 'data: [DONE]') {
+              controller.close();
+              return;
+            }
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(trimmed.slice(6));
+                const delta = data.choices?.[0]?.delta?.content || '';
+                if (delta) {
+                  controller.enqueue(delta);
+                }
+              } catch {
+                // Ignore parse errors on partial chunks
+              }
+            }
+          }
+        }
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
+}
+
+/**
+ * Smart history pruning:
+ * - Limits conversation turns to the last `maxMessages` (default 6).
+ * - Strips heavy base64 data payloads from older turns to prevent token bloat.
+ */
+export function pruneConversationHistory<T extends { role: string; content: string }>(
+  messages: T[],
+  maxMessages: number = 6
+): T[] {
+  if (!messages || messages.length === 0) return [];
+
+  // Take the most recent maxMessages
+  const recent = messages.slice(-maxMessages);
+
+  // Clean heavy base64 data URIs and node snapshots from older history
+  return recent.map((msg, idx) => {
+    // If it's the last message (current turn), keep content intact
+    if (idx === recent.length - 1) return msg;
+
+    // For older messages, strip any data:image or data:application base64 data
+    const strippedContent = msg.content
+      .replace(/data:[^;]+;base64,[A-Za-z0-9+/=.]+/g, '[Attached Media]')
+      .replace(/```nexora-node[\s\S]*?```/g, '[Canvas Node Snapshot]');
+
+    return {
+      ...msg,
+      content: strippedContent,
+    };
+  });
 }
 
 /**

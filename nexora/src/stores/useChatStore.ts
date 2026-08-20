@@ -800,15 +800,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       };
 
       const customKey =
-        get().customApiKey ||
-        (typeof window !== 'undefined' ? localStorage.getItem('nexora_custom_gemini_key') : null);
+        (typeof window !== 'undefined' ? localStorage.getItem('nexora_custom_gemini_key') : null) ||
+        get().customApiKey;
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        ...(customKey && customKey.trim() ? { 'x-gemini-api-key': customKey.trim() } : {}),
       };
-      if (customKey && customKey.trim()) {
-        headers['x-gemini-api-key'] = customKey.trim();
-      }
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -820,7 +818,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         let errorText = `Server responded with HTTP ${response.status}`;
         try {
           const errorJson = await response.json();
-          errorText = errorJson.error || errorJson.message || errorText;
+          if (errorJson.error) {
+            errorText = errorJson.details
+              ? `${errorJson.error}\n\n*Server detail: ${errorJson.details}*`
+              : errorJson.error;
+          } else if (errorJson.message) {
+            errorText = errorJson.message;
+          }
         } catch {
           const raw = await response.text().catch(() => '');
           if (raw) errorText = raw;

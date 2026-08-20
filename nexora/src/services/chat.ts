@@ -132,6 +132,8 @@ export async function getChatSessionHistory(
   };
 }
 
+export const getChatSessionWithMessages = getChatSessionHistory;
+
 export async function listUserChatSessions(
   userId: string,
   query: ChatSessionListQuery

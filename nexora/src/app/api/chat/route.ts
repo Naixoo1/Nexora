@@ -4,13 +4,18 @@ import { GoogleGenAI, type Part } from '@google/genai';
 import { auth } from '@/lib/auth';
 import { SendChatMessageSchema } from '@/lib/validators/chat';
 import { buildSystemPrompt } from '@/services/chat-prompt';
-import { getOrCreateChatSession, saveChatMessage } from '@/services/chat';
+import { getOrCreateChatSession, saveChatMessage, getChatSessionWithMessages } from '@/services/chat';
 import {
   getApiKeyPool,
   getModelCascade,
   isKeyExhaustedOrInvalid,
   isTransientError,
   delayWithJitter,
+  streamOpenRouterCompletion,
+  streamGroqCompletion,
+  pruneConversationHistory,
+  type OpenRouterChatMessage,
+  type GroqChatMessage,
 } from '@/services/ai-cascade';
 import { validationErrorResponse } from '@/lib/api-response';
 import type { ChatAttachment } from '@/types/chat';
@@ -105,19 +110,21 @@ export async function POST(req: NextRequest): Promise<Response> {
     const customClientKey = req.headers.get('x-gemini-api-key');
     const keyPool = getApiKeyPool(customClientKey);
 
-    if (keyPool.length === 0) {
-      console.error('[Chat API Error]: No valid Gemini API keys found in pool or request header.');
+    if (keyPool.length === 0 && !process.env.OPENROUTER_API_KEY && !process.env.GROQ_API_KEY) {
+      console.error('[Chat API Error]: No valid Gemini API keys, OpenRouter, or Groq fallback found.');
       return Response.json(
         {
           error:
-            'Missing GEMINI_API_KEY. Please provide a custom API key in Chat Settings or configure .env.local.',
+            'Missing AI API credentials. Please provide a custom Gemini API key in Chat Settings or configure server environment variables.',
         },
         { status: 500 }
       );
     }
 
-    // 3. If authenticated user, persist session & user message to database
+    // 3. If authenticated user, fetch history, prune, and persist new user message to database
     let chatSessionId = sessionId || `guest-${Date.now()}`;
+    let previousHistory: { role: string; content: string }[] = [];
+
     if (userId) {
       try {
         const chatSession = await getOrCreateChatSession(userId, {
@@ -127,6 +134,17 @@ export async function POST(req: NextRequest): Promise<Response> {
           firstMessageTitle: message,
         });
         chatSessionId = chatSession.id;
+
+        // Fetch previous messages for smart history pruning
+        if (sessionId) {
+          const sessionWithMsgs = await getChatSessionWithMessages(sessionId, userId);
+          if (sessionWithMsgs?.messages) {
+            previousHistory = sessionWithMsgs.messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            }));
+          }
+        }
 
         await saveChatMessage(
           chatSession.id,
@@ -141,6 +159,9 @@ export async function POST(req: NextRequest): Promise<Response> {
       }
     }
 
+    // Smart History Pruning: limit to last 6 messages and strip heavy base64
+    const prunedHistory = pruneConversationHistory(previousHistory, 6);
+
     // 4. Build dynamic academic system prompt and parts
     const systemInstruction = buildSystemPrompt(resolvedContext);
     const contentParts = buildGeminiContentParts(
@@ -148,18 +169,18 @@ export async function POST(req: NextRequest): Promise<Response> {
       attachments as ChatAttachment[] | undefined
     );
 
-    // 5. Initialize Google GenAI with Multi-Key Pool and Resilient Model Cascade
+    // 5. Multi-Provider Fallback Cascade Pipeline
     const cascade = getModelCascade();
-    let responseStream;
-    let usedModel = cascade[0];
+    let responseStream: AsyncIterable<{ text?: string | null }> | null = null;
+    let fallbackStream: ReadableStream<string> | null = null;
+    let usedModel: string = cascade[0];
     let usedKeyIndex = 0;
     let lastError: unknown = null;
 
-    // Model Cascade Loop
+    // Tier 1: Gemini Multi-Key Pool & Sanitized Model Cascade
     for (let m = 0; m < cascade.length; m++) {
       const candidateModel = cascade[m];
 
-      // Key Rotation Loop for candidate model
       for (let k = 0; k < keyPool.length; k++) {
         const currentKey = keyPool[k];
         try {
@@ -208,15 +229,69 @@ export async function POST(req: NextRequest): Promise<Response> {
       }
     }
 
-    if (!responseStream) {
+    // Tier 2: OpenRouter Free Tier Fallback Engine
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    if (!responseStream && openRouterKey && openRouterKey.trim() && !openRouterKey.startsWith('your-')) {
+      const orCandidates = ['meta-llama/llama-3.3-70b-instruct:free', 'openrouter/auto'];
+      for (const orModel of orCandidates) {
+        try {
+          console.log(`[AI Multi-Provider Cascade] Gemini exhausted, activating OpenRouter fallback with ${orModel}`);
+          const orMessages: OpenRouterChatMessage[] = [
+            { role: 'system', content: systemInstruction },
+            ...prunedHistory.map((m) => ({
+              role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+              content: m.content,
+            })),
+            { role: 'user', content: message },
+          ];
+
+          fallbackStream = await streamOpenRouterCompletion(orMessages, orModel, openRouterKey);
+          usedModel = `openrouter/${orModel}`;
+          break;
+        } catch (orErr) {
+          console.warn(`[AI OpenRouter Model ${orModel} Error]:`, orErr);
+          lastError = orErr;
+        }
+      }
+    }
+
+    // Tier 3: Groq High-Speed Fallback Engine
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!responseStream && !fallbackStream && groqKey && groqKey.trim() && !groqKey.startsWith('your-')) {
+      try {
+        console.log('[AI Multi-Provider Cascade] Activating Groq fallback with llama-3.3-70b-versatile');
+
+        const groqMessages: GroqChatMessage[] = [
+          { role: 'system', content: systemInstruction },
+          ...prunedHistory.map((m) => ({
+            role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+            content: m.content,
+          })),
+          { role: 'user', content: message },
+        ];
+
+        fallbackStream = await streamGroqCompletion(groqMessages, 'llama-3.3-70b-versatile', groqKey);
+        usedModel = 'groq/llama-3.3-70b-versatile';
+      } catch (groqErr) {
+        console.error('[AI Groq Fallback Fatal Error]:', groqErr);
+        lastError = groqErr;
+      }
+    }
+
+    if (!responseStream && !fallbackStream) {
       console.error(
-        `[Chat API Error]: All key pool attempts (${keyPool.length} keys) and model cascade attempts (${cascade.length} models) failed. Last error:`,
-        lastError
+        `[Chat API Error]: All key pool attempts (${keyPool.length} keys), model cascades, and fallback providers failed.`
       );
+      console.error('[AI Chat Fatal] Last caught error:', lastError);
+
+      const errorDetails =
+        lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error');
+
       return Response.json(
         {
           error:
-            'AI servers are temporarily congested or quota exceeded. Please retry in a moment or add a custom Gemini API key in Settings.',
+            'AI servers are temporarily congested or quota exceeded. Please retry in a moment or verify your custom Gemini API key in Settings.',
+          details: errorDetails,
         },
         { status: 503 }
       );
@@ -228,13 +303,26 @@ export async function POST(req: NextRequest): Promise<Response> {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
-          for await (const chunk of responseStream) {
-            const chunkText = chunk.text || '';
-            if (chunkText) {
-              fullAssistantResponse += chunkText;
-              controller.enqueue(encoder.encode(chunkText));
+          if (fallbackStream) {
+            const reader = fallbackStream.getReader();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (value) {
+                fullAssistantResponse += value;
+                controller.enqueue(encoder.encode(value));
+              }
+            }
+          } else if (responseStream) {
+            for await (const chunk of responseStream) {
+              const chunkText = chunk.text || '';
+              if (chunkText) {
+                fullAssistantResponse += chunkText;
+                controller.enqueue(encoder.encode(chunkText));
+              }
             }
           }
+
           // Synchronously persist completed assistant response to Neon DB before terminating stream
           if (userId && fullAssistantResponse.trim()) {
             try {
