@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useSpeechToText } from '@/hooks/useSpeechToText';
+import {
+  useSpeechToText,
+  sanitizeSpeechText,
+  cleanAndDeduplicateSpeech,
+} from '@/hooks/useSpeechToText';
 
 class MockSpeechRecognition {
   continuous = false;
@@ -29,6 +33,55 @@ class MockSpeechRecognition {
     }
   });
 }
+
+describe('Speech Normalization & Deduplication Utilities', () => {
+  describe('sanitizeSpeechText', () => {
+    it('should collapse multiple spaces into single spaces and trim boundaries', () => {
+      const input = '   Berapa    rumus    energi   ';
+      expect(sanitizeSpeechText(input)).toBe('Berapa rumus energi');
+    });
+
+    it('should deduplicate adjacent identical repeated words (stutter prevention)', () => {
+      const input = 'bagaimana bagaimana rumus rumus energi kinetik kinetik';
+      expect(sanitizeSpeechText(input)).toBe('bagaimana rumus energi kinetik');
+    });
+
+    it('should return empty string for falsy input', () => {
+      expect(sanitizeSpeechText('')).toBe('');
+    });
+  });
+
+  describe('cleanAndDeduplicateSpeech', () => {
+    it('should append new words cleanly when there is no overlap', () => {
+      const existing = 'Berapa rumus';
+      const chunk = 'energi kinetik';
+      expect(cleanAndDeduplicateSpeech(existing, chunk)).toBe('Berapa rumus energi kinetik');
+    });
+
+    it('should eliminate 1-word overlapping boundary between existing and new chunk', () => {
+      const existing = 'Berapa rumus energi';
+      const chunk = 'energi kinetik';
+      expect(cleanAndDeduplicateSpeech(existing, chunk)).toBe('Berapa rumus energi kinetik');
+    });
+
+    it('should eliminate multi-word overlapping boundary (e.g. 2 words)', () => {
+      const existing = 'Tentukan suku ke 10 dari deret';
+      const chunk = '10 dari deret aritmatika';
+      expect(cleanAndDeduplicateSpeech(existing, chunk)).toBe('Tentukan suku ke 10 dari deret aritmatika');
+    });
+
+    it('should handle exact duplicate chunks without re-appending', () => {
+      const existing = 'Halo Dunia';
+      const chunk = 'Halo Dunia';
+      expect(cleanAndDeduplicateSpeech(existing, chunk)).toBe('Halo Dunia');
+    });
+
+    it('should handle empty existing or empty new chunk', () => {
+      expect(cleanAndDeduplicateSpeech('', 'Halo')).toBe('Halo');
+      expect(cleanAndDeduplicateSpeech('Halo', '')).toBe('Halo');
+    });
+  });
+});
 
 describe('useSpeechToText Hook', () => {
   let mockInstance: MockSpeechRecognition;
@@ -139,9 +192,9 @@ describe('useSpeechToText Hook', () => {
       });
 
       // Assert interim state
-      expect(result.current.interimTranscript).toBe('Bagaimana rumus ');
+      expect(result.current.interimTranscript).toBe('Bagaimana rumus');
       expect(result.current.transcript).toBe('');
-      expect(onInterimMock).toHaveBeenCalledWith('Bagaimana rumus ');
+      expect(onInterimMock).toHaveBeenCalledWith('Bagaimana rumus');
 
       // Act 2: Dispatch final transcript
       act(() => {
@@ -158,6 +211,40 @@ describe('useSpeechToText Hook', () => {
       expect(result.current.transcript).toBe('Bagaimana rumus energi kinetik?');
       expect(result.current.interimTranscript).toBe('');
       expect(onFinalMock).toHaveBeenCalledWith('Bagaimana rumus energi kinetik?');
+    });
+
+    it('should correctly parse event.resultIndex incrementally without accumulating earlier segments', () => {
+      const onFinalMock = vi.fn();
+      const { result } = renderHook(() => useSpeechToText({ onFinalResult: onFinalMock }));
+
+      act(() => {
+        result.current.startListening();
+      });
+
+      // Event 1: Result index 0 is final
+      act(() => {
+        mockInstance.onresult?.({
+          resultIndex: 0,
+          results: [
+            Object.assign([{ transcript: 'Berapa nilai S10' }], { isFinal: true }),
+          ],
+        });
+      });
+      expect(result.current.transcript).toBe('Berapa nilai S10');
+
+      // Event 2: Result index 1 arrives as final (result index 0 is still in results array)
+      act(() => {
+        mockInstance.onresult?.({
+          resultIndex: 1,
+          results: [
+            Object.assign([{ transcript: 'Berapa nilai S10' }], { isFinal: true }),
+            Object.assign([{ transcript: 'dari barisan aritmatika' }], { isFinal: true }),
+          ],
+        });
+      });
+
+      // Assert: ResultIndex 1 was processed and deduplicated without re-appending index 0
+      expect(result.current.transcript).toBe('Berapa nilai S10 dari barisan aritmatika');
     });
 
     it('should stop listening and commit pending interim transcript on stopListening', () => {

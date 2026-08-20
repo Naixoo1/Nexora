@@ -16,7 +16,7 @@ import {
   Languages,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
-import { useSpeechToText } from '@/hooks/useSpeechToText';
+import { useSpeechToText, cleanAndDeduplicateSpeech, sanitizeSpeechText } from '@/hooks/useSpeechToText';
 import { authClient } from '@/lib/auth-client';
 import type { AcademicTutorMode, ChatAttachment, ChatAttachmentType } from '@/types/chat';
 import { cn } from '@/lib/utils';
@@ -119,11 +119,7 @@ export const ChatInputArea: React.FC = () => {
   } = useSpeechToText({
     lang: speechLang,
     onFinalResult: (finalChunk) => {
-      setInput((prev) => {
-        const trimmed = finalChunk.trim();
-        if (!trimmed) return prev;
-        return prev ? `${prev} ${trimmed}` : trimmed;
-      });
+      setInput((prev) => cleanAndDeduplicateSpeech(prev, finalChunk));
     },
   });
 
@@ -294,10 +290,10 @@ export const ChatInputArea: React.FC = () => {
       stopListening();
     }
 
-    const trimmedInput = input.trim();
-    if ((!trimmedInput && attachments.length === 0) || isSending) return;
+    const sanitizedInput = sanitizeSpeechText(input);
+    if ((!sanitizedInput && attachments.length === 0) || isSending) return;
 
-    sendMessage(trimmedInput);
+    sendMessage(sanitizedInput);
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
