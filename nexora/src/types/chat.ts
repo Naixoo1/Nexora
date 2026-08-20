@@ -35,6 +35,13 @@ export interface ChatAttachmentMeta {
 }
 
 // ── Dynamic Context Snapshots ────────────────────────────
+export interface TaskSubtaskSnapshot {
+  id: string;
+  title: string;
+  status?: TaskStatus;
+  completed: boolean;
+}
+
 export interface TaskContextSnapshot {
   taskId: string;
   title: string;
@@ -44,6 +51,7 @@ export interface TaskContextSnapshot {
   category?: string | null;
   dueDate?: string | null;
   isOverdue: boolean;
+  subtasks?: TaskSubtaskSnapshot[];
   subtaskCount: number;
   completedSubtaskCount: number;
   milestoneProgressPct: number; // Derived: (completed / total) * 100
@@ -58,10 +66,32 @@ export interface CanvasDerivationStep {
   validationStatus?: NodeValidationStatus;
 }
 
+export interface CanvasNodeSnapshot {
+  id: string;
+  title: string;
+  content?: string;
+  latexFormula?: string;
+  nodeType?: CanvasNodeType;
+  validationStatus?: NodeValidationStatus;
+  parentIds?: string[];
+  isRoot?: boolean;
+  isSelected?: boolean;
+}
+
+export interface CanvasEdgeSnapshot {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+  edgeType?: string;
+}
+
 export interface CanvasContextSnapshot {
   canvasId: string;
   canvasTitle: string;
   category?: string | null;
+  targetGoal?: string | null;
+  description?: string | null;
   selectedNodeId?: string;
   selectedNodeType?: CanvasNodeType;
   selectedNodeTitle?: string;
@@ -69,6 +99,8 @@ export interface CanvasContextSnapshot {
   selectedNodeValidation?: NodeValidationStatus;
   derivationPath: CanvasDerivationStep[]; // Root-to-active node deduction sequence
   activeVariables: CanvasVariable[];     // Dynamic sliders with live values
+  nodes?: CanvasNodeSnapshot[];           // Complete DAG tree nodes
+  edges?: CanvasEdgeSnapshot[];           // Logic connections & hierarchy
 }
 
 export interface ChatContextPayload {

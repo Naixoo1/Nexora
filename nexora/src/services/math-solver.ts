@@ -114,7 +114,8 @@ function generateFallbackBranchSuggestions(
  * Evaluate a mathematical derivation step using the Gemini API.
  */
 export async function evaluateNodeDerivation(
-  payload: EvaluateNode
+  payload: EvaluateNode,
+  existingContext?: string
 ): Promise<NodeEvaluationResult> {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -148,6 +149,7 @@ LaTeX Formula: ${payload.currentFormula}
 Explanation: ${payload.stepExplanation || 'None provided'}
 Context Hypotheses: ${JSON.stringify(payload.contextHypotheses)}
 Variables: ${JSON.stringify(payload.variableValues)}
+${existingContext ? `Existing Derivation Tree:\n${existingContext}` : ''}
 
 Evaluate this step strictly and return JSON:`;
 
@@ -195,7 +197,8 @@ export async function suggestBranchesForNode(
   payload: SuggestBranch,
   targetNodeTitle?: string,
   targetFormula?: string,
-  nodeContent?: string
+  nodeContent?: string,
+  existingContext?: string
 ): Promise<SuggestedBranchResult> {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -207,7 +210,7 @@ export async function suggestBranchesForNode(
     const ai = new GoogleGenAI({ apiKey });
 
     const systemInstruction = `You are Nexora Interactive Logic Tree Branch Generator.
-Given a current logic tree node, suggest 1 to 3 logical next branches.
+Given a current logic tree node and previous steps in the DAG tree, suggest 1 to 3 logical next branches.
 Branch types include:
 - "deduction_step": Natural next mathematical or logical progression step.
 - "what_if_simulation": Sensitivity analysis where a parameter is perturbed.
@@ -238,6 +241,7 @@ Target Formula: ${targetFormula || 'None'}
 Target Content: ${nodeContent || 'None'}
 Requested Branch Type: ${payload.branchType}
 Simulation Parameter: ${JSON.stringify(payload.simulationParameter || {})}
+${existingContext ? `Existing Nodes in Canvas DAG:\n${existingContext}` : ''}
 
 Generate structured branch suggestions now:`;
 

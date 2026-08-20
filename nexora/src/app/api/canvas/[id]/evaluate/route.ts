@@ -43,8 +43,24 @@ export async function POST(
       );
     }
 
-    // Evaluate step derivation using Math Solver service
-    const evaluation = await evaluateNodeDerivation(parsed.data);
+    // Look up full canvas nodes for context
+    const allCanvasNodes = await db
+      .select()
+      .from(canvasNodes)
+      .where(eq(canvasNodes.canvasId, canvasId));
+
+    const otherNodesContext = allCanvasNodes
+      .filter((n) => n.id !== parsed.data.nodeId)
+      .map(
+        (n) =>
+          `Node [${n.id}] (${n.nodeType}): "${n.title}" ${n.latexFormula ? `($${n.latexFormula}$)` : ''} ${
+            n.content ? `- ${n.content}` : ''
+          }`
+      )
+      .join('\n');
+
+    // Evaluate step derivation using Math Solver service with full DAG context
+    const evaluation = await evaluateNodeDerivation(parsed.data, otherNodesContext || undefined);
 
     // Optionally update node validation status in DB if node exists
     await db

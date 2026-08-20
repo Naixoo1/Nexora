@@ -1,17 +1,23 @@
 import { create } from 'zustand';
+import { useCanvasStore } from './useCanvasStore';
+import { useTaskStore } from './useTaskStore';
 import type {
   AcademicTutorMode,
   ChatMessage,
   ChatSession,
   ChatSessionWithMessages,
   TaskContextSnapshot,
+  TaskSubtaskSnapshot,
   CanvasContextSnapshot,
+  CanvasNodeSnapshot,
+  CanvasEdgeSnapshot,
   ChatSourceCitation,
   ChatAttachment,
   ChatAttachmentMeta,
   ChatRole,
 } from '@/types/chat';
-import type { ApiResponse } from '@/types/canvas';
+import type { ApiResponse, CanvasNodeType, NodeValidationStatus } from '@/types/canvas';
+import type { TaskStatus } from '@/types/task';
 
 export interface ChatStoreState {
   // Drawer UI
@@ -55,8 +61,11 @@ export interface ChatStoreState {
   removeAttachment: (id: string) => void;
   clearAttachments: () => void;
 
-  // Actions - Sessions & Messages
-  fetchSessions: (params?: { taskId?: string; canvasId?: string }) => Promise<void>;
+  // Actions - Chat API Integration
+  fetchSessions: (
+    taskIdOrOptions?: { taskId?: string; canvasId?: string } | string,
+    canvasId?: string
+  ) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   createSession: (title?: string, taskId?: string, canvasId?: string) => Promise<ChatSession | null>;
   deleteSession: (sessionId: string) => Promise<boolean>;
@@ -119,8 +128,6 @@ export function parseAndApplyNexoraNodes(text: string) {
       const content = parsed.content || parsed.description || '';
       const validationStatus = parsed.validationStatus || parsed.status || 'valid';
 
-      // Access canvas store dynamically to avoid circular import issues
-      const { useCanvasStore } = require('./useCanvasStore');
       const canvasStore = useCanvasStore.getState();
 
       if (canvasStore.canvasId) {
@@ -149,6 +156,114 @@ export function parseAndApplyNexoraNodes(text: string) {
       console.warn('[Chat Store]: Could not parse nexora-node payload:', err);
     }
   }
+}
+
+/**
+ * Automatically serializes the live STEM canvas and task state into rich snapshots
+ */
+export function buildLiveContextPayload(): {
+  liveCanvasContext?: CanvasContextSnapshot;
+  liveTaskContext?: TaskContextSnapshot;
+} {
+  let liveCanvasContext: CanvasContextSnapshot | undefined = undefined;
+  let liveTaskContext: TaskContextSnapshot | undefined = undefined;
+
+  try {
+    const canvasStore = useCanvasStore.getState();
+
+    if (canvasStore && canvasStore.canvasId) {
+      // Build map of child -> parent IDs from edges
+      const parentMap = new Map<string, string[]>();
+      canvasStore.edges.forEach((edge) => {
+        if (!parentMap.has(edge.target)) {
+          parentMap.set(edge.target, []);
+        }
+        parentMap.get(edge.target)!.push(edge.source);
+      });
+
+      const nodes: CanvasNodeSnapshot[] = canvasStore.nodes.map((node) => ({
+        id: node.id,
+        title: node.data.title || 'Untitled Node',
+        content: node.data.content || '',
+        latexFormula: node.data.latexFormula || '',
+        nodeType: node.data.nodeType || (node.type as CanvasNodeType) || 'reasoning_step',
+        validationStatus: node.data.validationStatus || 'valid',
+        parentIds: parentMap.get(node.id) || [],
+        isRoot: node.type === 'problem_root' || (parentMap.get(node.id) || []).length === 0,
+        isSelected: node.id === canvasStore.selectedNodeId,
+      }));
+
+      const edges: CanvasEdgeSnapshot[] = canvasStore.edges.map((edge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        label: typeof edge.label === 'string' ? edge.label : (edge.data?.label as string) || 'implication',
+        edgeType: (edge.data?.edgeType as string) || 'implication',
+      }));
+
+      const selectedNode = canvasStore.nodes.find((n) => n.id === canvasStore.selectedNodeId);
+
+      liveCanvasContext = {
+        canvasId: canvasStore.canvasId,
+        canvasTitle: canvasStore.title || 'STEM Logic Canvas',
+        category: canvasStore.category || 'STEM',
+        targetGoal: canvasStore.description || '',
+        description: canvasStore.description || '',
+        selectedNodeId: canvasStore.selectedNodeId || undefined,
+        selectedNodeType:
+          selectedNode?.data.nodeType || (selectedNode?.type as CanvasNodeType) || undefined,
+        selectedNodeTitle: selectedNode?.data.title || undefined,
+        selectedNodeFormula: selectedNode?.data.latexFormula || undefined,
+        selectedNodeValidation: selectedNode?.data.validationStatus || undefined,
+        derivationPath: [],
+        activeVariables: canvasStore.globalVariables || [],
+        nodes,
+        edges,
+      };
+    }
+  } catch (err) {
+    console.warn('[Chat Store]: Could not extract live canvas state:', err);
+  }
+
+  try {
+    const taskStore = useTaskStore.getState();
+
+    if (taskStore && taskStore.tasks && taskStore.tasks.length > 0) {
+      const activeTask = taskStore.editingTask || taskStore.tasks[0];
+      if (activeTask) {
+        const subtasks: TaskSubtaskSnapshot[] = taskStore.tasks
+          .filter((t) => t.parentId === activeTask.id)
+          .map((sub) => ({
+            id: sub.id,
+            title: sub.title,
+            status: sub.status,
+            completed: sub.status === 'completed',
+          }));
+
+        const completedCount = subtasks.filter((s) => s.completed).length;
+
+        liveTaskContext = {
+          taskId: activeTask.id,
+          title: activeTask.title,
+          description: activeTask.description,
+          status: activeTask.status,
+          priority: activeTask.priority,
+          category: activeTask.category,
+          dueDate: activeTask.dueDate ? new Date(activeTask.dueDate).toISOString() : null,
+          isOverdue: activeTask.dueDate ? new Date(activeTask.dueDate) < new Date() : false,
+          subtasks,
+          subtaskCount: subtasks.length,
+          completedSubtaskCount: completedCount,
+          milestoneProgressPct:
+            subtasks.length > 0 ? Math.round((completedCount / subtasks.length) * 100) : 0,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[Chat Store]: Could not extract live task state:', err);
+  }
+
+  return { liveCanvasContext, liveTaskContext };
 }
 
 export const useChatStore = create<ChatStoreState>((set, get) => ({
@@ -234,113 +349,109 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     set({ attachments: [] });
   },
 
-  fetchSessions: async (params) => {
+  fetchSessions: async (taskIdOrOptions?: { taskId?: string; canvasId?: string } | string, canvasIdArg?: string) => {
+    set({ isLoadingHistory: true, error: null });
     try {
-      const query = new URLSearchParams();
-      if (params?.taskId) query.set('taskId', params.taskId);
-      if (params?.canvasId) query.set('canvasId', params.canvasId);
+      const params = new URLSearchParams();
+      let tId: string | undefined;
+      let cId: string | undefined;
 
-      const response = await fetch(`/api/chat/sessions?${query.toString()}`);
-      const json: ApiResponse<{ items: ChatSession[] }> = await response.json();
-
-      if (response.ok && json.success && json.data) {
-        set({ sessions: json.data.items || [] });
+      if (typeof taskIdOrOptions === 'object' && taskIdOrOptions !== null) {
+        tId = taskIdOrOptions.taskId;
+        cId = taskIdOrOptions.canvasId;
+      } else if (typeof taskIdOrOptions === 'string') {
+        tId = taskIdOrOptions;
+        cId = canvasIdArg;
       }
+
+      if (tId) params.set('taskId', tId);
+      if (cId) params.set('canvasId', cId);
+
+      const res = await fetch(`/api/chat/sessions?${params.toString()}`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || errJson.error || 'Failed to load chat history');
+      }
+
+      const data = await res.json();
+      const sessionsList =
+        data.data?.items ||
+        data.data?.sessions ||
+        (Array.isArray(data.data) ? data.data : []);
+
+      set({ sessions: sessionsList, isLoadingHistory: false });
     } catch (err) {
-      console.warn('Failed to fetch chat sessions:', err);
+      set({
+        error: err instanceof Error ? err.message : 'Error fetching sessions',
+        isLoadingHistory: false,
+      });
     }
   },
 
   selectSession: async (sessionId: string) => {
     set({ isLoadingHistory: true, error: null });
     try {
-      const response = await fetch(`/api/chat/sessions/${sessionId}`);
-      const json: ApiResponse<ChatSessionWithMessages> = await response.json();
-
-      if (!response.ok || !json.success || !json.data) {
-        throw new Error(json.message || 'Failed to load session');
+      const res = await fetch(`/api/chat/sessions/${sessionId}`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || errJson.error || 'Failed to load session messages');
       }
 
+      const data: ApiResponse<ChatSessionWithMessages> = await res.json();
+      if (data.data) {
+        set({
+          currentSession: data.data,
+          messages: data.data.messages || [],
+          isLoadingHistory: false,
+          activeTutorMode: data.data.tutorMode || 'socratic',
+        });
+      }
+    } catch (err) {
       set({
-        currentSession: json.data,
-        messages: json.data.messages || [],
-        activeTutorMode: json.data.tutorMode || 'socratic',
+        error: err instanceof Error ? err.message : 'Error loading session',
         isLoadingHistory: false,
       });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error loading chat history';
-      set({ error: msg, isLoadingHistory: false });
     }
   },
 
-  createSession: async (title = 'New Brainstorm Session', taskId, canvasId) => {
+  createSession: async (title = 'New Brainstorming Session', taskId, canvasId) => {
+    set({ error: null });
     try {
-      const payload = {
-        title,
-        taskId: taskId || get().taskContext?.taskId,
-        canvasId: canvasId || get().canvasContext?.canvasId,
-        tutorMode: get().activeTutorMode,
-      };
-
-      const response = await fetch('/api/chat/sessions', {
+      const res = await fetch('/api/chat/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const json: ApiResponse<ChatSession> = await response.json();
-
-      if (!response.ok || !json.success || !json.data) {
-        // Fallback for guest mode: create local in-memory session
-        const guestSession: ChatSession = {
-          id: `guest-${Date.now()}`,
-          userId: 'guest',
+        body: JSON.stringify({
           title,
+          taskId,
+          canvasId,
           tutorMode: get().activeTutorMode,
-          taskId: taskId || get().taskContext?.taskId,
-          canvasId: canvasId || get().canvasContext?.canvasId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        set({
-          currentSession: guestSession,
-          messages: [],
-        });
-        return guestSession;
-      }
-
-      const newSession = json.data;
-      set((state) => ({
-        sessions: [newSession, ...state.sessions.filter((s) => s.id !== newSession.id)],
-        currentSession: newSession,
-        messages: [],
-      }));
-
-      return newSession;
-    } catch (err) {
-      console.warn('Fallback to local guest chat session:', err);
-      const guestSession: ChatSession = {
-        id: `guest-${Date.now()}`,
-        userId: 'guest',
-        title,
-        tutorMode: get().activeTutorMode,
-        taskId: taskId || get().taskContext?.taskId,
-        canvasId: canvasId || get().canvasContext?.canvasId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      set({
-        currentSession: guestSession,
-        messages: [],
+        }),
       });
-      return guestSession;
+
+      if (!res.ok) throw new Error('Failed to create chat session');
+      const data: ApiResponse<ChatSession> = await res.json();
+      if (data.data) {
+        set((state) => ({
+          sessions: [data.data!, ...state.sessions],
+          currentSession: data.data,
+          messages: [],
+        }));
+        return data.data;
+      }
+      return null;
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Error creating session' });
+      return null;
     }
   },
 
   deleteSession: async (sessionId: string) => {
+    set({ error: null });
     try {
-      const response = await fetch(`/api/chat/sessions/${sessionId}`, { method: 'DELETE' });
-      if (!response.ok) return false;
+      const res = await fetch(`/api/chat/sessions/${sessionId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete session');
 
       set((state) => ({
         sessions: state.sessions.filter((s) => s.id !== sessionId),
@@ -362,9 +473,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     if ((!rawContent && currentAttachments.length === 0) || get().isSending) return;
 
     const userMessageContent = rawContent || 'Analyze the attached image/document.';
+
+    // Extract live context from active canvas & task stores if available
+    const { liveCanvasContext, liveTaskContext } = buildLiveContextPayload();
     const activeMode = get().activeTutorMode;
-    const taskCtx = get().taskContext;
-    const canvasCtx = get().canvasContext;
+    const taskCtx = liveTaskContext || get().taskContext;
+    const canvasCtx = liveCanvasContext || get().canvasContext;
     const customInst = get().customInstructions;
 
     // Convert to lightweight metadata for storage

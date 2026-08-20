@@ -16,6 +16,13 @@ export const AcademicTutorModeSchema = z.enum([
   'general',
 ]);
 
+export const TaskSubtaskSnapshotSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  status: TaskStatusSchema.optional(),
+  completed: z.boolean().default(false),
+});
+
 export const TaskContextSnapshotSchema = z.object({
   taskId: z.string().uuid(),
   title: z.string().min(1).max(255),
@@ -25,6 +32,7 @@ export const TaskContextSnapshotSchema = z.object({
   category: z.string().nullable().optional(),
   dueDate: z.string().datetime({ offset: true }).nullable().optional(),
   isOverdue: z.boolean().default(false),
+  subtasks: z.array(TaskSubtaskSnapshotSchema).optional(),
   subtaskCount: z.number().int().min(0).default(0),
   completedSubtaskCount: z.number().int().min(0).default(0),
   milestoneProgressPct: z.number().min(0).max(100).default(0),
@@ -39,10 +47,32 @@ export const CanvasDerivationStepSchema = z.object({
   validationStatus: NodeValidationStatusSchema.optional(),
 });
 
+export const CanvasNodeSnapshotSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  content: z.string().optional(),
+  latexFormula: z.string().optional(),
+  nodeType: CanvasNodeTypeSchema.optional(),
+  validationStatus: NodeValidationStatusSchema.optional(),
+  parentIds: z.array(z.string()).optional(),
+  isRoot: z.boolean().optional(),
+  isSelected: z.boolean().optional(),
+});
+
+export const CanvasEdgeSnapshotSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  label: z.string().optional(),
+  edgeType: z.string().optional(),
+});
+
 export const CanvasContextSnapshotSchema = z.object({
   canvasId: z.string().uuid(),
   canvasTitle: z.string(),
   category: z.string().nullable().optional(),
+  targetGoal: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
   selectedNodeId: z.string().optional(),
   selectedNodeType: CanvasNodeTypeSchema.optional(),
   selectedNodeTitle: z.string().optional(),
@@ -50,6 +80,8 @@ export const CanvasContextSnapshotSchema = z.object({
   selectedNodeValidation: NodeValidationStatusSchema.optional(),
   derivationPath: z.array(CanvasDerivationStepSchema).default([]),
   activeVariables: z.array(CanvasVariableSchema).default([]),
+  nodes: z.array(CanvasNodeSnapshotSchema).optional(),
+  edges: z.array(CanvasEdgeSnapshotSchema).optional(),
 });
 
 export const ChatContextPayloadSchema = z.object({

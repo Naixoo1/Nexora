@@ -65,7 +65,7 @@ function normalizeTutorMode(rawMode?: string): AcademicTutorMode {
 
 /**
  * Builds the complete Nexora AI System Instruction combining core dual capabilities,
- * active mode persona, mathematical LaTeX rules, and attached task/canvas context.
+ * active mode persona, mathematical LaTeX rules, and deep attached task/canvas context.
  */
 export function buildSystemPrompt(context?: ChatContextPayload): string {
   const modeKey = normalizeTutorMode(context?.tutorMode);
@@ -109,26 +109,18 @@ When explaining a mathematical derivation, key formula, or theorem step (especia
 Supported types: "reasoning_step" (default), "formula_block", "theorem_proof", "what_if_branch", "problem_root".
 `;
 
-  // Inject Active Task Context
-  if (context?.taskContext) {
-    const t = context.taskContext;
-    prompt += `\n---
-### ACTIVE TASK CONTEXT:
-- Task: "${t.title}" (Status: ${t.status}, Priority: ${t.priority})
-- Category: ${t.category || 'General'}
-- Deadline: ${t.dueDate || 'No deadline'} ${t.isOverdue ? '(OVERDUE)' : ''}
-- Progress: ${t.completedSubtaskCount}/${t.subtaskCount} subtasks completed (${t.milestoneProgressPct}% milestone progress)
-${t.description ? `- Description: ${t.description}` : ''}
-`;
-  }
-
-  // Inject Active STEM Canvas Context
+  // Inject Active STEM Canvas Context & DAG Tree
   if (context?.canvasContext) {
     const c = context.canvasContext;
     prompt += `\n---
 ### ACTIVE STEM CANVAS CONTEXT:
 - Canvas: "${c.canvasTitle}" (Domain: ${c.category || 'STEM'})
 `;
+
+    if (c.targetGoal || c.description) {
+      prompt += `- Target Goal: "${c.targetGoal || c.description}"
+`;
+    }
 
     if (c.selectedNodeId) {
       prompt += `- Selected Node: "${c.selectedNodeTitle || c.selectedNodeId}" (Type: ${c.selectedNodeType}, Validation: ${c.selectedNodeValidation})
@@ -152,6 +144,46 @@ ${t.description ? `- Description: ${t.description}` : ''}
 `;
       c.activeVariables.forEach((v) => {
         prompt += `  * $${v.symbol}$ (${v.name}) = ${v.value} ${v.unit || ''} (Range: [${v.min}, ${v.max}], Step: ${v.step})\n`;
+      });
+    }
+
+    if (c.nodes && c.nodes.length > 0) {
+      prompt += `- Nodes in DAG Tree:
+`;
+      c.nodes.forEach((n, idx) => {
+        const parents = n.parentIds && n.parentIds.length > 0 ? ` (Parent: ${n.parentIds.join(', ')})` : '';
+        const latex = n.latexFormula ? ` | Latex: "$${n.latexFormula}$"` : '';
+        const content = n.content ? ` | Content: "${n.content}"` : '';
+        const status = n.validationStatus ? ` | Status: ${n.validationStatus}` : '';
+        prompt += `  ${idx + 1}. Node [${n.id}]${parents}: "${n.title}" | Type: ${n.nodeType || 'reasoning_step'}${latex}${content}${status}\n`;
+      });
+    }
+
+    prompt += `
+*CANVAS CONTEXT CONTINUITY INSTRUCTIONS:*
+1. Always inspect the [ACTIVE STEM CANVAS CONTEXT] and existing nodes in the DAG tree first.
+2. If problem definitions, formulas, or sequence elements (such as arithmetic/geometric terms, initial equations, or givens) are already present in the canvas nodes above, seamlessly continue the derivation from the latest node without asking the user to re-state or re-type the problem.
+3. Refer directly to existing node IDs and formulas using \`[[node:NODE_ID|NODE_TITLE]]\` and advance the mathematical derivation toward the Target Goal.
+`;
+  }
+
+  // Inject Active Task Context
+  if (context?.taskContext) {
+    const t = context.taskContext;
+    prompt += `\n---
+### ACTIVE TASK CONTEXT:
+- Task: "${t.title}" (Status: ${t.status}, Priority: ${t.priority})
+- Category: ${t.category || 'General'}
+- Deadline: ${t.dueDate || 'No deadline'} ${t.isOverdue ? '(OVERDUE)' : ''}
+- Progress: ${t.completedSubtaskCount}/${t.subtaskCount} subtasks completed (${t.milestoneProgressPct}% milestone progress)
+${t.description ? `- Description: ${t.description}` : ''}
+`;
+
+    if (t.subtasks && t.subtasks.length > 0) {
+      prompt += `- Task Hierarchy & Subtasks:
+`;
+      t.subtasks.forEach((st) => {
+        prompt += `  * [${st.completed ? 'x' : ' '}] ${st.title} (Status: ${st.status || (st.completed ? 'completed' : 'todo')})\n`;
       });
     }
   }

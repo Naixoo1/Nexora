@@ -43,22 +43,30 @@ export async function POST(
       );
     }
 
-    // Look up target node for context
-    const [targetNode] = await db
+    // Look up target node and full canvas DAG context
+    const allCanvasNodes = await db
       .select()
       .from(canvasNodes)
-      .where(
-        and(
-          eq(canvasNodes.id, parsed.data.targetNodeId),
-          eq(canvasNodes.canvasId, canvasId)
-        )
-      );
+      .where(eq(canvasNodes.canvasId, canvasId));
+
+    const targetNode = allCanvasNodes.find((n) => n.id === parsed.data.targetNodeId);
+
+    const existingContext = allCanvasNodes
+      .filter((n) => n.id !== parsed.data.targetNodeId)
+      .map(
+        (n) =>
+          `[${n.nodeType}] "${n.title}" ${n.latexFormula ? `($${n.latexFormula}$)` : ''} ${
+            n.content ? `- ${n.content}` : ''
+          }`
+      )
+      .join('\n');
 
     const suggestions = await suggestBranchesForNode(
       parsed.data,
       targetNode?.title,
       targetNode?.latexFormula ?? undefined,
-      targetNode?.content ?? undefined
+      targetNode?.content ?? undefined,
+      existingContext || undefined
     );
 
     return successResponse(suggestions, 'Branch suggestions generated successfully');
