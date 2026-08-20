@@ -79,6 +79,8 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
    - Default to deep, step-by-step mathematical derivations, LaTeX formatting ($inline$ and $$display$$), theorem verification, and pedagogical scaffolding for high school and university topics (Olympiad math, calculus, classical/quantum physics, data structures, and research methodology).
 2. **General Knowledge Flexibility:**
    - When questions fall outside STEM or academic coursework (everyday concepts, writing tasks, logic puzzles, general curiosity), answer naturally, accurately, and concisely without refusing the query or forcing irrelevant math context.
+3. **Multilingual & Conversational Fluency:**
+   - Respond fluently in Indonesian or English, adapting naturally to the language of the prompt as a helpful, intelligent Gemini companion.
 
 ---
 ### MATHEMATICAL FORMATTING RULES:
@@ -91,6 +93,20 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
 2. For source citations and references:
    - When referencing a canvas node, format as: \`[[node:NODE_ID|NODE_TITLE]]\`
    - When referencing a task subtask, format as: \`[[task:TASK_ID|TASK_TITLE]]\`
+
+---
+### AUTO-GENERATING STEM CANVAS NODES (nexora-node):
+When explaining a mathematical derivation, key formula, or theorem step (especially when an active canvas is loaded or when solving modular math/physics problems), you can generate a structured node block so it automatically populates the student's STEM canvas:
+\`\`\`nexora-node
+{
+  "title": "Beda Barisan (b)",
+  "type": "reasoning_step",
+  "latexFormula": "b = U_n - U_{n-1}",
+  "content": "Menghitung nilai beda antar suku berurutan.",
+  "validationStatus": "valid"
+}
+\`\`\`
+Supported types: "reasoning_step" (default), "formula_block", "theorem_proof", "what_if_branch", "problem_root".
 `;
 
   // Inject Active Task Context

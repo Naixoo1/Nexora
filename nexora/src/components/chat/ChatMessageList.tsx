@@ -9,6 +9,8 @@ import {
   FileText,
   FileCode,
   Image as ImageIcon,
+  Network,
+  CheckCircle2,
 } from 'lucide-react';
 import type { ChatMessage, ChatSourceCitation } from '@/types/chat';
 import { LatexRenderer } from '../canvas/LatexRenderer';
@@ -27,14 +29,76 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+interface NexoraNodePayload {
+  title?: string;
+  type?: string;
+  nodeType?: string;
+  latex?: string;
+  latexFormula?: string;
+  content?: string;
+  description?: string;
+  status?: string;
+  validationStatus?: string;
+}
+
+const NexoraNodePreviewCard: React.FC<{ rawJson: string }> = ({ rawJson }) => {
+  try {
+    const data: NexoraNodePayload = JSON.parse(rawJson.trim());
+    const title = data.title || 'Derived STEM Node';
+    const latex = data.latexFormula || data.latex || '';
+    const desc = data.content || data.description || '';
+    const rawType = data.type || data.nodeType || 'reasoning_step';
+
+    return (
+      <div className="my-3 overflow-hidden rounded-2xl border border-cyan-500/30 bg-[#0B0F17]/95 p-3.5 shadow-xl ring-1 ring-cyan-400/20 backdrop-blur-sm">
+        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400">
+              <Network className="h-3.5 w-3.5" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white">{title}</span>
+              <span className="ml-2 text-[10px] uppercase tracking-wider text-slate-400 font-mono">
+                {rawType.replace('_', ' ')}
+              </span>
+            </div>
+          </div>
+          <span className="flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-300 border border-cyan-500/20">
+            <CheckCircle2 className="h-3 w-3 text-cyan-400" />
+            Synced to Canvas
+          </span>
+        </div>
+
+        {latex && (
+          <div className="my-2.5 rounded-xl border border-white/5 bg-[#131926] p-2.5 text-center">
+            <LatexRenderer latex={latex} displayMode="block" showCopyButton />
+          </div>
+        )}
+
+        {desc && (
+          <p className="text-[11px] text-slate-300 leading-relaxed font-sans mt-1">
+            {desc}
+          </p>
+        )}
+      </div>
+    );
+  } catch {
+    return (
+      <pre className="my-2 rounded-xl bg-slate-900 p-2 font-mono text-[11px] text-slate-400 overflow-x-auto">
+        {rawJson}
+      </pre>
+    );
+  }
+};
+
 /**
- * Parses message text containing mixed markdown, LaTeX blocks ($$..$$ and $..$), and citation tags
+ * Parses block math equations ($$...$$) within a text fragment
  */
-const RenderMessageContent: React.FC<{ content: string; citations?: ChatSourceCitation[] }> = ({
-  content,
-  citations = [],
-}) => {
-  // 1. Split content by block equations $$...$$
+function renderContentWithBlockMath(
+  content: string,
+  citations: ChatSourceCitation[],
+  keyPrefix: string
+): React.ReactNode {
   const blockMathRegex = /\$\$([\s\S]*?)\$\$/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -43,12 +107,12 @@ const RenderMessageContent: React.FC<{ content: string; citations?: ChatSourceCi
   while ((match = blockMathRegex.exec(content)) !== null) {
     const textBefore = content.substring(lastIndex, match.index);
     if (textBefore) {
-      parts.push(renderTextWithInlineMathAndCitations(textBefore, citations, `text-${lastIndex}`));
+      parts.push(renderTextWithInlineMathAndCitations(textBefore, citations, `${keyPrefix}-text-${lastIndex}`));
     }
 
     const formula = match[1].trim();
     parts.push(
-      <div key={`math-block-${match.index}`} className="my-2">
+      <div key={`${keyPrefix}-math-block-${match.index}`} className="my-2">
         <LatexRenderer latex={formula} displayMode="block" showCopyButton />
       </div>
     );
@@ -58,10 +122,44 @@ const RenderMessageContent: React.FC<{ content: string; citations?: ChatSourceCi
 
   const remainingText = content.substring(lastIndex);
   if (remainingText) {
-    parts.push(renderTextWithInlineMathAndCitations(remainingText, citations, `text-end-${lastIndex}`));
+    parts.push(renderTextWithInlineMathAndCitations(remainingText, citations, `${keyPrefix}-text-end-${lastIndex}`));
   }
 
-  return <div className="space-y-1.5 text-xs sm:text-sm leading-relaxed">{parts}</div>;
+  return <React.Fragment key={keyPrefix}>{parts}</React.Fragment>;
+}
+
+/**
+ * Parses message text containing mixed markdown, nexora-node blocks, LaTeX blocks ($$..$$ and $..$), and citation tags
+ */
+const RenderMessageContent: React.FC<{ content: string; citations?: ChatSourceCitation[] }> = ({
+  content,
+  citations = [],
+}) => {
+  // First, parse out ```nexora-node ... ``` blocks
+  const nexoraNodeRegex = /```nexora-node\s*([\s\S]*?)\s*```/g;
+  const sections: React.ReactNode[] = [];
+  let lastSecIndex = 0;
+  let nodeMatch: RegExpExecArray | null;
+
+  while ((nodeMatch = nexoraNodeRegex.exec(content)) !== null) {
+    const textBefore = content.substring(lastSecIndex, nodeMatch.index);
+    if (textBefore) {
+      sections.push(renderContentWithBlockMath(textBefore, citations, `sec-${lastSecIndex}`));
+    }
+
+    sections.push(
+      <NexoraNodePreviewCard key={`nexora-node-${nodeMatch.index}`} rawJson={nodeMatch[1]} />
+    );
+
+    lastSecIndex = nodeMatch.index + nodeMatch[0].length;
+  }
+
+  const remainingText = content.substring(lastSecIndex);
+  if (remainingText) {
+    sections.push(renderContentWithBlockMath(remainingText, citations, `sec-end-${lastSecIndex}`));
+  }
+
+  return <div className="space-y-1.5 text-xs sm:text-sm leading-relaxed">{sections}</div>;
 };
 
 /**

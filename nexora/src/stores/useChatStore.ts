@@ -87,6 +87,70 @@ export function extractCitations(text: string): ChatSourceCitation[] {
   return citations;
 }
 
+/**
+ * Parses ```nexora-node { ... } ``` JSON blocks from AI messages and appends them
+ * directly to the active STEM canvas.
+ */
+export function parseAndApplyNexoraNodes(text: string) {
+  const regex = /```nexora-node\s*([\s\S]*?)\s*```/g;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    try {
+      const jsonStr = match[1].trim();
+      const parsed = JSON.parse(jsonStr);
+
+      const rawType = (parsed.type || parsed.nodeType || 'reasoning_step').toLowerCase();
+      const nodeType =
+        rawType === 'derivation' || rawType === 'step' || rawType === 'reasoning_step'
+          ? ('reasoning_step' as const)
+          : rawType === 'formula' || rawType === 'formula_block'
+          ? ('formula_block' as const)
+          : rawType === 'theorem' || rawType === 'theorem_proof'
+          ? ('theorem_proof' as const)
+          : rawType === 'what_if' || rawType === 'what_if_branch'
+          ? ('what_if_branch' as const)
+          : rawType === 'problem_root' || rawType === 'root'
+          ? ('problem_root' as const)
+          : ('reasoning_step' as const);
+
+      const title = parsed.title || 'Derived Step';
+      const latexFormula = parsed.latexFormula || parsed.latex || '';
+      const content = parsed.content || parsed.description || '';
+      const validationStatus = parsed.validationStatus || parsed.status || 'valid';
+
+      // Access canvas store dynamically to avoid circular import issues
+      const { useCanvasStore } = require('./useCanvasStore');
+      const canvasStore = useCanvasStore.getState();
+
+      if (canvasStore.canvasId) {
+        // Prevent duplicate addition of exact same node in session
+        const isDuplicate = canvasStore.nodes.some(
+          (n: { data: { title: string; latexFormula?: string } }) =>
+            n.data.title === title && n.data.latexFormula === latexFormula
+        );
+
+        if (!isDuplicate) {
+          const currentNodesCount = canvasStore.nodes.length;
+          const position = {
+            x: 250 + (currentNodesCount % 3) * 280,
+            y: 160 + Math.floor(currentNodesCount / 3) * 220,
+          };
+
+          canvasStore.addNode(nodeType, position, {
+            title,
+            latexFormula,
+            content,
+            validationStatus,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[Chat Store]: Could not parse nexora-node payload:', err);
+    }
+  }
+}
+
 export const useChatStore = create<ChatStoreState>((set, get) => ({
   isDrawerOpen: false,
 
@@ -411,8 +475,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         throw new Error('AI returned an empty response. Please check your Gemini API key or try again.');
       }
 
-      // Extract citations from generated response
+      // Extract citations and auto-sync canvas nodes
       const citations = extractCitations(fullAssistantText);
+      parseAndApplyNexoraNodes(fullAssistantText);
 
       // Final Assistant Message
       const finalAssistantMessage: ChatMessage = {
