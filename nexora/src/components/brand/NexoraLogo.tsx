@@ -19,9 +19,9 @@ export const NexoraLogo: React.FC<NexoraLogoProps> = ({
   href = '/',
 }) => {
   const dimensions = {
-    sm: { sizeClass: 'w-6 h-6', text: 'text-sm', badge: 'text-[9px] px-1 py-0.2' },
-    md: { sizeClass: 'w-8 h-8', text: 'text-base', badge: 'text-[10px] px-1.5 py-0.5' },
-    lg: { sizeClass: 'w-10 h-10', text: 'text-xl', badge: 'text-xs px-2 py-0.5' },
+    sm: { sizeClass: 'w-6 h-6', px: 24, text: 'text-sm', badge: 'text-[9px] px-1 py-0.2' },
+    md: { sizeClass: 'w-8 h-8', px: 32, text: 'text-base', badge: 'text-[10px] px-1.5 py-0.5' },
+    lg: { sizeClass: 'w-10 h-10', px: 40, text: 'text-xl', badge: 'text-xs px-2 py-0.5' },
   }[size];
 
   const content = (
@@ -35,9 +35,11 @@ export const NexoraLogo: React.FC<NexoraLogoProps> = ({
       >
         <Image
           alt="Nexora Logo"
-          className="object-cover"
-          fill
+          className="w-full h-full object-cover"
+          width={dimensions.px}
+          height={dimensions.px}
           priority
+          unoptimized
           src="/logo.png"
         />
       </div>

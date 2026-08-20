@@ -17,11 +17,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Nexora — AI Academic Companion",
   description: "AI-powered task management, study planning, and exam preparation companion for high school & university students.",
-  icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
-  },
+  icons: [
+    { rel: 'icon', url: '/logo.png' },
+    { rel: 'shortcut icon', url: '/logo.png' },
+    { rel: 'apple-touch-icon', url: '/logo.png' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
