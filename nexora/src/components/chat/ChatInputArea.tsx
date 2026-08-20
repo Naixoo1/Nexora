@@ -36,10 +36,25 @@ const PROMPT_STARTERS: Record<AcademicTutorMode, string[]> = {
     '✍️ Verify if this derivation step has algebraic errors.',
     '📐 Show the intermediate integral substitution.',
   ],
+  'step-by-step': [
+    '🔢 Provide a complete step-by-step mathematical expansion.',
+    '✍️ Verify each algebraic line and state the theorem used.',
+    '📐 Check intermediate boundaries and unit consistency.',
+  ],
+  brainstorming: [
+    '💡 Brainstorm structured approaches and key research questions.',
+    '📚 Suggest literature frameworks and methodology outlines.',
+    '🔍 Break this multi-faceted problem into modular components.',
+  ],
   thesis_mentor: [
     '📚 Help me articulate the research gap in this methodology.',
     '📊 Structure the empirical validation section for Chapter 3.',
     '🔍 Suggest relevant academic citations and theoretical frameworks.',
+  ],
+  general: [
+    '💬 Explain this concept in simple, clear terms.',
+    '📝 Help me summarize and format these ideas.',
+    '⚡ Give me a fast, direct answer with examples.',
   ],
 };
 

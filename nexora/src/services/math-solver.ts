@@ -152,7 +152,7 @@ Variables: ${JSON.stringify(payload.variableValues)}
 Evaluate this step strictly and return JSON:`;
 
     const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -242,7 +242,7 @@ Simulation Parameter: ${JSON.stringify(payload.simulationParameter || {})}
 Generate structured branch suggestions now:`;
 
     const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
       contents: prompt,
       config: {
         systemInstruction,

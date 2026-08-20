@@ -359,8 +359,15 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Server error' }));
-        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+        let errorText = `Server responded with HTTP ${response.status}`;
+        try {
+          const errorJson = await response.json();
+          errorText = errorJson.error || errorJson.message || errorText;
+        } catch {
+          const raw = await response.text().catch(() => '');
+          if (raw) errorText = raw;
+        }
+        throw new Error(errorText);
       }
 
       // Check session ID header
@@ -391,11 +398,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
-          fullAssistantText += chunk;
-          set({ streamingMessage: fullAssistantText });
+          if (chunk) {
+            fullAssistantText += chunk;
+            set({ streamingMessage: fullAssistantText });
+          }
         }
       } else {
         fullAssistantText = await response.text();
+      }
+
+      if (!fullAssistantText.trim()) {
+        throw new Error('AI returned an empty response. Please check your Gemini API key or try again.');
       }
 
       // Extract citations from generated response
@@ -416,14 +429,27 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         messages: [...state.messages, finalAssistantMessage],
         streamingMessage: null,
         isSending: false,
+        error: null,
       }));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to send message';
-      set({
-        error: msg,
+      console.error('[Chat Store Error]:', err);
+      const errorMessageText = err instanceof Error ? err.message : 'AI failed to respond.';
+
+      const errorAssistantMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        sessionId: get().currentSession?.id || '',
+        userId: 'assistant',
+        role: 'assistant' as ChatRole,
+        content: `⚠️ **AI failed to respond.**\n\n*Error: ${errorMessageText}*\n\nPlease check your \`GEMINI_API_KEY\` configuration in \`.env.local\` or your network connection and try again.`,
+        createdAt: new Date().toISOString(),
+      };
+
+      set((state) => ({
+        messages: [...state.messages, errorAssistantMessage],
+        error: errorMessageText,
         streamingMessage: null,
         isSending: false,
-      });
+      }));
     }
   },
 

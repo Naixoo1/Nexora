@@ -10,7 +10,10 @@ export const AcademicTutorModeSchema = z.enum([
   'socratic',
   'olympiad',
   'step_breakdown',
+  'step-by-step',
+  'brainstorming',
   'thesis_mentor',
+  'general',
 ]);
 
 export const TaskContextSnapshotSchema = z.object({
@@ -138,6 +141,7 @@ export const SendChatMessageSchema = z.object({
   taskId: z.string().uuid().optional(),
   canvasId: z.string().uuid().optional(),
   message: z.string().min(1, 'Message cannot be empty').max(10000),
+  mode: AcademicTutorModeSchema.optional(),
   context: ChatContextPayloadSchema.optional(),
   attachments: z.array(ChatAttachmentSchema).max(5).optional(),
 });

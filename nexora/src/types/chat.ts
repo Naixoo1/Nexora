@@ -8,7 +8,10 @@ export type AcademicTutorMode =
   | 'socratic'        // Guided inquiry, questions student assumptions
   | 'olympiad'        // Deep theoretical rigor, invariants, monovariants
   | 'step_breakdown'  // Progressive derivation with explicit KaTeX displays
-  | 'thesis_mentor';  // Literature gap identification, methodology structure
+  | 'step-by-step'    // Strict derivation steps, verifying each line of math
+  | 'brainstorming'   // Structured bullet outlines & methodology frameworks
+  | 'thesis_mentor'   // Literature gap identification, methodology structure
+  | 'general';        // Direct, concise, versatile conversational replies
 
 // ── Multimodal Attachments ───────────────────────────────
 export type ChatAttachmentType = 'image' | 'pdf' | 'text';

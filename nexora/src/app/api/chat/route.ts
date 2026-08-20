@@ -5,7 +5,7 @@ import { auth } from '@/lib/auth';
 import { SendChatMessageSchema } from '@/lib/validators/chat';
 import { buildSystemPrompt } from '@/services/chat-prompt';
 import { getOrCreateChatSession, saveChatMessage } from '@/services/chat';
-import { errorResponse, validationErrorResponse } from '@/lib/api-response';
+import { validationErrorResponse } from '@/lib/api-response';
 import type { ChatAttachment } from '@/types/chat';
 
 /**
@@ -39,7 +39,7 @@ function buildGeminiContentParts(
     switch (att.type) {
       case 'image':
       case 'pdf': {
-        // Gemini 2.5 Flash natively processes images and PDFs via inlineData
+        // Gemini natively processes images and PDFs via inlineData
         const cleanData = stripBase64Prefix(att.data);
         parts.push({
           inlineData: {
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         userId = session.user.id;
       }
     } catch (authErr) {
-      console.warn('POST /api/chat: Session check unauthenticated, proceeding as Guest:', authErr);
+      console.warn('[Chat API]: Session check unauthenticated, proceeding as Guest:', authErr);
     }
 
     const body: unknown = await req.json();
@@ -86,9 +86,25 @@ export async function POST(req: NextRequest): Promise<Response> {
       );
     }
 
-    const { sessionId, taskId, canvasId, message, context, attachments } = parsed.data;
+    const { sessionId, taskId, canvasId, message, mode, context, attachments } = parsed.data;
 
-    // 2. If authenticated user, persist session & user message to database
+    // Resolve context merging top-level mode if provided
+    const resolvedContext = {
+      ...(context || { tutorMode: 'socratic' as const }),
+      tutorMode: mode || context?.tutorMode || 'socratic',
+    };
+
+    // 2. Check GEMINI_API_KEY
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey.trim() === '' || apiKey === 'your-gemini-api-key') {
+      console.error('[Chat API Error]: Missing or invalid GEMINI_API_KEY in environment variables.');
+      return Response.json(
+        { error: 'Missing GEMINI_API_KEY in environment variables. Please check your .env.local configuration.' },
+        { status: 500 }
+      );
+    }
+
+    // 3. If authenticated user, persist session & user message to database
     let chatSessionId = sessionId || `guest-${Date.now()}`;
     if (userId) {
       try {
@@ -105,54 +121,48 @@ export async function POST(req: NextRequest): Promise<Response> {
           userId,
           'user',
           message,
-          context,
+          resolvedContext,
           attachments as ChatAttachment[] | undefined
         );
       } catch (dbErr) {
-        console.error('Failed to persist user chat message to database:', dbErr);
+        console.error('[Chat API Error]: Failed to persist user chat message to database:', dbErr);
       }
     }
 
-    // 3. Build dynamic academic system prompt
-    const systemInstruction = buildSystemPrompt(context);
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey || apiKey.trim() === '' || apiKey === 'your-gemini-api-key') {
-      const attachmentSummary = attachments?.length
-        ? `\n\n*${attachments.length} attachment(s) received: ${attachments.map((a) => `${a.name} (${a.type})`).join(', ')}*`
-        : '';
-      const fallbackResponse = `**[Offline Mode Demo]**\n\nI have received your prompt:\n> *${message}*${attachmentSummary}\n\nUnder mode **${context?.tutorMode || 'socratic'}**, let's analyze the problem step by step. Have you verified the initial boundary conditions?`;
-
-      if (userId) {
-        saveChatMessage(chatSessionId, userId, 'assistant', fallbackResponse).catch((err) =>
-          console.error('Failed to save fallback assistant message:', err)
-        );
-      }
-
-      return new Response(fallbackResponse, {
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'X-Chat-Session-Id': chatSessionId,
-        },
-      });
-    }
-
-    // 4. Build multipart content (text + images + PDFs + text files)
+    // 4. Build dynamic academic system prompt and parts
+    const systemInstruction = buildSystemPrompt(resolvedContext);
     const contentParts = buildGeminiContentParts(
       message,
       attachments as ChatAttachment[] | undefined
     );
 
-    // 5. Stream from Google GenAI SDK
+    const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+
+    // 5. Initialize Google GenAI and launch stream
     const ai = new GoogleGenAI({ apiKey });
-    const responseStream = await ai.models.generateContentStream({
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-      contents: contentParts,
-      config: {
-        systemInstruction,
-        temperature: 0.4,
-      },
-    });
+    let responseStream;
+
+    try {
+      responseStream = await ai.models.generateContentStream({
+        model,
+        contents: contentParts,
+        config: {
+          systemInstruction,
+          temperature: 0.4,
+        },
+      });
+    } catch (modelError) {
+      console.error(`[Chat API Error]: Failed to generate content stream with model ${model}:`, modelError);
+      return Response.json(
+        {
+          error:
+            modelError instanceof Error
+              ? modelError.message
+              : 'Failed to initialize AI stream from Gemini API.',
+        },
+        { status: 500 }
+      );
+    }
 
     let fullAssistantResponse = '';
     const encoder = new TextEncoder();
@@ -162,19 +172,26 @@ export async function POST(req: NextRequest): Promise<Response> {
         try {
           for await (const chunk of responseStream) {
             const chunkText = chunk.text || '';
-            fullAssistantResponse += chunkText;
-            controller.enqueue(encoder.encode(chunkText));
+            if (chunkText) {
+              fullAssistantResponse += chunkText;
+              controller.enqueue(encoder.encode(chunkText));
+            }
           }
           controller.close();
 
           // Save completed assistant response asynchronously if authenticated
-          if (userId) {
+          if (userId && fullAssistantResponse.trim()) {
             saveChatMessage(chatSessionId, userId, 'assistant', fullAssistantResponse).catch((err) =>
-              console.error('Failed to async save assistant message:', err)
+              console.error('[Chat API Error]: Failed to async save assistant message:', err)
             );
           }
-        } catch (err) {
-          controller.error(err);
+        } catch (streamError) {
+          console.error('[Chat API Error during streaming]:', streamError);
+          const errorNotice = `\n\n⚠️ *Streaming error: ${
+            streamError instanceof Error ? streamError.message : 'Connection interrupted'
+          }*`;
+          controller.enqueue(encoder.encode(errorNotice));
+          controller.close();
         }
       },
     });
@@ -186,7 +203,12 @@ export async function POST(req: NextRequest): Promise<Response> {
       },
     });
   } catch (error) {
-    console.error('POST /api/chat error:', error);
-    return errorResponse('Failed to process chat message', 500);
+    console.error('[Chat API Fatal Error]:', error);
+    return Response.json(
+      {
+        error: error instanceof Error ? error.message : 'Failed to process chat message',
+      },
+      { status: 500 }
+    );
   }
 }
