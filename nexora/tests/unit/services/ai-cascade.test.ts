@@ -9,12 +9,12 @@ describe('AI Cascade & Resilience Service', () => {
   });
 
   describe('getModelCascade', () => {
-    it('should include environment model as first candidate and deduplicate fallback list', () => {
+    it('should filter out invalid 3.6 models and default to gemini-2.5-flash as primary candidate', () => {
       process.env.GEMINI_MODEL = 'gemini-3.6-flash';
       const cascade = getModelCascade();
 
-      expect(cascade[0]).toBe('gemini-3.6-flash');
-      expect(cascade).toContain('gemini-2.5-flash');
+      expect(cascade[0]).toBe('gemini-2.5-flash');
+      expect(cascade).not.toContain('gemini-3.6-flash');
       expect(cascade).toContain('gemini-1.5-flash');
       expect(cascade).toContain('gemini-2.5-pro');
       expect(cascade).toContain('gemini-1.5-pro');
@@ -22,6 +22,16 @@ describe('AI Cascade & Resilience Service', () => {
       // Check deduplication
       const uniqueSet = new Set(cascade);
       expect(uniqueSet.size).toBe(cascade.length);
+    });
+
+    it('should use valid GEMINI_MODEL when properly configured', () => {
+      process.env.GEMINI_MODEL = 'gemini-2.5-pro';
+      const cascade = getModelCascade();
+
+      expect(cascade[0]).toBe('gemini-2.5-pro');
+      expect(cascade).toContain('gemini-2.5-flash');
+      const count = cascade.filter((m) => m === 'gemini-2.5-pro').length;
+      expect(count).toBe(1);
     });
 
     it('should deduplicate when GEMINI_MODEL matches one of the fallbacks', () => {
@@ -43,6 +53,14 @@ describe('AI Cascade & Resilience Service', () => {
   });
 
   describe('isTransientError', () => {
+    it('should return true for 404 / NOT_FOUND invalid model errors', () => {
+      const err1 = new Error('404 Not Found: models/gemini-3.6-flash is not found for api version v1beta');
+      expect(isTransientError(err1)).toBe(true);
+
+      const err2 = new Error('NOT_FOUND: The requested model does not exist');
+      expect(isTransientError(err2)).toBe(true);
+    });
+
     it('should return true for 503 high demand errors', () => {
       const err = new Error('503 Service Unavailable: This model is currently experiencing high demand.');
       expect(isTransientError(err)).toBe(true);
@@ -65,6 +83,7 @@ describe('AI Cascade & Resilience Service', () => {
     });
 
     it('should handle non-Error objects safely', () => {
+      expect(isTransientError('404 model not found')).toBe(true);
       expect(isTransientError('503 model overloaded')).toBe(true);
       expect(isTransientError(null)).toBe(false);
       expect(isTransientError(undefined)).toBe(false);

@@ -14,18 +14,23 @@ export function getModelCascade(): string[] {
     'gemini-1.5-flash',
     'gemini-2.5-pro',
     'gemini-1.5-pro',
-  ].filter((m): m is string => Boolean(m && m.trim()));
+  ].filter((m): m is string => Boolean(m && m.trim() && !m.includes('3.6')));
 
   return Array.from(new Set(candidates));
 }
 
 /**
- * Checks if an error is transient (e.g. 503 high demand, 429 rate limit, 500/502/504 server overload).
+ * Checks if an error is transient or model-not-found (e.g. 404 Not Found, 503 high demand, 429 rate limit, 500/502/504 server overload).
  */
 export function isTransientError(error: unknown): boolean {
   if (!error) return false;
   const str = (error instanceof Error ? error.message : String(error)).toLowerCase();
   return (
+    str.includes('404') ||
+    str.includes('not found') ||
+    str.includes('not_found') ||
+    str.includes('is not found for api version') ||
+    str.includes('models/') ||
     str.includes('503') ||
     str.includes('unavailable') ||
     str.includes('high demand') ||
