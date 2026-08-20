@@ -13,6 +13,7 @@ import {
   FileText,
   FileCode,
   LogIn,
+  Languages,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
 import { useSpeechToText } from '@/hooks/useSpeechToText';
@@ -86,6 +87,9 @@ export const ChatInputArea: React.FC = () => {
   const [input, setInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [speechLang, setSpeechLang] = useState<'id-ID' | 'en-US'>('id-ID');
+  const [speechErrorDismissed, setSpeechErrorDismissed] = useState(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,16 +107,23 @@ export const ChatInputArea: React.FC = () => {
     }
   };
 
-  // Speech-to-Text integration
+  // Speech-to-Text integration with Real-Time Interim Ghost Text
   const {
     isListening,
     isSupported: isSpeechSupported,
     interimTranscript,
+    error: speechError,
     startListening,
     stopListening,
+    commitInterim,
   } = useSpeechToText({
-    onResult: (spokenText) => {
-      setInput((prev) => (prev ? `${prev} ${spokenText}` : spokenText));
+    lang: speechLang,
+    onFinalResult: (finalChunk) => {
+      setInput((prev) => {
+        const trimmed = finalChunk.trim();
+        if (!trimmed) return prev;
+        return prev ? `${prev} ${trimmed}` : trimmed;
+      });
     },
   });
 
@@ -122,7 +133,7 @@ export const ChatInputArea: React.FC = () => {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
-  }, [input]);
+  }, [input, interimTranscript]);
 
   // Process raw File object into ChatAttachment
   const processFile = async (file: File): Promise<ChatAttachment | null> => {
@@ -141,61 +152,76 @@ export const ChatInputArea: React.FC = () => {
         alert(`PDF "${file.name}" exceeds maximum allowed size of 10 MB.`);
         return null;
       }
-    } else {
+    } else if (
+      mime.includes('text') ||
+      mime.includes('json') ||
+      mime.includes('javascript') ||
+      mime.includes('typescript') ||
+      mime.includes('markdown') ||
+      file.name.endsWith('.tex') ||
+      file.name.endsWith('.py') ||
+      file.name.endsWith('.md')
+    ) {
       type = 'text';
       if (file.size > MAX_TEXT_SIZE) {
-        alert(`Text file "${file.name}" exceeds maximum allowed size of 500 KB.`);
+        alert(`Document "${file.name}" exceeds maximum allowed size of 500 KB.`);
         return null;
       }
+    } else {
+      alert(`Unsupported file format: ${file.name}`);
+      return null;
     }
 
-    return new Promise<ChatAttachment>((resolve, reject) => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
 
       if (type === 'image' || type === 'pdf') {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve({
+            id: `att-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            name: file.name,
+            type,
+            mimeType: mime,
+            size: file.size,
+            data: result,
+          });
+        };
         reader.readAsDataURL(file);
       } else {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve({
+            id: `att-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            name: file.name,
+            type,
+            mimeType: mime,
+            size: file.size,
+            data: result,
+          });
+        };
         reader.readAsText(file);
       }
-
-      reader.onload = () => {
-        const rawResult = reader.result as string;
-        let data = rawResult;
-
-        // If data URL format (e.g. data:image/png;base64,....), keep base64 or whole data URL
-        if (type === 'image' || type === 'pdf') {
-          const commaIdx = rawResult.indexOf(',');
-          if (commaIdx !== -1) {
-            data = rawResult.substring(commaIdx + 1);
-          }
-        }
-
-        resolve({
-          id: `att-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          name: file.name,
-          type,
-          mimeType: mime,
-          data,
-          size: file.size,
-        });
-      };
-
-      reader.onerror = (err) => reject(err);
     });
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const files = Array.from(e.target.files);
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    for (const file of files) {
-      try {
-        const attachment = await processFile(file);
-        if (attachment) {
-          addAttachment(attachment);
-        }
-      } catch (err) {
-        console.error('Failed to read file:', err);
+    // Limit to max 5 attachments total
+    const remainingSlots = 5 - attachments.length;
+    if (remainingSlots <= 0) {
+      alert('You have already reached the maximum limit of 5 attachments.');
+      return;
+    }
+
+    const filesToProcess = Array.from(files).slice(0, remainingSlots);
+
+    for (const file of filesToProcess) {
+      const attachment = await processFile(file);
+      if (attachment) {
+        addAttachment(attachment);
       }
     }
 
@@ -261,13 +287,17 @@ export const ChatInputArea: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && attachments.length === 0) || isSending) return;
 
+    // If currently recording voice, commit pending interim text first
     if (isListening) {
+      commitInterim();
       stopListening();
     }
 
-    sendMessage(input.trim());
+    const trimmedInput = input.trim();
+    if ((!trimmedInput && attachments.length === 0) || isSending) return;
+
+    sendMessage(trimmedInput);
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -283,9 +313,23 @@ export const ChatInputArea: React.FC = () => {
 
   const toggleMic = () => {
     if (isListening) {
+      commitInterim();
       stopListening();
     } else {
-      startListening();
+      setSpeechErrorDismissed(false);
+      startListening({ lang: speechLang });
+    }
+  };
+
+  const toggleSpeechLang = () => {
+    const nextLang = speechLang === 'id-ID' ? 'en-US' : 'id-ID';
+    setSpeechLang(nextLang);
+    if (isListening) {
+      commitInterim();
+      stopListening();
+      setTimeout(() => {
+        startListening({ lang: nextLang });
+      }, 100);
     }
   };
 
@@ -295,7 +339,7 @@ export const ChatInputArea: React.FC = () => {
   };
 
   const starters = PROMPT_STARTERS[activeTutorMode] || PROMPT_STARTERS.socratic;
-  const canSend = (input.trim().length > 0 || attachments.length > 0) && !isSending;
+  const canSend = (input.trim().length > 0 || attachments.length > 0 || interimTranscript.trim().length > 0) && !isSending;
   const isAuthenticated = Boolean(session?.user);
 
   return (
@@ -308,13 +352,13 @@ export const ChatInputArea: React.FC = () => {
         isDragging && 'border-cyan-400 bg-cyan-950/30'
       )}
     >
-      {/* Hidden File Input for Paperclip */}
+      {/* Hidden File Input for Paperclip Attachments */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/markdown"
-        onChange={handleFileChange}
+        accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/markdown,.py,.tex,.json,.js,.ts"
+        onChange={handleFileInputChange}
         className="hidden"
       />
 
@@ -361,6 +405,20 @@ export const ChatInputArea: React.FC = () => {
               </button>
             </span>
           )}
+        </div>
+      )}
+
+      {/* Speech Error Banner */}
+      {speechError && !speechErrorDismissed && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300">
+          <span className="text-[11px] truncate">{speechError}</span>
+          <button
+            type="button"
+            onClick={() => setSpeechErrorDismissed(true)}
+            className="text-amber-400 hover:text-white shrink-0"
+          >
+            <X className="h-3 w-3" />
+          </button>
         </div>
       )}
 
@@ -469,29 +527,59 @@ export const ChatInputArea: React.FC = () => {
           <Paperclip className="h-4 w-4" />
         </button>
 
-        {/* Microphone Button (Speech-to-Text) */}
+        {/* Microphone Button (Speech-to-Text) & Language Switcher */}
         {isSpeechSupported && (
-          <button
-            type="button"
-            onClick={toggleMic}
-            className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-all',
-              isListening
-                ? 'border-cyan-400 bg-cyan-500/20 text-cyan-300 ring-2 ring-cyan-400/40 shadow-[0_0_15px_rgba(6,182,212,0.4)] animate-pulse'
-                : 'border-white/10 bg-[#0B0F17] text-slate-400 hover:bg-white/10 hover:text-white'
-            )}
-            title={isListening ? 'Stop recording voice' : 'Dictate with Voice (Web Speech)'}
-          >
-            {isListening ? (
-              <MicOff className="h-4 w-4 text-cyan-400 animate-bounce" />
-            ) : (
-              <Mic className="h-4 w-4" />
-            )}
-          </button>
+          <div className="relative flex items-center shrink-0">
+            <button
+              type="button"
+              onClick={toggleMic}
+              className={cn(
+                'flex h-9 w-9 items-center justify-center rounded-xl border transition-all',
+                isListening
+                  ? 'border-cyan-400 bg-cyan-500/20 text-cyan-300 ring-2 ring-cyan-400/40 shadow-[0_0_15px_rgba(6,182,212,0.4)] animate-pulse'
+                  : 'border-white/10 bg-[#0B0F17] text-slate-400 hover:bg-white/10 hover:text-white'
+              )}
+              title={
+                isListening
+                  ? `Recording (${speechLang === 'id-ID' ? 'Indonesian' : 'English'}) — Click to commit`
+                  : `Dictate with Voice (${speechLang === 'id-ID' ? 'Indonesian' : 'English'})`
+              }
+            >
+              {isListening ? (
+                <MicOff className="h-4 w-4 text-cyan-400 animate-bounce" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
+            </button>
+
+            {/* Language Selector Button */}
+            <button
+              type="button"
+              onClick={toggleSpeechLang}
+              className="absolute -top-2 -right-2 z-10 flex h-4 w-5 items-center justify-center rounded-full bg-[#1E2638] text-[9px] font-bold text-cyan-300 border border-cyan-500/30 shadow hover:bg-cyan-500 hover:text-black transition-colors"
+              title={`Switch voice recognition language (Currently: ${speechLang})`}
+            >
+              {speechLang === 'id-ID' ? 'ID' : 'EN'}
+            </button>
+          </div>
         )}
 
-        {/* Text Area */}
+        {/* Text Area with Live Real-Time Ghost Text Overlay */}
         <div className="relative flex-1">
+          {/* Real-Time Ghost Text Overlay: Renders live interim transcript behind transparent textarea */}
+          {isListening && interimTranscript && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 z-0 overflow-hidden px-3.5 py-2.5 text-xs sm:text-sm font-sans leading-normal whitespace-pre-wrap break-words select-none"
+            >
+              <span className="invisible">{input}</span>
+              <span className="text-slate-400 opacity-60 italic font-medium">
+                {input && !input.endsWith(' ') ? ' ' : ''}
+                {interimTranscript}
+              </span>
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             rows={1}
@@ -501,20 +589,25 @@ export const ChatInputArea: React.FC = () => {
             onPaste={handlePaste}
             placeholder={
               isListening
-                ? '🎙️ Listening... Speak your question now'
+                ? `🎙️ Listening (${speechLang === 'id-ID' ? 'Bahasa Indonesia' : 'English'})... Speak now`
                 : 'Ask Nexora AI, paste screenshot, or drag & drop files...'
             }
             disabled={isSending}
             className={cn(
-              'w-full resize-none rounded-xl border border-white/10 bg-[#0B0F17] px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/30 max-h-32 disabled:opacity-50',
-              isListening && 'border-cyan-500/50 bg-cyan-950/20'
+              'relative z-10 w-full resize-none rounded-xl border border-white/10 bg-[#0B0F17] px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/30 max-h-32 disabled:opacity-50',
+              isListening && interimTranscript && 'bg-transparent',
+              isListening && !interimTranscript && 'border-cyan-500/50 bg-cyan-950/20'
             )}
           />
 
-          {/* Interim speech transcript hint */}
-          {isListening && interimTranscript && (
-            <div className="absolute left-3.5 bottom-1 text-[10px] text-cyan-300 italic truncate max-w-[90%]">
-              {interimTranscript}
+          {/* Real-time Listening Waveform Tag */}
+          {isListening && (
+            <div className="absolute right-3 top-2.5 z-20 flex items-center gap-1.5 rounded-md bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-300 border border-cyan-500/20 pointer-events-none">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-500"></span>
+              </span>
+              <span>{speechLang === 'id-ID' ? 'ID Voice' : 'EN Voice'}</span>
             </div>
           )}
         </div>

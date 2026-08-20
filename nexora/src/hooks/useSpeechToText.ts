@@ -38,6 +38,9 @@ export interface UseSpeechToTextOptions {
   continuous?: boolean;
   interimResults?: boolean;
   onResult?: (text: string) => void;
+  onFinalResult?: (finalChunk: string) => void;
+  onInterimResult?: (interimChunk: string) => void;
+  onError?: (error: string) => void;
 }
 
 export interface UseSpeechToTextReturn {
@@ -49,6 +52,7 @@ export interface UseSpeechToTextReturn {
   startListening: (options?: UseSpeechToTextOptions) => void;
   stopListening: () => void;
   resetTranscript: () => void;
+  commitInterim: () => void;
 }
 
 export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): UseSpeechToTextReturn {
@@ -66,23 +70,41 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
   const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
-  const onResultCallbackRef = useRef(defaultOptions.onResult);
+  const optionsRef = useRef(defaultOptions);
+  const lastInterimRef = useRef<string>('');
 
   useEffect(() => {
-    onResultCallbackRef.current = defaultOptions.onResult;
-  }, [defaultOptions.onResult]);
+    optionsRef.current = defaultOptions;
+  }, [defaultOptions]);
+
+  const commitInterim = useCallback(() => {
+    const interimToCommit = lastInterimRef.current.trim();
+    if (interimToCommit) {
+      if (optionsRef.current.onFinalResult) {
+        optionsRef.current.onFinalResult(interimToCommit);
+      } else if (optionsRef.current.onResult) {
+        optionsRef.current.onResult(interimToCommit);
+      }
+      setTranscript((prev) => (prev ? `${prev} ${interimToCommit}` : interimToCommit));
+      lastInterimRef.current = '';
+      setInterimTranscript('');
+    }
+  }, []);
 
   const stopListening = useCallback(() => {
+    // Flush any pending interim speech before stopping
+    commitInterim();
+
     if (recognitionRef.current && isListening) {
       try {
         recognitionRef.current.stop();
       } catch (err) {
-        console.warn('Error stopping speech recognition:', err);
+        console.warn('[Speech Recognition] Error stopping recognition:', err);
       }
       setIsListening(false);
       setInterimTranscript('');
     }
-  }, [isListening]);
+  }, [isListening, commitInterim]);
 
   const startListening = useCallback(
     (options?: UseSpeechToTextOptions) => {
@@ -96,7 +118,7 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
         return;
       }
 
-      // Stop previous instance if running
+      // Stop previous instance if active
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
@@ -106,12 +128,15 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
       }
 
       setError(null);
+      lastInterimRef.current = '';
+      setInterimTranscript('');
 
       try {
         const recognition = new SpeechRecognitionConstructor();
-        recognition.continuous = options?.continuous ?? defaultOptions.continuous ?? true;
-        recognition.interimResults = options?.interimResults ?? defaultOptions.interimResults ?? true;
-        recognition.lang = options?.lang ?? defaultOptions.lang ?? 'id-ID'; // Default to Indonesian, compatible with English
+        recognition.continuous = options?.continuous ?? optionsRef.current.continuous ?? true;
+        recognition.interimResults = options?.interimResults ?? optionsRef.current.interimResults ?? true;
+        // Default to Indonesian (id-ID), fallback compatible with English (en-US)
+        recognition.lang = options?.lang ?? optionsRef.current.lang ?? 'id-ID';
 
         recognition.onstart = () => {
           setIsListening(true);
@@ -133,32 +158,54 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
           }
 
           if (finalChunk) {
+            const trimmedFinal = finalChunk.trim();
+            lastInterimRef.current = '';
+            setInterimTranscript('');
+
             setTranscript((prev) => {
-              const updated = prev ? `${prev} ${finalChunk.trim()}` : finalChunk.trim();
-              if (onResultCallbackRef.current) {
-                onResultCallbackRef.current(updated);
-              }
-              if (options?.onResult) {
-                options.onResult(updated);
-              }
+              const updated = prev ? `${prev} ${trimmedFinal}` : trimmedFinal;
               return updated;
             });
+
+            if (optionsRef.current.onFinalResult) {
+              optionsRef.current.onFinalResult(trimmedFinal);
+            } else if (optionsRef.current.onResult) {
+              optionsRef.current.onResult(trimmedFinal);
+            }
           }
 
-          setInterimTranscript(currentInterim);
+          if (currentInterim) {
+            lastInterimRef.current = currentInterim;
+            setInterimTranscript(currentInterim);
+            if (optionsRef.current.onInterimResult) {
+              optionsRef.current.onInterimResult(currentInterim);
+            }
+          }
         };
 
         recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-          // Ignore non-fatal 'no-speech' or 'aborted'
-          if (event.error !== 'no-speech' && event.error !== 'aborted') {
-            console.warn('Speech recognition error:', event.error);
+          console.warn('[Speech Recognition Error]:', event.error);
+
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            setError('Microphone permission was denied. Please allow microphone access in your browser settings.');
+            setIsListening(false);
+            setInterimTranscript('');
+          } else if (event.error === 'network') {
+            setError('Speech recognition network error. Please check your internet connection.');
+          } else if (event.error === 'no-speech') {
+            // Non-fatal silence event, do not crash listening session
+          } else if (event.error !== 'aborted') {
             setError(`Speech recognition error: ${event.error}`);
           }
-          setIsListening(false);
-          setInterimTranscript('');
+
+          if (optionsRef.current.onError && event.error !== 'no-speech' && event.error !== 'aborted') {
+            optionsRef.current.onError(event.error);
+          }
         };
 
         recognition.onend = () => {
+          // Commit any uncommitted speech before closing
+          commitInterim();
           setIsListening(false);
           setInterimTranscript('');
         };
@@ -166,17 +213,18 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
         recognitionRef.current = recognition;
         recognition.start();
       } catch (err) {
-        console.error('Failed to start speech recognition:', err);
+        console.error('[Speech Recognition]: Failed to initialize:', err);
         setError(err instanceof Error ? err.message : 'Failed to start speech recognition');
         setIsListening(false);
       }
     },
-    [defaultOptions]
+    [commitInterim]
   );
 
   const resetTranscript = useCallback(() => {
     setTranscript('');
     setInterimTranscript('');
+    lastInterimRef.current = '';
   }, []);
 
   // Cleanup on unmount
@@ -201,5 +249,6 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
     startListening,
     stopListening,
     resetTranscript,
+    commitInterim,
   };
 }

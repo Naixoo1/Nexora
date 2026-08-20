@@ -115,11 +115,12 @@ describe('useSpeechToText Hook', () => {
       expect(mockInstance.lang).toBe('en-US');
     });
 
-    it('should stream interim and final transcripts and invoke onResult callback', () => {
+    it('should stream interim ghost transcripts and invoke onFinalResult for completed chunks', () => {
       // Arrange
-      const onResultMock = vi.fn();
+      const onFinalMock = vi.fn();
+      const onInterimMock = vi.fn();
       const { result } = renderHook(() =>
-        useSpeechToText({ onResult: onResultMock })
+        useSpeechToText({ onFinalResult: onFinalMock, onInterimResult: onInterimMock })
       );
 
       act(() => {
@@ -140,6 +141,7 @@ describe('useSpeechToText Hook', () => {
       // Assert interim state
       expect(result.current.interimTranscript).toBe('Bagaimana rumus ');
       expect(result.current.transcript).toBe('');
+      expect(onInterimMock).toHaveBeenCalledWith('Bagaimana rumus ');
 
       // Act 2: Dispatch final transcript
       act(() => {
@@ -155,24 +157,35 @@ describe('useSpeechToText Hook', () => {
       // Assert final state and callback
       expect(result.current.transcript).toBe('Bagaimana rumus energi kinetik?');
       expect(result.current.interimTranscript).toBe('');
-      expect(onResultMock).toHaveBeenCalledWith('Bagaimana rumus energi kinetik?');
+      expect(onFinalMock).toHaveBeenCalledWith('Bagaimana rumus energi kinetik?');
     });
 
-    it('should stop listening and reset interim transcript when stopListening is invoked', () => {
+    it('should stop listening and commit pending interim transcript on stopListening', () => {
       // Arrange
-      const { result } = renderHook(() => useSpeechToText());
+      const onFinalMock = vi.fn();
+      const { result } = renderHook(() => useSpeechToText({ onFinalResult: onFinalMock }));
 
       act(() => {
         result.current.startListening();
       });
       expect(result.current.isListening).toBe(true);
 
+      // Dispatch interim chunk
+      act(() => {
+        mockInstance.onresult?.({
+          resultIndex: 0,
+          results: [Object.assign([{ transcript: 'Uncommitted speech' }], { isFinal: false })],
+        });
+      });
+      expect(result.current.interimTranscript).toBe('Uncommitted speech');
+
       // Act
       act(() => {
         result.current.stopListening();
       });
 
-      // Assert
+      // Assert: Flushes and commits pending interim before stopping
+      expect(onFinalMock).toHaveBeenCalledWith('Uncommitted speech');
       expect(mockInstance.stop).toHaveBeenCalled();
       expect(result.current.isListening).toBe(false);
       expect(result.current.interimTranscript).toBe('');
@@ -205,7 +218,7 @@ describe('useSpeechToText Hook', () => {
       expect(result.current.interimTranscript).toBe('');
     });
 
-    it('should handle non-fatal speech errors (no-speech, aborted) without setting fatal error state', () => {
+    it('should handle non-fatal speech errors (no-speech) without setting fatal error state', () => {
       // Arrange
       const { result } = renderHook(() => useSpeechToText());
 
@@ -218,12 +231,12 @@ describe('useSpeechToText Hook', () => {
         mockInstance.onerror?.({ error: 'no-speech' });
       });
 
-      // Assert
-      expect(result.current.isListening).toBe(false);
+      // Assert: Remains listening, error remains null
+      expect(result.current.isListening).toBe(true);
       expect(result.current.error).toBeNull();
     });
 
-    it('should set error state and stop listening on fatal speech recognition errors', () => {
+    it('should handle microphone permission denial error with helpful user message', () => {
       // Arrange
       const { result } = renderHook(() => useSpeechToText());
 
@@ -238,7 +251,9 @@ describe('useSpeechToText Hook', () => {
 
       // Assert
       expect(result.current.isListening).toBe(false);
-      expect(result.current.error).toBe('Speech recognition error: not-allowed');
+      expect(result.current.error).toBe(
+        'Microphone permission was denied. Please allow microphone access in your browser settings.'
+      );
     });
 
     it('should abort running recognition on unmount', () => {
