@@ -105,6 +105,37 @@ export function extractCitations(text: string): ChatSourceCitation[] {
 }
 
 /**
+ * Helper to get cached messages from localStorage
+ */
+function getCachedMessages(sessionId: string): ChatMessage[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw =
+      localStorage.getItem(`nexora_messages_${sessionId}`) ||
+      localStorage.getItem(`nexora_guest_messages_${sessionId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Helper to cache messages into localStorage
+ */
+function setCachedMessages(sessionId: string, messages: ChatMessage[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const str = JSON.stringify(messages);
+    localStorage.setItem(`nexora_messages_${sessionId}`, str);
+    if (sessionId.startsWith('guest-')) {
+      localStorage.setItem(`nexora_guest_messages_${sessionId}`, str);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * Parses ```nexora-node { ... } ``` JSON blocks from AI messages and appends them
  * directly to the active STEM canvas.
  */
@@ -441,32 +472,32 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   selectSession: async (sessionId: string) => {
-    set({ isLoadingHistory: true, error: null });
+    // 1. Flush previous active session messages into local cache before switching
+    const prevSession = get().currentSession;
+    if (prevSession && get().messages.length > 0) {
+      setCachedMessages(prevSession.id, get().messages);
+    }
+
+    // 2. Instant-paint from local cache if available for target sessionId
+    const cached = getCachedMessages(sessionId);
+    const existingSession = get().sessions.find((s) => s.id === sessionId) || null;
+
+    set({
+      currentSession: existingSession || prevSession,
+      messages: cached.length > 0 ? cached : [],
+      streamingMessage: null,
+      isSending: false,
+      isLoadingHistory: true,
+      error: null,
+    });
+
     try {
       const res = await fetch(`/api/chat/sessions/${sessionId}`);
       if (!res.ok) {
-        // Check localStorage guest fallback
-        if (typeof window !== 'undefined') {
-          const storedMessages = localStorage.getItem(`nexora_guest_messages_${sessionId}`);
-          const storedSessions = localStorage.getItem('nexora_guest_chat_sessions');
-          if (storedSessions) {
-            try {
-              const list: ChatSession[] = JSON.parse(storedSessions);
-              const found = list.find((s) => s.id === sessionId);
-              if (found) {
-                const msgs: ChatMessage[] = storedMessages ? JSON.parse(storedMessages) : [];
-                set({
-                  currentSession: found,
-                  messages: msgs,
-                  isLoadingHistory: false,
-                  activeTutorMode: found.tutorMode || 'socratic',
-                });
-                return;
-              }
-            } catch {
-              // ignore
-            }
-          }
+        // Fallback for guest mode or offline
+        if (cached.length > 0) {
+          set({ isLoadingHistory: false });
+          return;
         }
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.message || errJson.error || 'Failed to load session messages');
@@ -474,14 +505,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       const data: ApiResponse<ChatSessionWithMessages> = await res.json();
       if (data.data) {
+        const fetchedMessages = data.data.messages || [];
+        setCachedMessages(sessionId, fetchedMessages);
+
         set({
           currentSession: data.data,
-          messages: data.data.messages || [],
+          messages: fetchedMessages,
           isLoadingHistory: false,
           activeTutorMode: data.data.tutorMode || 'socratic',
         });
       }
     } catch (err) {
+      // Keep cached messages if available
+      if (cached.length > 0) {
+        set({ isLoadingHistory: false });
+        return;
+      }
       set({
         error: err instanceof Error ? err.message : 'Error loading session',
         isLoadingHistory: false,
@@ -569,6 +608,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   startNewChat: (title = 'New Brainstorming Session') => {
+    // Flush current messages to cache if needed
+    const cur = get().currentSession;
+    if (cur && get().messages.length > 0) {
+      setCachedMessages(cur.id, get().messages);
+    }
+
     set({
       currentSession: null,
       messages: [],
@@ -627,15 +672,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       messages: state.currentSession?.id === sessionId ? [] : state.messages,
     }));
 
-    // Delete from guest localStorage if present
+    // Delete from localStorage cache
     if (typeof window !== 'undefined') {
+      localStorage.removeItem(`nexora_messages_${sessionId}`);
+      localStorage.removeItem(`nexora_guest_messages_${sessionId}`);
+
       const stored = localStorage.getItem('nexora_guest_chat_sessions');
       if (stored) {
         try {
           const list: ChatSession[] = JSON.parse(stored);
           const filtered = list.filter((s) => s.id !== sessionId);
           localStorage.setItem('nexora_guest_chat_sessions', JSON.stringify(filtered));
-          localStorage.removeItem(`nexora_guest_messages_${sessionId}`);
         } catch {
           // ignore
         }
@@ -682,7 +729,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     // Temporary User Message
     const tempUserMessage: ChatMessage = {
-      id: `temp-user-${Date.now()}`,
+      id: `user-${Date.now()}`,
       sessionId: activeSessionId,
       userId: 'current-user',
       role: 'user' as ChatRole,
@@ -697,13 +744,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       createdAt: new Date().toISOString(),
     };
 
-    set((state) => ({
-      messages: [...state.messages, tempUserMessage],
+    const initialMessages = [...get().messages, tempUserMessage];
+    set({
+      messages: initialMessages,
       attachments: [], // Clear attachments buffer upon sending
       isSending: true,
       streamingMessage: '',
       error: null,
-    }));
+    });
+
+    // Cache updated user message locally
+    setCachedMessages(activeSessionId, initialMessages);
 
     try {
       const payload = {
@@ -761,7 +812,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             : [newSessionObj, ...state.sessions],
         }));
 
-        // Persist guest session
+        // Persist guest session list
         if (typeof window !== 'undefined') {
           const stored = localStorage.getItem('nexora_guest_chat_sessions');
           const list: ChatSession[] = stored ? JSON.parse(stored) : [];
@@ -819,10 +870,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         error: null,
       });
 
-      // Save to guest localStorage
-      if (typeof window !== 'undefined' && returnedSessionId.startsWith('guest-')) {
-        localStorage.setItem(`nexora_guest_messages_${returnedSessionId}`, JSON.stringify(updatedMessages));
-      }
+      // Synchronously cache complete messages (user + assistant) to localStorage
+      setCachedMessages(returnedSessionId, updatedMessages);
     } catch (err) {
       console.error('[Chat Store Error]:', err);
       const errorMessageText = err instanceof Error ? err.message : 'AI failed to respond.';
@@ -836,12 +885,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         createdAt: new Date().toISOString(),
       };
 
-      set((state) => ({
-        messages: [...state.messages, errorAssistantMessage],
+      const messagesWithError = [...get().messages, errorAssistantMessage];
+      set({
+        messages: messagesWithError,
         error: errorMessageText,
         streamingMessage: null,
         isSending: false,
-      }));
+      });
+
+      if (get().currentSession?.id) {
+        setCachedMessages(get().currentSession!.id, messagesWithError);
+      }
     }
   },
 

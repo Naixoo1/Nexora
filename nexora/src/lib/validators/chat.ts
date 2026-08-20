@@ -197,7 +197,15 @@ export const ChatSessionListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+export const CreateChatMessageSchema = z.object({
+  role: z.enum(['user', 'assistant', 'system']),
+  content: z.string().min(1, 'Content cannot be empty'),
+  contextSnapshot: ChatContextPayloadSchema.optional(),
+  attachments: z.array(ChatAttachmentSchema).optional(),
+});
+
 export type SendChatMessage = z.infer<typeof SendChatMessageSchema>;
 export type CreateChatSession = z.infer<typeof CreateChatSessionSchema>;
 export type UpdateChatSession = z.infer<typeof UpdateChatSessionSchema>;
+export type CreateChatMessage = z.infer<typeof CreateChatMessageSchema>;
 export type ChatSessionListQuery = z.infer<typeof ChatSessionListQuerySchema>;

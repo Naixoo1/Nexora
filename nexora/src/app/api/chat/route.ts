@@ -194,14 +194,16 @@ export async function POST(req: NextRequest): Promise<Response> {
               controller.enqueue(encoder.encode(chunkText));
             }
           }
-          controller.close();
-
-          // Save completed assistant response asynchronously if authenticated
+          // Synchronously persist completed assistant response to Neon DB before terminating stream
           if (userId && fullAssistantResponse.trim()) {
-            saveChatMessage(chatSessionId, userId, 'assistant', fullAssistantResponse).catch((err) =>
-              console.error('[Chat API Error]: Failed to async save assistant message:', err)
-            );
+            try {
+              await saveChatMessage(chatSessionId, userId, 'assistant', fullAssistantResponse);
+            } catch (saveErr) {
+              console.error('[Chat API Error]: Failed to persist assistant message to database:', saveErr);
+            }
           }
+
+          controller.close();
         } catch (streamError) {
           console.error('[Chat API Error during streaming]:', streamError);
           const errorNotice = `\n\n⚠️ *Streaming error: ${

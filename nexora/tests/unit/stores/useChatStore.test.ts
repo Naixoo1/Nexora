@@ -11,7 +11,7 @@ import {
   mockAssistantMessage,
   createMockStream,
 } from '../../mocks/chatMocks';
-import type { ChatSession } from '@/types/chat';
+import type { ChatSession, ChatMessage } from '@/types/chat';
 
 describe('useChatStore', () => {
   beforeEach(() => {
@@ -199,8 +199,72 @@ describe('useChatStore', () => {
       expect(mockFetch).toHaveBeenCalledWith(`/api/chat/sessions/${mockSessionId}`);
       expect(state.currentSession?.id).toBe(mockSessionId);
       expect(state.messages).toHaveLength(2);
+      expect(state.messages[0].role).toBe('user');
+      expect(state.messages[1].role).toBe('assistant');
       expect(state.activeTutorMode).toBe(mockChatSessionWithMessages.tutorMode);
       expect(state.isLoadingHistory).toBe(false);
+    });
+
+    it('should cleanly switch between sessions preserving assistant and user bubbles', async () => {
+      // Arrange
+      const sessionA = { ...mockChatSession, id: 'session-a', title: 'Session A' };
+      const sessionB = { ...mockChatSession, id: 'session-b', title: 'Session B' };
+      const sessionAMessages: ChatMessage[] = [
+        { id: 'm1', sessionId: 'session-a', userId: 'user-1', role: 'user', content: 'Prompt A', createdAt: '2026-08-19' },
+        { id: 'm2', sessionId: 'session-a', userId: 'assistant', role: 'assistant', content: 'Answer A', createdAt: '2026-08-19' },
+      ];
+      const sessionBMessages: ChatMessage[] = [
+        { id: 'm3', sessionId: 'session-b', userId: 'user-1', role: 'user', content: 'Prompt B', createdAt: '2026-08-19' },
+        { id: 'm4', sessionId: 'session-b', userId: 'assistant', role: 'assistant', content: 'Answer B', createdAt: '2026-08-19' },
+      ];
+
+      useChatStore.setState({
+        sessions: [sessionA, sessionB],
+        currentSession: sessionA,
+        messages: sessionAMessages,
+      });
+
+      const mockFetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes('session-b')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              success: true,
+              data: { ...sessionB, messages: sessionBMessages },
+            }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: { ...sessionA, messages: sessionAMessages },
+          }),
+        });
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      // Act: Switch to session B
+      await useChatStore.getState().selectSession('session-b');
+
+      // Assert Session B
+      let state = useChatStore.getState();
+      expect(state.currentSession?.id).toBe('session-b');
+      expect(state.messages).toHaveLength(2);
+      expect(state.messages[0].content).toBe('Prompt B');
+      expect(state.messages[1].content).toBe('Answer B');
+      expect(state.messages[1].role).toBe('assistant');
+
+      // Act: Switch back to session A
+      await useChatStore.getState().selectSession('session-a');
+
+      // Assert Session A
+      state = useChatStore.getState();
+      expect(state.currentSession?.id).toBe('session-a');
+      expect(state.messages).toHaveLength(2);
+      expect(state.messages[0].content).toBe('Prompt A');
+      expect(state.messages[1].content).toBe('Answer A');
+      expect(state.messages[1].role).toBe('assistant');
     });
 
     it('should set error state when selectSession fails', async () => {
