@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { getModelCascade, delayWithJitter } from '@/services/ai-cascade';
 
 import type {
   NodeEvaluationResult,
@@ -153,18 +154,42 @@ ${existingContext ? `Existing Derivation Tree:\n${existingContext}` : ''}
 
 Evaluate this step strictly and return JSON:`;
 
-    const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
-      contents: prompt,
-      config: {
-        systemInstruction,
-        responseMimeType: 'application/json',
-        temperature: 0.1,
-      },
-    });
+    const cascade = getModelCascade();
+    let text: string | null = null;
+    let lastError: unknown = null;
 
-    const text = response.text;
+    for (let i = 0; i < cascade.length; i++) {
+      const candidateModel = cascade[i];
+      try {
+        const response = await ai.models.generateContent({
+          model: candidateModel,
+          contents: prompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+          },
+        });
+
+        if (response.text) {
+          text = response.text;
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+        console.warn(
+          `[Math Solver Fallback] Evaluation model "${candidateModel}" failed (attempt ${i + 1}/${cascade.length}):`,
+          err instanceof Error ? err.message : err
+        );
+
+        if (i < cascade.length - 1) {
+          await delayWithJitter(300, 200);
+        }
+      }
+    }
+
     if (!text) {
+      console.warn('[Math Solver] All model cascade attempts failed for evaluation. Last error:', lastError);
       return generateFallbackEvaluation(payload);
     }
 
@@ -245,18 +270,42 @@ ${existingContext ? `Existing Nodes in Canvas DAG:\n${existingContext}` : ''}
 
 Generate structured branch suggestions now:`;
 
-    const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
-      contents: prompt,
-      config: {
-        systemInstruction,
-        responseMimeType: 'application/json',
-        temperature: 0.3,
-      },
-    });
+    const cascade = getModelCascade();
+    let text: string | null = null;
+    let lastError: unknown = null;
 
-    const text = response.text;
+    for (let i = 0; i < cascade.length; i++) {
+      const candidateModel = cascade[i];
+      try {
+        const response = await ai.models.generateContent({
+          model: candidateModel,
+          contents: prompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            temperature: 0.3,
+          },
+        });
+
+        if (response.text) {
+          text = response.text;
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+        console.warn(
+          `[Math Solver Fallback] Branch suggestion model "${candidateModel}" failed (attempt ${i + 1}/${cascade.length}):`,
+          err instanceof Error ? err.message : err
+        );
+
+        if (i < cascade.length - 1) {
+          await delayWithJitter(300, 200);
+        }
+      }
+    }
+
     if (!text) {
+      console.warn('[Math Solver] All model cascade attempts failed for branches. Last error:', lastError);
       return generateFallbackBranchSuggestions(payload, targetNodeTitle, targetFormula);
     }
 

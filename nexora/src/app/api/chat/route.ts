@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { SendChatMessageSchema } from '@/lib/validators/chat';
 import { buildSystemPrompt } from '@/services/chat-prompt';
 import { getOrCreateChatSession, saveChatMessage } from '@/services/chat';
+import { getModelCascade, delayWithJitter } from '@/services/ai-cascade';
 import { validationErrorResponse } from '@/lib/api-response';
 import type { ChatAttachment } from '@/types/chat';
 
@@ -136,31 +137,47 @@ export async function POST(req: NextRequest): Promise<Response> {
       attachments as ChatAttachment[] | undefined
     );
 
-    const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-
-    // 5. Initialize Google GenAI and launch stream
+    // 5. Initialize Google GenAI and launch stream with resilient model fallback cascade
     const ai = new GoogleGenAI({ apiKey });
+    const cascade = getModelCascade();
     let responseStream;
+    let usedModel = cascade[0];
+    let lastError: unknown = null;
 
-    try {
-      responseStream = await ai.models.generateContentStream({
-        model,
-        contents: contentParts,
-        config: {
-          systemInstruction,
-          temperature: 0.4,
-        },
-      });
-    } catch (modelError) {
-      console.error(`[Chat API Error]: Failed to generate content stream with model ${model}:`, modelError);
+    for (let i = 0; i < cascade.length; i++) {
+      const candidateModel = cascade[i];
+      try {
+        responseStream = await ai.models.generateContentStream({
+          model: candidateModel,
+          contents: contentParts,
+          config: {
+            systemInstruction,
+            temperature: 0.4,
+          },
+        });
+        usedModel = candidateModel;
+        break; // Successfully launched stream
+      } catch (modelError) {
+        lastError = modelError;
+        const errMsg = modelError instanceof Error ? modelError.message : String(modelError);
+        console.warn(
+          `[Chat API Model Cascade]: Model "${candidateModel}" failed (attempt ${i + 1}/${cascade.length}): ${errMsg}`
+        );
+
+        if (i < cascade.length - 1) {
+          await delayWithJitter(300, 200);
+        }
+      }
+    }
+
+    if (!responseStream) {
+      console.error('[Chat API Error]: All fallback models in cascade failed. Last error:', lastError);
       return Response.json(
         {
           error:
-            modelError instanceof Error
-              ? modelError.message
-              : 'Failed to initialize AI stream from Gemini API.',
+            'AI servers are temporarily congested due to high demand. Please retry in a moment.',
         },
-        { status: 500 }
+        { status: 503 }
       );
     }
 

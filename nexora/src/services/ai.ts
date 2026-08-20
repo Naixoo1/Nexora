@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-
+import { getModelCascade, delayWithJitter } from '@/services/ai-cascade';
 import type { PlannerTaskItem, TaskPriority } from '@/types/task';
 
 /**
@@ -140,19 +140,43 @@ Maximum Tasks: ${maxTasks}
 
 Create the structured study plan now:`;
 
-    const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
-      contents: userPrompt,
-      config: {
-        systemInstruction,
-        responseMimeType: 'application/json',
-        temperature: 0.3,
-      },
-    });
+    const cascade = getModelCascade();
+    let responseText: string | null = null;
+    let lastError: unknown = null;
 
-    const responseText = response.text;
+    for (let i = 0; i < cascade.length; i++) {
+      const candidateModel = cascade[i];
+      try {
+        const response = await ai.models.generateContent({
+          model: candidateModel,
+          contents: userPrompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            temperature: 0.3,
+          },
+        });
+
+        if (response.text) {
+          responseText = response.text;
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+        console.warn(
+          `[AI Service Fallback] Planner model "${candidateModel}" failed (attempt ${i + 1}/${cascade.length}):`,
+          err instanceof Error ? err.message : err
+        );
+
+        if (i < cascade.length - 1) {
+          await delayWithJitter(300, 200);
+        }
+      }
+    }
+
     if (!responseText) {
-      throw new Error('Empty response from Gemini API');
+      console.warn('[AI Service] All model cascade attempts failed for planner. Last error:', lastError);
+      return generateFallbackStudyPlan(prompt, category, dueDate, maxTasks);
     }
 
     const parsed: unknown = JSON.parse(responseText);
