@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -15,9 +15,35 @@ import { cn } from '@/lib/utils';
 export const GlobalNavbar: React.FC = () => {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
+  const [isOrientationCompleted, setIsOrientationCompleted] = useState<boolean>(false);
 
   const isTasks = pathname === '/tasks';
   const isCanvas = pathname.startsWith('/canvas');
+
+  useEffect(() => {
+    const checkStatus = () => {
+      if (typeof window !== 'undefined') {
+        const local =
+          localStorage.getItem('nexora_orientation_completed') === 'true' ||
+          localStorage.getItem('nexora_onboarding_completed_v1') === 'true';
+        const userCompleted = Boolean(
+          (session?.user as { onboardingCompleted?: boolean })?.onboardingCompleted
+        );
+        setIsOrientationCompleted(local || userCompleted);
+      }
+    };
+
+    checkStatus();
+
+    const handleCompletedEvent = () => {
+      setIsOrientationCompleted(true);
+    };
+
+    window.addEventListener('nexora:orientation-completed', handleCompletedEvent);
+    return () => {
+      window.removeEventListener('nexora:orientation-completed', handleCompletedEvent);
+    };
+  }, [session]);
 
   const handleRestartTutorial = () => {
     if (typeof window !== 'undefined') {
@@ -30,9 +56,7 @@ export const GlobalNavbar: React.FC = () => {
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Left: Brand Logo */}
         <div className="flex items-center gap-6">
-          <Link href="/">
-            <NexoraLogo size="md" />
-          </Link>
+          <NexoraLogo size="md" href="/" />
 
           {/* Navigation Links (Desktop) */}
           <nav className="hidden md:flex items-center gap-1">
@@ -90,18 +114,22 @@ export const GlobalNavbar: React.FC = () => {
             </Link>
           </div>
 
-          {/* Tutorial / Help Trigger */}
-          <button
-            type="button"
-            onClick={handleRestartTutorial}
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#131926] px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-300 transition-all hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 active:scale-95"
-            title="Restart Interactive Orientation Tutorial"
-          >
-            <HelpCircle className="h-3.5 w-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">Orientation</span>
-          </button>
+          {/* Tutorial / Help Trigger — conditionally rendered if not completed */}
+          {!isOrientationCompleted && (
+            <>
+              <button
+                type="button"
+                onClick={handleRestartTutorial}
+                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#131926] px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-300 transition-all hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 active:scale-95"
+                title="Interactive Orientation Tutorial"
+              >
+                <HelpCircle className="h-3.5 w-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">Orientation</span>
+              </button>
 
-          <div className="h-5 w-px bg-white/10 hidden sm:block" />
+              <div className="h-5 w-px bg-white/10 hidden sm:block" />
+            </>
+          )}
 
           {/* Direct Auth Controls */}
           {session?.user ? (

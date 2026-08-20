@@ -11,18 +11,19 @@ import {
   CheckSquare,
   Mic,
   Brain,
-  Layers,
   GraduationCap,
   Calculator,
   Atom,
   Binary,
   Compass,
-  X,
 } from 'lucide-react';
 import { LatexRenderer } from '../canvas/LatexRenderer';
+import { authClient } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
 
-export const ONBOARDING_STORAGE_KEY = 'nexora_onboarding_completed_v1';
+export const ORIENTATION_STORAGE_KEY = 'nexora_orientation_completed';
+export const ONBOARDING_STORAGE_KEY = 'nexora_orientation_completed';
+export const LEGACY_ONBOARDING_KEY = 'nexora_onboarding_completed_v1';
 
 export const STUDY_TRACKS = [
   {
@@ -73,33 +74,60 @@ export const STUDY_TRACKS = [
 ];
 
 export const OnboardingModal: React.FC = () => {
+  const { data: session } = authClient.useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [selectedTrack, setSelectedTrack] = useState('math');
 
-  // Check localStorage on mount
+  // Check completion flag on mount and when session loads
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const completed = localStorage.getItem(ONBOARDING_STORAGE_KEY);
-      if (!completed) {
-        setIsOpen(true);
-      }
+    if (typeof window === 'undefined') return;
 
-      // Listen for custom event to restart tutorial
-      const handleRestart = () => {
-        setStep(1);
-        setIsOpen(true);
-      };
-      window.addEventListener('nexora:restart-onboarding', handleRestart);
-      return () => window.removeEventListener('nexora:restart-onboarding', handleRestart);
+    const isLocalCompleted =
+      localStorage.getItem(ORIENTATION_STORAGE_KEY) === 'true' ||
+      localStorage.getItem(LEGACY_ONBOARDING_KEY) === 'true';
+
+    const isUserCompleted = Boolean(
+      (session?.user as { onboardingCompleted?: boolean })?.onboardingCompleted
+    );
+
+    if (!isLocalCompleted && !isUserCompleted) {
+      setIsOpen(true);
     }
-  }, []);
 
-  const handleComplete = () => {
+    // Listen for manual tutorial restart event
+    const handleRestart = () => {
+      setStep(1);
+      setIsOpen(true);
+    };
+
+    window.addEventListener('nexora:restart-onboarding', handleRestart);
+    return () => window.removeEventListener('nexora:restart-onboarding', handleRestart);
+  }, [session]);
+
+  const handleComplete = async () => {
+    // 1. Set local storage keys
     if (typeof window !== 'undefined') {
-      localStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
+      localStorage.setItem(ORIENTATION_STORAGE_KEY, 'true');
+      localStorage.setItem(LEGACY_ONBOARDING_KEY, 'true');
       localStorage.setItem('nexora_preferred_track', selectedTrack);
+
+      // Notify other components on the page immediately
+      window.dispatchEvent(new CustomEvent('nexora:orientation-completed'));
     }
+
+    // 2. If authenticated, persist to Neon DB
+    if (session?.user) {
+      try {
+        await fetch('/api/user/orientation-complete', {
+          method: 'POST',
+        });
+      } catch (err) {
+        console.warn('Failed to sync orientation status with server:', err);
+      }
+    }
+
+    // 3. Close modal immediately
     setIsOpen(false);
   };
 

@@ -9,14 +9,14 @@ export interface NexoraLogoProps {
   className?: string;
   showVersion?: boolean;
   size?: 'sm' | 'md' | 'lg';
-  href?: string;
+  href?: string | null;
 }
 
 export const NexoraLogo: React.FC<NexoraLogoProps> = ({
   className,
   showVersion = true,
   size = 'md',
-  href = '/tasks',
+  href = '/',
 }) => {
   const dimensions = {
     sm: { img: 24, text: 'text-sm', badge: 'text-[9px] px-1 py-0.2' },
@@ -24,15 +24,8 @@ export const NexoraLogo: React.FC<NexoraLogoProps> = ({
     lg: { img: 40, text: 'text-xl', badge: 'text-xs px-2 py-0.5' },
   }[size];
 
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'group flex items-center gap-2.5 transition-all duration-300 select-none',
-        className
-      )}
-      title="Nexora — Academic Companion"
-    >
+  const content = (
+    <>
       {/* Brand Logo with Ambient Aurora Glow */}
       <div className="relative flex items-center justify-center shrink-0">
         <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-indigo-500 via-sky-400 to-cyan-400 opacity-25 blur transition duration-300 group-hover:opacity-75 group-hover:blur-md" />
@@ -70,6 +63,29 @@ export const NexoraLogo: React.FC<NexoraLogoProps> = ({
           </span>
         )}
       </div>
+    </>
+  );
+
+  const sharedClasses = cn(
+    'group flex items-center gap-2.5 transition-all duration-300 select-none',
+    className
+  );
+
+  if (!href) {
+    return (
+      <div className={sharedClasses} title="Nexora — Academic Companion">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className={sharedClasses}
+      title="Nexora — Academic Companion"
+    >
+      {content}
     </Link>
   );
 };

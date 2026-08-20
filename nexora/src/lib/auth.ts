@@ -14,6 +14,14 @@ export const auth = betterAuth({
       verification: schema.verification,
     },
   }),
+  user: {
+    additionalFields: {
+      onboardingCompleted: {
+        type: 'boolean',
+        defaultValue: false,
+      },
+    },
+  },
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID || '',
