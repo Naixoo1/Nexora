@@ -5,7 +5,13 @@ import { auth } from '@/lib/auth';
 import { SendChatMessageSchema } from '@/lib/validators/chat';
 import { buildSystemPrompt } from '@/services/chat-prompt';
 import { getOrCreateChatSession, saveChatMessage } from '@/services/chat';
-import { getModelCascade, delayWithJitter } from '@/services/ai-cascade';
+import {
+  getApiKeyPool,
+  getModelCascade,
+  isKeyExhaustedOrInvalid,
+  isTransientError,
+  delayWithJitter,
+} from '@/services/ai-cascade';
 import { validationErrorResponse } from '@/lib/api-response';
 import type { ChatAttachment } from '@/types/chat';
 
@@ -95,12 +101,17 @@ export async function POST(req: NextRequest): Promise<Response> {
       tutorMode: mode || context?.tutorMode || 'socratic',
     };
 
-    // 2. Check GEMINI_API_KEY
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey.trim() === '' || apiKey === 'your-gemini-api-key') {
-      console.error('[Chat API Error]: Missing or invalid GEMINI_API_KEY in environment variables.');
+    // 2. Resolve Multi-Key Pool (supports client-provided BYOK x-gemini-api-key)
+    const customClientKey = req.headers.get('x-gemini-api-key');
+    const keyPool = getApiKeyPool(customClientKey);
+
+    if (keyPool.length === 0) {
+      console.error('[Chat API Error]: No valid Gemini API keys found in pool or request header.');
       return Response.json(
-        { error: 'Missing GEMINI_API_KEY in environment variables. Please check your .env.local configuration.' },
+        {
+          error:
+            'Missing GEMINI_API_KEY. Please provide a custom API key in Chat Settings or configure .env.local.',
+        },
         { status: 500 }
       );
     }
@@ -137,45 +148,75 @@ export async function POST(req: NextRequest): Promise<Response> {
       attachments as ChatAttachment[] | undefined
     );
 
-    // 5. Initialize Google GenAI and launch stream with resilient model fallback cascade
-    const ai = new GoogleGenAI({ apiKey });
+    // 5. Initialize Google GenAI with Multi-Key Pool and Resilient Model Cascade
     const cascade = getModelCascade();
     let responseStream;
     let usedModel = cascade[0];
+    let usedKeyIndex = 0;
     let lastError: unknown = null;
 
-    for (let i = 0; i < cascade.length; i++) {
-      const candidateModel = cascade[i];
-      try {
-        responseStream = await ai.models.generateContentStream({
-          model: candidateModel,
-          contents: contentParts,
-          config: {
-            systemInstruction,
-            temperature: 0.4,
-          },
-        });
-        usedModel = candidateModel;
-        break; // Successfully launched stream
-      } catch (modelError) {
-        lastError = modelError;
-        const errMsg = modelError instanceof Error ? modelError.message : String(modelError);
-        console.warn(
-          `[Chat API Model Cascade]: Model "${candidateModel}" failed (attempt ${i + 1}/${cascade.length}): ${errMsg}`
-        );
+    // Model Cascade Loop
+    for (let m = 0; m < cascade.length; m++) {
+      const candidateModel = cascade[m];
 
-        if (i < cascade.length - 1) {
-          await delayWithJitter(300, 200);
+      // Key Rotation Loop for candidate model
+      for (let k = 0; k < keyPool.length; k++) {
+        const currentKey = keyPool[k];
+        try {
+          const ai = new GoogleGenAI({ apiKey: currentKey });
+          responseStream = await ai.models.generateContentStream({
+            model: candidateModel,
+            contents: contentParts,
+            config: {
+              systemInstruction,
+              temperature: 0.4,
+            },
+          });
+          usedModel = candidateModel;
+          usedKeyIndex = k;
+          break; // Successfully started stream
+        } catch (apiError) {
+          lastError = apiError;
+          const errMsg = apiError instanceof Error ? apiError.message : String(apiError);
+          console.error(
+            `[AI Stream Error] Key Index: ${k}, Model: ${candidateModel}:`,
+            errMsg
+          );
+
+          // If quota exhausted or key invalid, rotate to next key in pool
+          if (isKeyExhaustedOrInvalid(apiError) && k < keyPool.length - 1) {
+            console.warn(
+              `[AI Key Rotation] Rotating from Key index ${k} to ${k + 1} for model ${candidateModel}`
+            );
+            await delayWithJitter(200, 100);
+            continue;
+          }
+
+          // If transient server error (503 / 404), advance to next model in cascade
+          if (isTransientError(apiError)) {
+            break;
+          }
         }
+      }
+
+      if (responseStream) {
+        break; // Successfully launched stream with candidate model & key
+      }
+
+      if (m < cascade.length - 1) {
+        await delayWithJitter(300, 150);
       }
     }
 
     if (!responseStream) {
-      console.error('[Chat API Error]: All fallback models in cascade failed. Last error:', lastError);
+      console.error(
+        `[Chat API Error]: All key pool attempts (${keyPool.length} keys) and model cascade attempts (${cascade.length} models) failed. Last error:`,
+        lastError
+      );
       return Response.json(
         {
           error:
-            'AI servers are temporarily congested due to high demand. Please retry in a moment.',
+            'AI servers are temporarily congested or quota exceeded. Please retry in a moment or add a custom Gemini API key in Settings.',
         },
         { status: 503 }
       );

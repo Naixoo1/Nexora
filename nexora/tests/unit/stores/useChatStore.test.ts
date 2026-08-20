@@ -662,6 +662,38 @@ describe('useChatStore', () => {
       expect(mockFetch).not.toHaveBeenCalled();
       expect(useChatStore.getState().messages).toHaveLength(0);
     });
+
+    it('should attach x-gemini-api-key header when customApiKey is set in BYOK mode', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'X-Chat-Session-Id': 'sess-byok' }),
+        body: createMockStream(['Answer using custom key']),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      useChatStore.getState().setCustomApiKey('AIzaSyCustomKey12345');
+      expect(useChatStore.getState().customApiKey).toBe('AIzaSyCustomKey12345');
+
+      await useChatStore.getState().sendMessage('Hello with custom key');
+
+      expect(mockFetch).toHaveBeenCalled();
+      const headers = mockFetch.mock.calls[0][1].headers;
+      expect(headers['x-gemini-api-key']).toBe('AIzaSyCustomKey12345');
+
+      // Reset
+      useChatStore.getState().setCustomApiKey(null);
+      expect(useChatStore.getState().customApiKey).toBeNull();
+    });
+
+    it('should toggle and set settings modal open state', () => {
+      expect(useChatStore.getState().isSettingsOpen).toBe(false);
+
+      useChatStore.getState().toggleSettings();
+      expect(useChatStore.getState().isSettingsOpen).toBe(true);
+
+      useChatStore.getState().setSettingsOpen(false);
+      expect(useChatStore.getState().isSettingsOpen).toBe(false);
+    });
   });
 });
 

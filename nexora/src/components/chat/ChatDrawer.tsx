@@ -8,12 +8,14 @@ import {
   Maximize2,
   Minimize2,
   History,
+  Settings,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
 import { TutorModeSelector } from './TutorModeSelector';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputArea } from './ChatInputArea';
 import { ChatHistoryPanel } from './ChatHistoryPanel';
+import { ChatSettingsModal } from './ChatSettingsModal';
 import { cn } from '@/lib/utils';
 
 export const ChatDrawer: React.FC = () => {
@@ -21,6 +23,8 @@ export const ChatDrawer: React.FC = () => {
     isDrawerOpen,
     isExpanded,
     isHistoryOpen,
+    isSettingsOpen,
+    customApiKey,
     messages,
     streamingMessage,
     isSending,
@@ -28,6 +32,7 @@ export const ChatDrawer: React.FC = () => {
     closeDrawer,
     toggleExpanded,
     toggleHistory,
+    toggleSettings,
     startNewChat,
   } = useChatStore();
 
@@ -46,6 +51,9 @@ export const ChatDrawer: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden select-none">
+      {/* Settings Modal (BYOK & Multi-Key Configuration) */}
+      <ChatSettingsModal />
+
       {/* Mobile Backdrop (when drawer is open in normal mode) */}
       {!isExpanded && (
         <div
@@ -99,6 +107,24 @@ export const ChatDrawer: React.FC = () => {
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Tutor Mode Selector */}
             <TutorModeSelector />
+
+            {/* AI Engine & BYOK Settings Button */}
+            <button
+              type="button"
+              onClick={toggleSettings}
+              className={cn(
+                'relative rounded-xl border p-1.5 transition-colors',
+                isSettingsOpen || customApiKey
+                  ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
+                  : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+              )}
+              title="AI Settings & BYOK (Gemini API Key)"
+            >
+              <Settings className="h-4 w-4" />
+              {customApiKey && (
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-[#131926]" />
+              )}
+            </button>
 
             {/* New Chat Button */}
             <button

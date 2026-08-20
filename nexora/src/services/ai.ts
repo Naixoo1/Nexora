@@ -1,5 +1,11 @@
 import { GoogleGenAI } from '@google/genai';
-import { getModelCascade, delayWithJitter } from '@/services/ai-cascade';
+import {
+  getApiKeyPool,
+  getModelCascade,
+  isKeyExhaustedOrInvalid,
+  isTransientError,
+  delayWithJitter,
+} from '@/services/ai-cascade';
 import type { PlannerTaskItem, TaskPriority } from '@/types/task';
 
 /**
@@ -72,30 +78,56 @@ function generateFallbackStudyPlan(
         },
       ],
     },
+    {
+      title: `${rootTitle} — Consolidation & Mastery Check`,
+      description: `Synthesize findings, verify full understanding, and prepare final deliverables for ${prompt.slice(0, 50)}.`,
+      priority: 'medium' as TaskPriority,
+      dueDate,
+      canvasNodeId: 'node-plan-3',
+      nodeX: 0,
+      nodeY: 520,
+      children: [
+        {
+          title: 'Review challenging derivation steps',
+          description: 'Self-test on foundational assumptions and edge cases.',
+          priority: 'medium' as TaskPriority,
+          canvasNodeId: 'node-plan-3-1',
+          nodeX: 280,
+          nodeY: 460,
+        },
+        {
+          title: 'Final summary & project submission',
+          description: 'Finalize notes and submit deliverables.',
+          priority: 'low' as TaskPriority,
+          canvasNodeId: 'node-plan-3-2',
+          nodeX: 280,
+          nodeY: 580,
+        },
+      ],
+    },
   ];
 
   return defaultItems.slice(0, maxTasks);
 }
 
 /**
- * Generate a structured hierarchical study plan using Gemini API.
+ * Generate a structured study plan using Gemini AI with Multi-Key Pool and Resilient Cascade.
  */
-export async function generateStudyPlanWithGemini(
+export async function generateStudyPlan(
   prompt: string,
   category?: string,
   dueDate?: string,
-  maxTasks: number = 10
+  maxTasks: number = 10,
+  customApiKey?: string | null
 ): Promise<PlannerTaskItem[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const keyPool = getApiKeyPool(customApiKey);
 
-  if (!apiKey || apiKey.trim() === '' || apiKey === 'your-gemini-api-key') {
-    console.warn('[AI Service] GEMINI_API_KEY not configured. Using structured fallback plan generator.');
+  if (keyPool.length === 0) {
+    console.warn('[AI Service] No valid GEMINI_API_KEY found. Using fallback study plan.');
     return generateFallbackStudyPlan(prompt, category, dueDate, maxTasks);
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
-
     const systemInstruction = `You are Nexora AI Study Planner, an intelligent academic assistant for high school and university students.
 Your goal is to take a study topic, exam preparation goal, or assignment brief and break it down into an actionable, structured, hierarchical study plan.
 
@@ -144,38 +176,56 @@ Create the structured study plan now:`;
     let responseText: string | null = null;
     let lastError: unknown = null;
 
-    for (let i = 0; i < cascade.length; i++) {
-      const candidateModel = cascade[i];
-      try {
-        const response = await ai.models.generateContent({
-          model: candidateModel,
-          contents: userPrompt,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            temperature: 0.3,
-          },
-        });
+    for (let m = 0; m < cascade.length; m++) {
+      const candidateModel = cascade[m];
 
-        if (response.text) {
-          responseText = response.text;
-          break;
-        }
-      } catch (err) {
-        lastError = err;
-        console.warn(
-          `[AI Service Fallback] Planner model "${candidateModel}" failed (attempt ${i + 1}/${cascade.length}):`,
-          err instanceof Error ? err.message : err
-        );
+      for (let k = 0; k < keyPool.length; k++) {
+        const currentKey = keyPool[k];
+        try {
+          const ai = new GoogleGenAI({ apiKey: currentKey });
+          const response = await ai.models.generateContent({
+            model: candidateModel,
+            contents: userPrompt,
+            config: {
+              systemInstruction,
+              responseMimeType: 'application/json',
+              temperature: 0.3,
+            },
+          });
 
-        if (i < cascade.length - 1) {
-          await delayWithJitter(300, 200);
+          if (response.text) {
+            responseText = response.text;
+            break;
+          }
+        } catch (err) {
+          lastError = err;
+          console.warn(
+            `[AI Service Planner Fallback] Key ${k}/${keyPool.length}, Model "${candidateModel}" failed:`,
+            err instanceof Error ? err.message : err
+          );
+
+          if (isKeyExhaustedOrInvalid(err) && k < keyPool.length - 1) {
+            await delayWithJitter(200, 100);
+            continue;
+          }
+
+          if (isTransientError(err)) {
+            break;
+          }
         }
+      }
+
+      if (responseText) {
+        break;
+      }
+
+      if (m < cascade.length - 1) {
+        await delayWithJitter(300, 150);
       }
     }
 
     if (!responseText) {
-      console.warn('[AI Service] All model cascade attempts failed for planner. Last error:', lastError);
+      console.warn('[AI Service] All key & model cascade attempts failed for planner. Last error:', lastError);
       return generateFallbackStudyPlan(prompt, category, dueDate, maxTasks);
     }
 
@@ -236,3 +286,8 @@ Create the structured study plan now:`;
     return generateFallbackStudyPlan(prompt, category, dueDate, maxTasks);
   }
 }
+
+/**
+ * Backward-compatible alias for generateStudyPlan
+ */
+export const generateStudyPlanWithGemini = generateStudyPlan;

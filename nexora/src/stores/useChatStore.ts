@@ -24,6 +24,8 @@ export interface ChatStoreState {
   isDrawerOpen: boolean;
   isExpanded: boolean;
   isHistoryOpen: boolean;
+  isSettingsOpen: boolean;
+  customApiKey: string | null;
 
   // Active Context & Multimodal Attachments
   activeTutorMode: AcademicTutorMode;
@@ -54,6 +56,9 @@ export interface ChatStoreState {
   setExpanded: (expanded: boolean) => void;
   toggleHistory: () => void;
   setHistoryOpen: (open: boolean) => void;
+  toggleSettings: () => void;
+  setSettingsOpen: (open: boolean) => void;
+  setCustomApiKey: (key: string | null) => void;
 
   // Actions - Context Controls
   setTutorMode: (mode: AcademicTutorMode) => void;
@@ -309,6 +314,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   isDrawerOpen: false,
   isExpanded: false,
   isHistoryOpen: false,
+  isSettingsOpen: false,
+  customApiKey:
+    typeof window !== 'undefined' ? localStorage.getItem('nexora_custom_gemini_key') : null,
 
   activeTutorMode: 'socratic',
   taskContext: undefined,
@@ -340,7 +348,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   closeDrawer: () => {
-    set({ isDrawerOpen: false, isExpanded: false, isHistoryOpen: false });
+    set({ isDrawerOpen: false, isExpanded: false, isHistoryOpen: false, isSettingsOpen: false });
   },
 
   toggleDrawer: () => {
@@ -361,6 +369,26 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   setHistoryOpen: (open) => {
     set({ isHistoryOpen: open });
+  },
+
+  toggleSettings: () => {
+    set((state) => ({ isSettingsOpen: !state.isSettingsOpen }));
+  },
+
+  setSettingsOpen: (open) => {
+    set({ isSettingsOpen: open });
+  },
+
+  setCustomApiKey: (key: string | null) => {
+    const trimmed = key && key.trim() ? key.trim() : null;
+    if (typeof window !== 'undefined') {
+      if (trimmed) {
+        localStorage.setItem('nexora_custom_gemini_key', trimmed);
+      } else {
+        localStorage.removeItem('nexora_custom_gemini_key');
+      }
+    }
+    set({ customApiKey: trimmed });
   },
 
   setTutorMode: (mode) => {
@@ -771,9 +799,20 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         },
       };
 
+      const customKey =
+        get().customApiKey ||
+        (typeof window !== 'undefined' ? localStorage.getItem('nexora_custom_gemini_key') : null);
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (customKey && customKey.trim()) {
+        headers['x-gemini-api-key'] = customKey.trim();
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
       });
 
