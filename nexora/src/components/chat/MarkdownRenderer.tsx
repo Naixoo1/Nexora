@@ -8,6 +8,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { Copy, Check } from 'lucide-react';
 import { LatexRenderer } from '../canvas/LatexRenderer';
+import { preprocessLatex } from '@/utils/latex-formatter';
 import { cn } from '@/lib/utils';
 
 export interface MarkdownRendererProps {
@@ -17,22 +18,20 @@ export interface MarkdownRendererProps {
 
 /**
  * Preprocesses raw markdown string to ensure correct header formatting,
- * strip hybrid bold headers (e.g. `### **Title**`), and ensure newline padding.
+ * normalize LaTeX delimiters/escapes, and ensure newline padding.
  */
 export function cleanMarkdownText(raw: string): string {
   if (!raw) return '';
 
-  let text = raw.replace(/\r\n/g, '\n');
+  // 1. Normalize LaTeX math blocks, bracket delimiters, and double-escaped slashes
+  let text = preprocessLatex(raw);
 
-  // 1. Ensure headers (#, ##, ###, ####, etc.) have empty line padding before them if preceded by text
+  // 2. Ensure headers (#, ##, ###, ####, etc.) have empty line padding before them if preceded by text
   text = text.replace(/([^\n])\n(#{1,6}\s+)/g, '$1\n\n$2');
 
-  // 2. Strip redundant wrapping bold markers inside headers (e.g., `### **Title**` -> `### Title`, `#### **Title ($x$):**` -> `#### Title ($x$):`)
+  // 3. Strip redundant wrapping bold markers inside headers (e.g., `### **Title**` -> `### Title`, `#### **Title ($x$):**` -> `#### Title ($x$):`)
   text = text.replace(/^(#{1,6}\s+)\*\*(.*?)\*\*(\:?)$/gm, '$1$2$3');
   text = text.replace(/^(#{1,6}\s+)\*\*(.*?)\*\*/gm, '$1$2');
-
-  // 3. Ensure display math blocks ($$...$$) have clean newline separation
-  text = text.replace(/([^\n])\n\$\$([\s\S]*?)\$\$/g, '$1\n\n$$$$$2$$$$');
 
   return text;
 }
