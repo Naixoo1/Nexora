@@ -16,6 +16,7 @@ import type { ChatMessage, ChatSourceCitation } from '@/types/chat';
 import { LatexRenderer } from '../canvas/LatexRenderer';
 import { ChatCitationBadge } from './ChatCitationBadge';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { getComplexityConfig } from '@/services/ai-classifier';
 import { cn } from '@/lib/utils';
 
 export interface ChatMessageListProps {
@@ -273,9 +274,19 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             {streamingMessage ? (
               <RenderMessageContent content={streamingMessage} />
             ) : (
-              <div className="flex items-center gap-1.5 py-1 text-xs text-cyan-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
-                <span>Nexora AI is formulating multimodal analysis...</span>
+              <div className="flex items-center gap-2 py-1 text-xs text-cyan-300">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+                </span>
+                <span className="font-medium animate-pulse">
+                  {(() => {
+                    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
+                    return lastUserMsg
+                      ? getComplexityConfig(lastUserMsg.content).statusLabel
+                      : 'Synthesizing response...';
+                  })()}
+                </span>
               </div>
             )}
           </div>

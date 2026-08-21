@@ -17,6 +17,7 @@ import {
   type OpenRouterChatMessage,
   type GroqChatMessage,
 } from '@/services/ai-cascade';
+import { getComplexityConfig } from '@/services/ai-classifier';
 import { validationErrorResponse } from '@/lib/api-response';
 import type { ChatAttachment } from '@/types/chat';
 
@@ -169,6 +170,10 @@ export async function POST(req: NextRequest): Promise<Response> {
       attachments as ChatAttachment[] | undefined
     );
 
+    // Dynamic Prompt Complexity Classification & Parameter Optimization
+    const complexityConfig = getComplexityConfig(message);
+    console.log(`[AI Latency Routing] Classified Prompt Complexity: ${complexityConfig.tier.toUpperCase()} (${complexityConfig.statusLabel})`);
+
     // 5. Multi-Provider Fallback Cascade Pipeline
     const cascade = getModelCascade();
     let responseStream: AsyncIterable<{ text?: string | null }> | null = null;
@@ -185,13 +190,22 @@ export async function POST(req: NextRequest): Promise<Response> {
         const currentKey = keyPool[k];
         try {
           const ai = new GoogleGenAI({ apiKey: currentKey });
+          const geminiConfig: Record<string, unknown> = {
+            systemInstruction,
+            temperature: complexityConfig.temperature,
+            maxOutputTokens: complexityConfig.maxOutputTokens,
+          };
+
+          if (complexityConfig.thinkingBudget !== undefined) {
+            geminiConfig.thinkingConfig = {
+              thinkingBudget: complexityConfig.thinkingBudget,
+            };
+          }
+
           responseStream = await ai.models.generateContentStream({
             model: candidateModel,
             contents: contentParts,
-            config: {
-              systemInstruction,
-              temperature: 0.4,
-            },
+            config: geminiConfig,
           });
           usedModel = candidateModel;
           usedKeyIndex = k;
@@ -245,7 +259,15 @@ export async function POST(req: NextRequest): Promise<Response> {
             { role: 'user', content: message },
           ];
 
-          fallbackStream = await streamOpenRouterCompletion(orMessages, orModel, openRouterKey);
+          fallbackStream = await streamOpenRouterCompletion(
+            orMessages,
+            orModel,
+            openRouterKey,
+            {
+              temperature: complexityConfig.temperature,
+              maxTokens: complexityConfig.maxOutputTokens,
+            }
+          );
           usedModel = `openrouter/${orModel}`;
           break;
         } catch (orErr) {
@@ -270,7 +292,15 @@ export async function POST(req: NextRequest): Promise<Response> {
           { role: 'user', content: message },
         ];
 
-        fallbackStream = await streamGroqCompletion(groqMessages, 'llama-3.3-70b-versatile', groqKey);
+        fallbackStream = await streamGroqCompletion(
+          groqMessages,
+          'llama-3.3-70b-versatile',
+          groqKey,
+          {
+            temperature: complexityConfig.temperature,
+            maxTokens: complexityConfig.maxOutputTokens,
+          }
+        );
         usedModel = 'groq/llama-3.3-70b-versatile';
       } catch (groqErr) {
         console.error('[AI Groq Fallback Fatal Error]:', groqErr);
@@ -348,6 +378,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'X-Chat-Session-Id': chatSessionId,
+        'X-Prompt-Complexity': complexityConfig.tier,
       },
     });
   } catch (error) {

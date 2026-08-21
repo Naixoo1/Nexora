@@ -100,6 +100,11 @@ export function getApiKeyPool(customKey?: string | null): string[] {
   return Array.from(new Set(pool));
 }
 
+export interface GenerationOptions {
+  temperature?: number;
+  maxTokens?: number;
+}
+
 /**
  * Streams completion from OpenRouter API (OpenAI-compatible SSE stream).
  * Defaults to `openrouter/free` zero-cost auto router.
@@ -107,7 +112,8 @@ export function getApiKeyPool(customKey?: string | null): string[] {
 export async function streamOpenRouterCompletion(
   messages: OpenRouterChatMessage[],
   model: string = 'openrouter/free',
-  apiKey?: string
+  apiKey?: string,
+  options?: GenerationOptions
 ): Promise<ReadableStream<string>> {
   const key = apiKey || process.env.OPENROUTER_API_KEY;
   if (!key || key.trim() === '' || key.startsWith('your-')) {
@@ -125,7 +131,8 @@ export async function streamOpenRouterCompletion(
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.4,
+      temperature: options?.temperature ?? 0.4,
+      max_tokens: options?.maxTokens,
       stream: true,
     }),
   });
@@ -137,7 +144,7 @@ export async function streamOpenRouterCompletion(
     // If a specific free model hits 402/429/503, automatically retry with openrouter/free
     if (model !== 'openrouter/free') {
       console.log('[OpenRouter Auto-Recovery] Retrying stream with openrouter/free router');
-      return streamOpenRouterCompletion(messages, 'openrouter/free', apiKey);
+      return streamOpenRouterCompletion(messages, 'openrouter/free', apiKey, options);
     }
 
     throw new Error(`OpenRouter API error HTTP ${response.status}: ${errorText}`);
@@ -196,7 +203,8 @@ export async function streamOpenRouterCompletion(
 export async function streamGroqCompletion(
   messages: GroqChatMessage[],
   model: string = 'llama-3.3-70b-versatile',
-  apiKey?: string
+  apiKey?: string,
+  options?: GenerationOptions
 ): Promise<ReadableStream<string>> {
   const key = apiKey || process.env.GROQ_API_KEY;
   if (!key || key.trim() === '' || key.startsWith('your-')) {
@@ -212,7 +220,8 @@ export async function streamGroqCompletion(
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.4,
+      temperature: options?.temperature ?? 0.4,
+      max_tokens: options?.maxTokens,
       stream: true,
     }),
   });
