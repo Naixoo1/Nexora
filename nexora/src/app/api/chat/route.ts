@@ -14,6 +14,7 @@ import {
   streamOpenRouterCompletion,
   streamGroqCompletion,
   pruneConversationHistory,
+  createReasoningFilterTransform,
   type OpenRouterChatMessage,
   type GroqChatMessage,
 } from '@/services/ai-cascade';
@@ -401,7 +402,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     let fullAssistantResponse = '';
     const encoder = new TextEncoder();
 
-    const stream = new ReadableStream<Uint8Array>({
+    // 1. Construct raw text stream from Gemini or Fallback Provider
+    const rawTextStream = new ReadableStream<string>({
       async start(controller) {
         try {
           if (fallbackStream) {
@@ -409,18 +411,34 @@ export async function POST(req: NextRequest): Promise<Response> {
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              if (value) {
-                fullAssistantResponse += value;
-                controller.enqueue(encoder.encode(value));
-              }
+              if (value) controller.enqueue(value);
             }
           } else if (responseStream) {
             for await (const chunk of responseStream) {
               const chunkText = chunk.text || '';
-              if (chunkText) {
-                fullAssistantResponse += chunkText;
-                controller.enqueue(encoder.encode(chunkText));
-              }
+              if (chunkText) controller.enqueue(chunkText);
+            }
+          }
+          controller.close();
+        } catch (streamError) {
+          controller.error(streamError);
+        }
+      },
+    });
+
+    // 2. Filter internal thinking tags (<think>...</think>) before transmitting
+    const sanitizedTextStream = rawTextStream.pipeThrough(createReasoningFilterTransform());
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          const reader = sanitizedTextStream.getReader();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              fullAssistantResponse += value;
+              controller.enqueue(encoder.encode(value));
             }
           }
 

@@ -31,6 +31,13 @@ export const GROQ_MODELS = [
 
 export type ValidGroqModel = (typeof GROQ_MODELS)[number];
 
+import {
+  createReasoningFilterTransform,
+  sanitizeReasoningContent,
+} from './reasoning-sanitizer';
+
+export { createReasoningFilterTransform, sanitizeReasoningContent };
+
 export interface ChatCompletionMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -157,7 +164,7 @@ export async function streamOpenRouterCompletion(
 
   const decoder = new TextDecoder();
 
-  return new ReadableStream<string>({
+  const rawStream = new ReadableStream<string>({
     async start(controller) {
       let buffer = '';
       try {
@@ -179,8 +186,9 @@ export async function streamOpenRouterCompletion(
             if (trimmed.startsWith('data: ')) {
               try {
                 const data = JSON.parse(trimmed.slice(6));
+                // Explicitly ignore delta.reasoning and delta.reasoning_content to prevent thought leaks
                 const delta = data.choices?.[0]?.delta?.content || '';
-                if (delta) {
+                if (delta && typeof delta === 'string') {
                   controller.enqueue(delta);
                 }
               } catch {
@@ -195,6 +203,8 @@ export async function streamOpenRouterCompletion(
       }
     },
   });
+
+  return rawStream.pipeThrough(createReasoningFilterTransform());
 }
 
 /**
@@ -238,7 +248,7 @@ export async function streamGroqCompletion(
 
   const decoder = new TextDecoder();
 
-  return new ReadableStream<string>({
+  const rawStream = new ReadableStream<string>({
     async start(controller) {
       let buffer = '';
       try {
@@ -260,8 +270,9 @@ export async function streamGroqCompletion(
             if (trimmed.startsWith('data: ')) {
               try {
                 const data = JSON.parse(trimmed.slice(6));
+                // Explicitly ignore delta.reasoning and delta.reasoning_content to prevent thought leaks
                 const delta = data.choices?.[0]?.delta?.content || '';
-                if (delta) {
+                if (delta && typeof delta === 'string') {
                   controller.enqueue(delta);
                 }
               } catch {
@@ -276,6 +287,8 @@ export async function streamGroqCompletion(
       }
     },
   });
+
+  return rawStream.pipeThrough(createReasoningFilterTransform());
 }
 
 /**

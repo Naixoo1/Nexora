@@ -146,17 +146,36 @@ function setCachedMessages(sessionId: string, messages: ChatMessage[]): void {
 }
 
 /**
- * Parses ```nexora-node { ... } ``` JSON blocks from AI messages and appends them
+ * Automatically parses generated node action blocks from LLM responses and applies them
  * directly to the active STEM canvas.
  */
 export function parseAndApplyNexoraNodes(text: string) {
-  const regex = /```nexora-node\s*([\s\S]*?)\s*```/g;
-  let match;
+  if (!text || typeof text !== 'string') return;
 
-  while ((match = regex.exec(text)) !== null) {
+  const patterns = [
+    /```(?:nexora-node|node)\s*([\s\S]*?)\s*```/gi,
+    /```json\s*(\{[\s\S]*?"(?:title|action)"[\s\S]*?\})\s*```/gi,
+  ];
+
+  const candidateJsons: string[] = [];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      candidateJsons.push(match[1].trim());
+    }
+  }
+
+  for (const jsonStr of candidateJsons) {
     try {
-      const jsonStr = match[1].trim();
-      const parsed = JSON.parse(jsonStr);
+      let parsed = JSON.parse(jsonStr);
+
+      // Support wrapping {"action": "create_node", "node": {...}}
+      if (parsed.action === 'create_node' && parsed.node) {
+        parsed = parsed.node;
+      }
+
+      if (!parsed.title && !parsed.latexFormula && !parsed.latex) continue;
 
       const rawType = (parsed.type || parsed.nodeType || 'reasoning_step').toLowerCase();
       const nodeType =
@@ -179,30 +198,49 @@ export function parseAndApplyNexoraNodes(text: string) {
 
       const canvasStore = useCanvasStore.getState();
 
-      if (canvasStore.canvasId) {
+      if (canvasStore && canvasStore.canvasId) {
         // Prevent duplicate addition of exact same node in session
         const isDuplicate = canvasStore.nodes.some(
           (n: { data: { title: string; latexFormula?: string } }) =>
-            n.data.title === title && n.data.latexFormula === latexFormula
+            n.data.title === title && (n.data.latexFormula || '') === latexFormula
         );
 
         if (!isDuplicate) {
-          const currentNodesCount = canvasStore.nodes.length;
-          const position = {
-            x: 250 + (currentNodesCount % 3) * 280,
-            y: 160 + Math.floor(currentNodesCount / 3) * 220,
-          };
+          const selectedParent = canvasStore.selectedNodeId
+            ? canvasStore.nodes.find((n) => n.id === canvasStore.selectedNodeId)
+            : undefined;
 
-          canvasStore.addNode(nodeType, position, {
+          const currentNodesCount = canvasStore.nodes.length;
+          const position = selectedParent
+            ? {
+                x: selectedParent.position.x + 30 + (Math.random() * 40 - 20),
+                y: selectedParent.position.y + 180,
+              }
+            : {
+                x: 250 + (currentNodesCount % 3) * 280,
+                y: 160 + Math.floor(currentNodesCount / 3) * 220,
+              };
+
+          const newNode = canvasStore.addNode(nodeType, position, {
             title,
             latexFormula,
             content,
             validationStatus,
           });
+
+          // Connect from selected parent node if present
+          if (selectedParent && newNode) {
+            canvasStore.onConnect({
+              source: selectedParent.id,
+              target: newNode.id,
+              sourceHandle: null,
+              targetHandle: null,
+            });
+          }
         }
       }
     } catch (err) {
-      console.warn('[Chat Store]: Could not parse nexora-node payload:', err);
+      console.warn('[Chat Store]: Could not parse canvas node payload:', err);
     }
   }
 }

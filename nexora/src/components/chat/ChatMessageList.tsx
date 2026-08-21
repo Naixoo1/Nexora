@@ -47,7 +47,11 @@ interface NexoraNodePayload {
 
 const NexoraNodePreviewCard: React.FC<{ rawJson: string }> = ({ rawJson }) => {
   try {
-    const data: NexoraNodePayload = JSON.parse(rawJson.trim());
+    let parsed = JSON.parse(rawJson.trim());
+    if (parsed.action === 'create_node' && parsed.node) {
+      parsed = parsed.node;
+    }
+    const data: NexoraNodePayload = parsed;
     const title = data.title || 'Derived STEM Node';
     const latex = data.latexFormula || data.latex || '';
     const desc = data.content || data.description || '';
@@ -101,8 +105,8 @@ const NexoraNodePreviewCard: React.FC<{ rawJson: string }> = ({ rawJson }) => {
 const RenderMessageContent: React.FC<{ content: string; citations?: ChatSourceCitation[] }> = ({
   content,
 }) => {
-  // First, parse out ```nexora-node ... ``` blocks
-  const nexoraNodeRegex = /```nexora-node\s*([\s\S]*?)\s*```/g;
+  // First, parse out ```nexora-node / ```node / ```json {"action":"create_node"} blocks
+  const nexoraNodeRegex = /```(?:nexora-node|node)\s*([\s\S]*?)\s*```|```json\s*(\{[\s\S]*?"(?:action|title)"[\s\S]*?\})\s*```/gi;
   const sections: React.ReactNode[] = [];
   let lastSecIndex = 0;
   let nodeMatch: RegExpExecArray | null;
@@ -115,9 +119,12 @@ const RenderMessageContent: React.FC<{ content: string; citations?: ChatSourceCi
       );
     }
 
-    sections.push(
-      <NexoraNodePreviewCard key={`nexora-node-${nodeMatch.index}`} rawJson={nodeMatch[1]} />
-    );
+    const payloadJson = nodeMatch[1] || nodeMatch[2] || '';
+    if (payloadJson.trim()) {
+      sections.push(
+        <NexoraNodePreviewCard key={`nexora-node-${nodeMatch.index}`} rawJson={payloadJson} />
+      );
+    }
 
     lastSecIndex = nodeMatch.index + nodeMatch[0].length;
   }
