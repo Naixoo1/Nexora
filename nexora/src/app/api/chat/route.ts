@@ -18,6 +18,12 @@ import {
   type GroqChatMessage,
 } from '@/services/ai-cascade';
 import { getComplexityConfig } from '@/services/ai-classifier';
+import {
+  isCacheEligible,
+  generatePromptCacheKey,
+  getCachedResponse,
+  setCachedResponse,
+} from '@/services/ai-cache';
 import { validationErrorResponse } from '@/lib/api-response';
 import type { ChatAttachment } from '@/types/chat';
 
@@ -160,21 +166,55 @@ export async function POST(req: NextRequest): Promise<Response> {
       }
     }
 
+    // Dynamic Prompt Complexity Classification & Parameter Optimization
+    const complexityConfig = getComplexityConfig(message);
+
+    // 4. Redis Semantic & Exact Cache Lookup (for static queries without attachments or BYOK keys)
+    const hasAttachments = Boolean(attachments && attachments.length > 0);
+    const hasCustomKey = Boolean(customClientKey && customClientKey.trim());
+    const eligibleForCache = isCacheEligible(message, hasAttachments, hasCustomKey);
+
+    let cacheKey: string | null = null;
+    if (eligibleForCache) {
+      cacheKey = await generatePromptCacheKey(message, resolvedContext.tutorMode);
+      const cachedResponse = await getCachedResponse(cacheKey);
+
+      if (cachedResponse) {
+        console.log(`[AI Cache] HIT for key: ${cacheKey}`);
+
+        // If authenticated user, persist cached assistant message
+        if (userId) {
+          try {
+            await saveChatMessage(chatSessionId, userId, 'assistant', cachedResponse);
+          } catch (saveErr) {
+            console.error('[Chat API Error]: Failed to persist cached assistant message to DB:', saveErr);
+          }
+        }
+
+        return new Response(cachedResponse, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'X-Chat-Session-Id': chatSessionId,
+            'X-Prompt-Complexity': complexityConfig.tier,
+            'X-Cache': 'HIT',
+          },
+        });
+      }
+    }
+
     // Smart History Pruning: limit to last 6 messages and strip heavy base64
     const prunedHistory = pruneConversationHistory(previousHistory, 6);
 
-    // 4. Build dynamic academic system prompt and parts
+    // 5. Build dynamic academic system prompt and parts
     const systemInstruction = buildSystemPrompt(resolvedContext);
     const contentParts = buildGeminiContentParts(
       message,
       attachments as ChatAttachment[] | undefined
     );
 
-    // Dynamic Prompt Complexity Classification & Parameter Optimization
-    const complexityConfig = getComplexityConfig(message);
     console.log(`[AI Latency Routing] Classified Prompt Complexity: ${complexityConfig.tier.toUpperCase()} (${complexityConfig.statusLabel})`);
 
-    // 5. Multi-Provider Fallback Cascade Pipeline
+    // 6. Multi-Provider Fallback Cascade Pipeline
     const cascade = getModelCascade();
     let responseStream: AsyncIterable<{ text?: string | null }> | null = null;
     let fallbackStream: ReadableStream<string> | null = null;
@@ -353,6 +393,13 @@ export async function POST(req: NextRequest): Promise<Response> {
             }
           }
 
+          // Background write-through to Upstash Redis if eligible
+          if (eligibleForCache && cacheKey && fullAssistantResponse.trim()) {
+            setCachedResponse(cacheKey, fullAssistantResponse).catch((err) =>
+              console.warn('[AI Cache Write-through Error]:', err)
+            );
+          }
+
           // Synchronously persist completed assistant response to Neon DB before terminating stream
           if (userId && fullAssistantResponse.trim()) {
             try {
@@ -379,6 +426,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         'Content-Type': 'text/plain; charset=utf-8',
         'X-Chat-Session-Id': chatSessionId,
         'X-Prompt-Complexity': complexityConfig.tier,
+        'X-Cache': 'MISS',
       },
     });
   } catch (error) {
