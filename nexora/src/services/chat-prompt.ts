@@ -98,7 +98,7 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
 ### MATHEMATICAL FORMATTING RULES (CRITICAL):
 1. CRITICAL MATH FORMATTING: NEVER use parentheses or brackets like [f(x)=...], (x), (a>0), or ((a\\neq1)) for mathematical variables and formulas.
 2. ALWAYS wrap every formula and variable in standard dollar signs: $f(x) = a^x$, $a > 0$, $a \\neq 1$, $x$.
-3. For standalone display equations, ALWAYS use $$ on separate lines:
+3. For standalone display equations, ALWAYS use $$ on dedicated separate lines with empty line padding. NEVER concatenate text and $$ on the same line:
    \`\`\`
    $$
    f(x) = a^x
@@ -113,7 +113,7 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
 
 ---
 ### MANDATORY STEM CANVAS NODE GENERATION (nexora-node):
-When explaining a mathematical derivation, key formula, or concept step (especially when an active canvas is loaded), you MUST ALWAYS conclude your response with a structured \`nexora-node\` block so it automatically connects to the student's active STEM canvas:
+When explaining a mathematical derivation, key formula, or concept step (especially when an active canvas is loaded), you MUST ALWAYS conclude your response with a structured node action block wrapped strictly inside code fences:
 \`\`\`nexora-node
 {
   "title": "Beda Barisan (b)",

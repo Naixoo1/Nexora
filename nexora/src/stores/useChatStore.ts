@@ -153,8 +153,14 @@ export function parseAndApplyNexoraNodes(text: string) {
   if (!text || typeof text !== 'string') return;
 
   const patterns = [
+    // 1. Fenced ```nexora-node ... ``` or ```node ... ```
     /```(?:nexora-node|node)\s*([\s\S]*?)\s*```/gi,
-    /```json\s*(\{[\s\S]*?"(?:title|action)"[\s\S]*?\})\s*```/gi,
+    // 2. Unbackticked raw `nexora-node { ... }`
+    /(?:^|\n)\s*nexora-node\s*(\{[\s\S]*?\})/gi,
+    // 3. Fenced ```json { ... } ``` containing node actions or titles
+    /```json\s*(\{[\s\S]*?"(?:title|action|type|latexFormula)"[\s\S]*?\})\s*```/gi,
+    // 4. Raw JSON create_node action objects
+    /(?:^|\n)\s*(\{\s*"action"\s*:\s*"create_node"[\s\S]*?\})/gi,
   ];
 
   const candidateJsons: string[] = [];
@@ -162,7 +168,10 @@ export function parseAndApplyNexoraNodes(text: string) {
   for (const pattern of patterns) {
     let match;
     while ((match = pattern.exec(text)) !== null) {
-      candidateJsons.push(match[1].trim());
+      const extracted = match[1]?.trim();
+      if (extracted && !candidateJsons.includes(extracted)) {
+        candidateJsons.push(extracted);
+      }
     }
   }
 
@@ -206,20 +215,29 @@ export function parseAndApplyNexoraNodes(text: string) {
         );
 
         if (!isDuplicate) {
+          // Identify parent node: selectedNodeId -> problem_root -> latest node
           const selectedParent = canvasStore.selectedNodeId
             ? canvasStore.nodes.find((n) => n.id === canvasStore.selectedNodeId)
-            : undefined;
+            : canvasStore.nodes.find((n) => n.type === 'problem_root') ||
+              canvasStore.nodes[canvasStore.nodes.length - 1];
 
           const currentNodesCount = canvasStore.nodes.length;
-          const position = selectedParent
-            ? {
-                x: selectedParent.position.x + 30 + (Math.random() * 40 - 20),
-                y: selectedParent.position.y + 180,
-              }
-            : {
-                x: 250 + (currentNodesCount % 3) * 280,
-                y: 160 + Math.floor(currentNodesCount / 3) * 220,
-              };
+          let position = {
+            x: 250 + (currentNodesCount % 3) * 280,
+            y: 160 + Math.floor(currentNodesCount / 3) * 220,
+          };
+
+          if (selectedParent) {
+            const existingChildren = canvasStore.edges.filter(
+              (e) => e.source === selectedParent.id
+            ).length;
+            const horizontalOffset = existingChildren > 0 ? (existingChildren * 220) - 80 : 0;
+
+            position = {
+              x: selectedParent.position.x + horizontalOffset,
+              y: selectedParent.position.y + 220,
+            };
+          }
 
           const newNode = canvasStore.addNode(nodeType, position, {
             title,
@@ -228,7 +246,7 @@ export function parseAndApplyNexoraNodes(text: string) {
             validationStatus,
           });
 
-          // Connect from selected parent node if present
+          // Auto-connect from parent node
           if (selectedParent && newNode) {
             canvasStore.onConnect({
               source: selectedParent.id,
@@ -236,6 +254,8 @@ export function parseAndApplyNexoraNodes(text: string) {
               sourceHandle: null,
               targetHandle: null,
             });
+            // Update selection to newly generated node for continuous derivations
+            canvasStore.selectNode(newNode.id);
           }
         }
       }

@@ -5,7 +5,7 @@ import {
   isMathExpression,
   cleanMathFormula,
 } from '@/utils/latex-formatter';
-import { cleanMarkdownText } from '@/components/chat/MarkdownRenderer';
+import { cleanMarkdownText, stripCanvasNodeBlocks } from '@/components/chat/MarkdownRenderer';
 
 describe('LaTeX Pre-Processor & Normalizer Upgrade', () => {
   describe('normalizeMathBackslashes & cleanMathFormula', () => {
@@ -48,6 +48,16 @@ describe('LaTeX Pre-Processor & Normalizer Upgrade', () => {
   });
 
   describe('preprocessLatex conversions', () => {
+    it('normalizes jammed display math and runaway dollar signs on same line', () => {
+      const input = 'S_n = \\frac{a(1-r^n)}{1-r} $$ atau setara dengan $$ S_n = \\frac{a(r^n-1)}{r-1} $$$$$$ Langkah-langkah';
+      const output = preprocessLatex(input);
+
+      expect(output).toContain('$$\nS_n = \\frac{a(1-r^n)}{1-r}\n$$');
+      expect(output).toContain('$$\nS_n = \\frac{a(r^n-1)}{r-1}\n$$');
+      expect(output).toContain('atau setara dengan');
+      expect(output).not.toContain('$$$$$$');
+    });
+
     it('converts raw standalone bracket math [f(x)=a^{x}] to $$ display blocks', () => {
       const input = 'Fungsi eksponen didefinisikan sebagai:\n[f(x)=a^{x}]';
       const output = preprocessLatex(input);
@@ -147,13 +157,48 @@ describe('LaTeX Pre-Processor & Normalizer Upgrade', () => {
     });
   });
 
-  describe('cleanMarkdownText in MarkdownRenderer', () => {
-    it('integrates LaTeX pre-processing with header normalization', () => {
-      const raw = '### **Formula Derivation**\n[f(x) = a^x]';
+  describe('stripCanvasNodeBlocks & cleanMarkdownText', () => {
+    it('completely strips fenced nexora-node blocks from user markdown', () => {
+      const input = `Mari kita turunkan rumusnya:
+$$\nS_n = \\frac{n}{2}(a + U_n)\n$$
+\`\`\`nexora-node
+{
+  "title": "Rumus Deret Aritmetika",
+  "type": "formula_block",
+  "latexFormula": "S_n = \\\\frac{n}{2}(a + U_n)"
+}
+\`\`\`
+Semoga membantu!`;
+
+      const stripped = stripCanvasNodeBlocks(input);
+      expect(stripped).toContain('Mari kita turunkan rumusnya:');
+      expect(stripped).toContain('S_n = \\frac{n}{2}(a + U_n)');
+      expect(stripped).toContain('Semoga membantu!');
+      expect(stripped).not.toContain('nexora-node');
+      expect(stripped).not.toContain('Rumus Deret Aritmetika');
+    });
+
+    it('strips unbackticked raw nexora-node blocks', () => {
+      const input = `Penjelasan lengkap.
+nexora-node { "title": "Beda Barisan", "type": "reasoning_step", "latexFormula": "b = 5" }`;
+
+      const stripped = stripCanvasNodeBlocks(input);
+      expect(stripped).toContain('Penjelasan lengkap.');
+      expect(stripped).not.toContain('nexora-node');
+      expect(stripped).not.toContain('Beda Barisan');
+    });
+
+    it('integrates LaTeX pre-processing with header normalization and node stripping', () => {
+      const raw = `### **Formula Derivation**
+[f(x) = a^x]
+\`\`\`nexora-node
+{"title": "Fungsi Eksponen", "latexFormula": "f(x) = a^x"}
+\`\`\``;
       const cleaned = cleanMarkdownText(raw);
 
       expect(cleaned).toContain('### Formula Derivation');
       expect(cleaned).toContain('$$\nf(x) = a^x\n$$');
+      expect(cleaned).not.toContain('nexora-node');
       expect(cleaned).not.toContain('[f(x)');
     });
   });

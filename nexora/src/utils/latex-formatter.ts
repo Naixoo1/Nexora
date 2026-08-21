@@ -96,7 +96,54 @@ export function cleanMathFormula(formula: string): string {
 }
 
 /**
+ * Normalizes lines with jammed or unclosed $$ delimiters, splitting equations and prose onto clean lines.
+ */
+function normalizeJammedMathLines(text: string): string {
+  const lines = text.split('\n');
+  const normalizedLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine.includes('$$') || trimmedLine === '$$') {
+      normalizedLines.push(line);
+      continue;
+    }
+
+    // Clean runaway consecutive dollars ($$$$, $$$$$$, etc.)
+    const cleanedLine = line.replace(/\${3,}/g, () => '$$');
+    const parts = cleanedLine.split('$$');
+
+    // If it's a simple standalone display math line like `$$formula$$`
+    if (parts.length === 3 && parts[0].trim() === '' && parts[2].trim() === '') {
+      normalizedLines.push(`$$${cleanMathFormula(parts[1])}$$`);
+      continue;
+    }
+
+    const resultSegments: string[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+
+      if (isMathExpression(trimmed)) {
+        resultSegments.push(`$$\n${cleanMathFormula(trimmed)}\n$$`);
+      } else {
+        resultSegments.push(trimmed);
+      }
+    }
+
+    if (resultSegments.length > 0) {
+      normalizedLines.push(resultSegments.join('\n\n'));
+    }
+  }
+
+  return normalizedLines.join('\n');
+}
+
+/**
  * Pre-processes and normalizes LaTeX and Markdown math delimiters and escape sequences.
+ * - Resolves jammed or unclosed display math delimiters (e.g. `formula $$ text $$ formula`)
+ * - Cleans runaway dollar signs (e.g. `$$$$$$` -> `$$\n\n`)
  * - Converts bracket display math `[ ... ]` and `\\[ ... \\]` to clean `$$\n...\n$$` display blocks
  * - Converts `(( ... ))` and `( ... )` containing math to `($ ... $)`
  * - Converts `\\( ... \\)` to `$ ... $` inline math
@@ -108,7 +155,10 @@ export function preprocessLatex(content: string): string {
 
   let text = content.replace(/\r\n/g, '\n');
 
-  // 1. Clean accidental double-curly bracket JSON/template artifacts: {{ // or {{ ... }}
+  // 1. Normalize jammed $$ delimiters, unclosed math, and runaway dollar signs first
+  text = normalizeJammedMathLines(text);
+
+  // 2. Clean accidental double-curly bracket JSON/template artifacts: {{ // or {{ ... }}
   text = text.replace(/\{\{\s*\/\/\s*/g, '');
   text = text.replace(/\{\{([\s\S]*?)\}\}/g, (match, inner) => {
     if (inner.includes('\\') || inner.includes('=') || inner.includes('^') || inner.includes('_')) {
@@ -117,13 +167,13 @@ export function preprocessLatex(content: string): string {
     return match;
   });
 
-  // 2. Convert standard bracket display math \[ ... \] to newline-padded $$ ... $$ blocks
+  // 3. Convert standard bracket display math \[ ... \] to newline-padded $$ ... $$ blocks
   text = text.replace(/\\\[([\s\S]*?)\\\]/g, (_match, formula) => {
     const cleanFormula = cleanMathFormula(formula);
     return `\n\n$$\n${cleanFormula}\n$$\n\n`;
   });
 
-  // 3. Convert standalone bracket math [ ... ] to $$ ... $$ (exclude markdown links [title](url) and citations [[node:...]])
+  // 4. Convert standalone bracket math [ ... ] to $$ ... $$ (exclude markdown links [title](url) and citations [[node:...]])
   text = text.replace(/(?<!\[)\[(?!\s*\[)([^\[\]\n]+?)\](?!\s*[\(\]])/g, (match, inner) => {
     const trimmed = inner.trim();
     // Exclude task checkboxes [ ] or [x]
@@ -137,7 +187,7 @@ export function preprocessLatex(content: string): string {
     return match;
   });
 
-  // 4. Convert double parenthesized math (( ... )) to ($ ... $)
+  // 5. Convert double parenthesized math (( ... )) to ($ ... $)
   text = text.replace(/\(\(\s*([^()]+?)\s*\)\)/g, (match, inner) => {
     if (isMathExpression(inner)) {
       const cleanFormula = cleanMathFormula(inner);
@@ -146,14 +196,14 @@ export function preprocessLatex(content: string): string {
     return match;
   });
 
-  // 5. Convert bracket inline math \( ... \) to single dollar signs $ ... $
+  // 6. Convert bracket inline math \( ... \) to single dollar signs $ ... $
   text = text.replace(/\\\(([\s\S]*?)\\\)/g, (_match, formula) => {
     const cleanFormula = cleanMathFormula(formula);
     return `$${cleanFormula}$`;
   });
 
-  // 6. Convert single parenthesized math ( ... ) to ($ ... $) where applicable
-  text = text.replace(/(?<![a-zA-Z\\\$])\(\s*([^()\n]+?)\s*\)(?!\$)/g, (match, inner) => {
+  // 7. Convert single parenthesized math ( ... ) to ($ ... $) where applicable (exclude inside LaTeX formula constructs)
+  text = text.replace(/(?<![a-zA-Z0-9\\\$_{^])\(\s*([^()\n]+?)\s*\)(?![a-zA-Z0-9\\\$_{^])/g, (match, inner) => {
     if (shouldWrapParenthesesAsMath(inner)) {
       const cleanFormula = cleanMathFormula(inner);
       return `($${cleanFormula}$)`;
@@ -161,13 +211,13 @@ export function preprocessLatex(content: string): string {
     return match;
   });
 
-  // 7. Ensure display math blocks ($$...$$) have clean newline separation if attached to text
-  text = text.replace(/([^\n])\n\$\$([\s\S]*?)\$\$/g, (_match, before, formula) => {
+  // 8. Ensure display math blocks ($$...$$) have clean newline separation if attached to text
+  text = text.replace(/([^\n])\n\$\$([^\n]+?)\$\$/g, (_match, before, formula) => {
     const cleanFormula = cleanMathFormula(formula);
     return `${before}\n\n$$${cleanFormula}$$`;
   });
 
-  // 8. Normalize inline math $ ... $ backslashes while avoiding standalone currency symbols
+  // 9. Normalize inline math $ ... $ backslashes while avoiding standalone currency symbols
   text = text.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (match, formula) => {
     // If it looks like currency ($100, $5.50, $20 million) without operators, leave as is
     if (/^\s*\d+(\.\d+)?\s*(USD|usd|million|k|billion)?\s*$/.test(formula)) {
@@ -176,6 +226,10 @@ export function preprocessLatex(content: string): string {
     const cleanFormula = cleanMathFormula(formula);
     return `$${cleanFormula}$`;
   });
+
+  // 10. Clean up excessive whitespace around display math
+  text = text.replace(/\n{3,}\$\$/g, () => '\n\n$$');
+  text = text.replace(/\$\$\n{3,}/g, () => '$$\n\n');
 
   return text;
 }

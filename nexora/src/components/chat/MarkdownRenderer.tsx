@@ -17,19 +17,40 @@ export interface MarkdownRendererProps {
 }
 
 /**
+ * Strips raw or fenced canvas node JSON payloads from text to keep chat UI 100% clean.
+ */
+export function stripCanvasNodeBlocks(text: string): string {
+  if (!text) return '';
+
+  return text
+    // 1. Strip fenced nexora-node or node codeblocks
+    .replace(/```(?:nexora-node|node)\s*[\s\S]*?```/gi, '')
+    // 2. Strip fenced JSON codeblocks containing create_node or node schemas
+    .replace(/```json\s*\{[\s\S]*?"(?:action|type|nodeType|latexFormula)"[\s\S]*?\}\s*```/gi, '')
+    // 3. Strip unfenced raw nexora-node { ... } blocks
+    .replace(/(?:^|\n)\s*nexora-node\s*\{[\s\S]*?\}/gi, '')
+    // 4. Strip raw JSON create_node action objects
+    .replace(/(?:^|\n)\s*\{\s*"action"\s*:\s*"create_node"[\s\S]*?\}/gi, '')
+    .trim();
+}
+
+/**
  * Preprocesses raw markdown string to ensure correct header formatting,
- * normalize LaTeX delimiters/escapes, and ensure newline padding.
+ * strip canvas node JSON blocks, normalize LaTeX delimiters/escapes, and ensure newline padding.
  */
 export function cleanMarkdownText(raw: string): string {
   if (!raw) return '';
 
-  // 1. Normalize LaTeX math blocks, bracket delimiters, and double-escaped slashes
-  let text = preprocessLatex(raw);
+  // 1. Strip raw and fenced canvas node payloads
+  let text = stripCanvasNodeBlocks(raw);
 
-  // 2. Ensure headers (#, ##, ###, ####, etc.) have empty line padding before them if preceded by text
+  // 2. Normalize LaTeX math blocks, bracket delimiters, and double-escaped slashes
+  text = preprocessLatex(text);
+
+  // 3. Ensure headers (#, ##, ###, ####, etc.) have empty line padding before them if preceded by text
   text = text.replace(/([^\n])\n(#{1,6}\s+)/g, '$1\n\n$2');
 
-  // 3. Strip redundant wrapping bold markers inside headers (e.g., `### **Title**` -> `### Title`, `#### **Title ($x$):**` -> `#### Title ($x$):`)
+  // 4. Strip redundant wrapping bold markers inside headers (e.g., `### **Title**` -> `### Title`, `#### **Title ($x$):**` -> `#### Title ($x$):`)
   text = text.replace(/^(#{1,6}\s+)\*\*(.*?)\*\*(\:?)$/gm, '$1$2$3');
   text = text.replace(/^(#{1,6}\s+)\*\*(.*?)\*\*/gm, '$1$2');
 
