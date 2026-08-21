@@ -13,19 +13,30 @@ import {
   Trash2,
   Cpu,
   Sparkles,
+  Zap,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
+import { checkWebGPUSupport } from '@/services/web-llm-service';
 import { cn } from '@/lib/utils';
 
 export const ChatSettingsModal: React.FC = () => {
-  const { isSettingsOpen, setSettingsOpen, customApiKey, setCustomApiKey } = useChatStore();
+  const {
+    isSettingsOpen,
+    setSettingsOpen,
+    customApiKey,
+    setCustomApiKey,
+    useWebLLM,
+    setUseWebLLM,
+  } = useChatStore();
   const [apiKeyInput, setApiKeyInput] = useState<string>('');
   const [showKey, setShowKey] = useState<boolean>(false);
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [mounted, setMounted] = useState<boolean>(false);
+  const [isWebGPUSupported, setIsWebGPUSupported] = useState<boolean>(false);
 
   useEffect(() => {
     setMounted(true);
+    checkWebGPUSupport().then(setIsWebGPUSupported).catch(() => setIsWebGPUSupported(false));
   }, []);
 
   useEffect(() => {
@@ -83,7 +94,7 @@ export const ChatSettingsModal: React.FC = () => {
       {/* High-Layer Centered Modal Container */}
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
         <div
-          className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0F1420] p-6 shadow-2xl ring-1 ring-cyan-500/20 pointer-events-auto select-auto animate-in fade-in zoom-in-95 duration-150"
+          className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0F1420] p-6 shadow-2xl ring-1 ring-cyan-500/20 pointer-events-auto select-auto animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header */}
@@ -97,7 +108,7 @@ export const ChatSettingsModal: React.FC = () => {
                   AI Engine & BYOK Settings
                 </h3>
                 <p className="text-[11px] text-slate-400 font-sans">
-                  Bring Your Own Key or use Nexora pool
+                  Configure Cloud Providers or On-Device WebGPU AI
                 </p>
               </div>
             </div>
@@ -116,30 +127,80 @@ export const ChatSettingsModal: React.FC = () => {
             <div className="flex items-center gap-2">
               <Cpu className="h-4 w-4 text-indigo-400" />
               <div>
-                <span className="text-xs font-semibold text-white block">Active AI Provider</span>
+                <span className="text-xs font-semibold text-white block">Active AI Pipeline</span>
                 <span className="text-[10px] text-slate-400 font-mono">
-                  Cascade: gemini-2.5-flash ➔ 1.5-flash
+                  {useWebLLM
+                    ? 'Local WebGPU (Llama-3.2-1B)'
+                    : customApiKey
+                    ? 'Custom Gemini BYOK Key'
+                    : 'Server Cascade (Gemini ➔ OpenRouter ➔ Groq)'}
                 </span>
               </div>
             </div>
-            {customApiKey ? (
+            {useWebLLM ? (
+              <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium text-amber-300 border border-amber-500/20">
+                <Zap className="h-3 w-3 text-amber-400" />
+                WebGPU Local
+              </span>
+            ) : customApiKey ? (
               <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-300 border border-emerald-500/20">
                 <ShieldCheck className="h-3 w-3 text-emerald-400" />
-                Custom BYOK Active
+                Custom BYOK
               </span>
             ) : (
               <span className="flex items-center gap-1 rounded-full bg-cyan-500/10 px-2.5 py-1 text-[10px] font-medium text-cyan-300 border border-cyan-500/20">
                 <Sparkles className="h-3 w-3 text-cyan-400" />
-                Server API Pool
+                API Pool
               </span>
             )}
           </div>
 
-          {/* Form Input */}
+          {/* On-Device AI (WebGPU) Toggle Section */}
+          <div className="mb-4 rounded-2xl border border-white/10 bg-[#131926] p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-400" />
+                <div>
+                  <span className="text-xs font-semibold text-white block">On-Device AI (WebGPU)</span>
+                  <span className="text-[10px] text-slate-400 font-sans">
+                    Run Llama-3.2 on local GPU for zero latency & offline privacy
+                  </span>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={useWebLLM}
+                  disabled={!isWebGPUSupported}
+                  onChange={(e) => setUseWebLLM(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed" />
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] border-t border-white/5 pt-2">
+              <span className="text-slate-400 font-mono">
+                WebGPU Hardware:
+              </span>
+              {isWebGPUSupported ? (
+                <span className="text-emerald-400 font-medium flex items-center gap-1">
+                  <Check className="h-3 w-3" />
+                  Supported & Ready
+                </span>
+              ) : (
+                <span className="text-slate-400 font-sans">
+                  Unsupported / Disabled in Browser
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Cloud BYOK Form Input */}
           <form onSubmit={handleSave} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-slate-200 mb-1.5">
-                Gemini API Key (Optional)
+                Gemini API Key (Optional BYOK)
               </label>
               <div className="relative">
                 <input
@@ -147,7 +208,6 @@ export const ChatSettingsModal: React.FC = () => {
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
                   placeholder="AIzaSy..."
-                  autoFocus
                   autoComplete="off"
                   spellCheck={false}
                   className="relative z-10 w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3.5 py-2.5 pr-10 text-xs font-mono text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all pointer-events-auto select-text"

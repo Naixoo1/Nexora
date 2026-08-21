@@ -26,6 +26,9 @@ export interface ChatStoreState {
   isHistoryOpen: boolean;
   isSettingsOpen: boolean;
   customApiKey: string | null;
+  useWebLLM: boolean;
+  webLLMProgress: number;
+  webLLMStatusText: string;
 
   // Active Context & Multimodal Attachments
   activeTutorMode: AcademicTutorMode;
@@ -59,6 +62,8 @@ export interface ChatStoreState {
   toggleSettings: () => void;
   setSettingsOpen: (open: boolean) => void;
   setCustomApiKey: (key: string | null) => void;
+  setUseWebLLM: (enabled: boolean) => void;
+  setWebLLMProgress: (progress: number, text: string) => void;
 
   // Actions - Context Controls
   setTutorMode: (mode: AcademicTutorMode) => void;
@@ -317,6 +322,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   isSettingsOpen: false,
   customApiKey:
     typeof window !== 'undefined' ? localStorage.getItem('nexora_custom_gemini_key') : null,
+  useWebLLM:
+    typeof window !== 'undefined' ? localStorage.getItem('nexora_use_web_llm') === 'true' : false,
+  webLLMProgress: 0,
+  webLLMStatusText: '',
 
   activeTutorMode: 'socratic',
   taskContext: undefined,
@@ -389,6 +398,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
     }
     set({ customApiKey: trimmed });
+  },
+
+  setUseWebLLM: (enabled: boolean) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('nexora_use_web_llm', enabled ? 'true' : 'false');
+    }
+    set({ useWebLLM: enabled });
+  },
+
+  setWebLLMProgress: (progress: number, text: string) => {
+    set({ webLLMProgress: progress, webLLMStatusText: text });
   },
 
   setTutorMode: (mode) => {
@@ -783,6 +803,100 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     // Cache updated user message locally
     setCachedMessages(activeSessionId, initialMessages);
+
+    // If On-Device AI (WebGPU) is active and query has no attachments, attempt local execution
+    if (typeof window !== 'undefined' && get().useWebLLM && currentAttachments.length === 0) {
+      try {
+        const { checkWebGPUSupport, streamLocalCompletion } = await import(
+          '@/services/web-llm-service'
+        );
+        const isSupported = await checkWebGPUSupport();
+
+        if (isSupported) {
+          set({
+            streamingMessage: '',
+            webLLMStatusText: 'Generating on local device GPU...',
+          });
+
+          const messagesPayload = [
+            {
+              role: 'system' as const,
+              content: `You are Nexora AI, a world-class STEM tutor in ${activeMode} mode. Break down problems step-by-step with clear explanations and LaTeX notation.`,
+            },
+            ...get().messages.map((m) => ({
+              role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+              content: m.content,
+            })),
+            { role: 'user' as const, content: userMessageContent },
+          ];
+
+          let localAccumulated = '';
+          await streamLocalCompletion(
+            messagesPayload,
+            (chunk) => {
+              localAccumulated += chunk;
+              set({ streamingMessage: localAccumulated });
+            },
+            {
+              onProgress: (report) => {
+                set({
+                  webLLMProgress: report.progress,
+                  webLLMStatusText: report.text,
+                });
+              },
+            }
+          );
+
+          const sessionTitle = userMessageContent.slice(0, 45) || 'Brainstorming Session';
+
+          if (!get().currentSession) {
+            const newSessionObj: ChatSession = {
+              id: activeSessionId,
+              userId: 'current-user',
+              taskId: taskCtx?.taskId,
+              canvasId: canvasCtx?.canvasId,
+              title: sessionTitle,
+              tutorMode: activeMode,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+
+            set((state) => ({
+              currentSession: newSessionObj,
+              sessions: state.sessions.some((s) => s.id === activeSessionId)
+                ? state.sessions
+                : [newSessionObj, ...state.sessions],
+            }));
+          }
+
+          const assistantMessage: ChatMessage = {
+            id: `assistant-${Date.now()}`,
+            sessionId: activeSessionId,
+            userId: 'nexora-webllm-local',
+            role: 'assistant',
+            content: localAccumulated,
+            citations: extractCitations(localAccumulated),
+            createdAt: new Date().toISOString(),
+          };
+
+          const finalMessages = [...get().messages, assistantMessage];
+          set({
+            messages: finalMessages,
+            streamingMessage: null,
+            isSending: false,
+            webLLMStatusText: '',
+          });
+
+          setCachedMessages(activeSessionId, finalMessages);
+          return;
+        }
+      } catch (webllmErr) {
+        console.warn(
+          '[WebLLM Client Fallback] Local WebGPU execution failed, falling back to /api/chat cascade:',
+          webllmErr
+        );
+      }
+    }
 
     try {
       const payload = {
