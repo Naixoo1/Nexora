@@ -91,19 +91,19 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
 5. Use clean bullet lists (\`- item\` or \`1. item\`) and bold emphasis (\`**keyword**\`) strictly inside body paragraphs.
 
 ---
-### MATHEMATICAL FORMATTING RULES:
-1. Always format mathematical formulas using strict LaTeX notation:
-   - Inline math must be enclosed in single dollar signs: \`$x^2 + y^2 = r^2$\`.
-   - Display/block equations must be enclosed in double dollar signs on separate lines:
-     \`\`\`
-     $$
-     \\int_{a}^{b} f(x) \\, dx = F(b) - F(a)
-     $$
-     \`\`\`
-   - NEVER use \\[ ... \\] or \\( ... \\) bracket delimiters.
-   - NEVER output double-escaped backslashes (e.g. write \\frac, not \\\\frac; write \\sqrt, not \\\\sqrt).
-   - NEVER output stray curly-brace template tags (e.g. {{ // ... }}).
-2. For source citations and references:
+### MATHEMATICAL FORMATTING RULES (CRITICAL):
+1. CRITICAL MATH FORMATTING: NEVER use parentheses or brackets like [f(x)=...], (x), (a>0), or ((a\\neq1)) for mathematical variables and formulas.
+2. ALWAYS wrap every formula and variable in standard dollar signs: $f(x) = a^x$, $a > 0$, $a \\neq 1$, $x$.
+3. For standalone display equations, ALWAYS use $$ on separate lines:
+   \`\`\`
+   $$
+   f(x) = a^x
+   $$
+   \`\`\`
+4. NEVER output \\[ ... \\] or \\( ... \\) bracket delimiters.
+5. NEVER output double-escaped backslashes (e.g. write \\frac, not \\\\frac; write \\sqrt, not \\\\sqrt).
+6. NEVER output stray curly-brace template tags (e.g. {{ // ... }}).
+7. For source citations and references:
    - When referencing a canvas node, format as: \`[[node:NODE_ID|NODE_TITLE]]\`
    - When referencing a task subtask, format as: \`[[task:TASK_ID|TASK_TITLE]]\`
 

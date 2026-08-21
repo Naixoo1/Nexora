@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { preprocessLatex, normalizeMathBackslashes } from '@/utils/latex-formatter';
+import {
+  preprocessLatex,
+  normalizeMathBackslashes,
+  isMathExpression,
+  cleanMathFormula,
+} from '@/utils/latex-formatter';
 import { cleanMarkdownText } from '@/components/chat/MarkdownRenderer';
 
-describe('LaTeX Pre-Processor & Normalizer', () => {
-  describe('normalizeMathBackslashes', () => {
+describe('LaTeX Pre-Processor & Normalizer Upgrade', () => {
+  describe('normalizeMathBackslashes & cleanMathFormula', () => {
     it('normalizes double-escaped backslashes for common LaTeX operators', () => {
       expect(normalizeMathBackslashes('\\\\frac{a}{b}')).toBe('\\frac{a}{b}');
       expect(normalizeMathBackslashes('\\\\sqrt{x^2 + y^2}')).toBe('\\sqrt{x^2 + y^2}');
@@ -16,9 +21,90 @@ describe('LaTeX Pre-Processor & Normalizer', () => {
       const matrix = 'a & b \\\\\\\\ c & d';
       expect(normalizeMathBackslashes(matrix)).toBe('a & b \\\\ c & d');
     });
+
+    it('cleans shorthand fractions and stray semicolons', () => {
+      expect(cleanMathFormula('\\frac12,;0,1')).toBe('\\frac{1}{2}, 0, 1');
+      expect(cleanMathFormula('\\frac34; , 5')).toBe('\\frac{3}{4}, 5');
+    });
   });
 
-  describe('preprocessLatex', () => {
+  describe('isMathExpression detector', () => {
+    it('accurately identifies mathematical expressions and relations', () => {
+      expect(isMathExpression('f(x)=a^{x}')).toBe(true);
+      expect(isMathExpression('a>0')).toBe(true);
+      expect(isMathExpression('a\\neq1')).toBe(true);
+      expect(isMathExpression('a>1')).toBe(true);
+      expect(isMathExpression('a^{x}')).toBe(true);
+      expect(isMathExpression('0<a<1')).toBe(true);
+      expect(isMathExpression('\\frac{1}{2}, 0, 1')).toBe(true);
+    });
+
+    it('rejects regular natural language words and phrases', () => {
+      expect(isMathExpression('contoh')).toBe(false);
+      expect(isMathExpression('lihat tabel di atas')).toBe(false);
+      expect(isMathExpression('catatan penting')).toBe(false);
+      expect(isMathExpression('$a > 0$')).toBe(false); // Already has dollar signs
+    });
+  });
+
+  describe('preprocessLatex conversions', () => {
+    it('converts raw standalone bracket math [f(x)=a^{x}] to $$ display blocks', () => {
+      const input = 'Fungsi eksponen didefinisikan sebagai:\n[f(x)=a^{x}]';
+      const output = preprocessLatex(input);
+
+      expect(output).toContain('$$\nf(x)=a^{x}\n$$');
+      expect(output).not.toContain('[f(x)=a^{x}]');
+    });
+
+    it('converts double parenthesized math ((a>0)) and ((a\\neq1)) to ($a>0$) and ($a\\neq1$)', () => {
+      const input = 'Syarat basis adalah ((a>0)) dan ((a\\neq1)).';
+      const output = preprocessLatex(input);
+
+      expect(output).toBe('Syarat basis adalah ($a>0$) dan ($a\\neq1$).');
+    });
+
+    it('converts single parenthesized math (a>1) and (a^{x}) to ($a>1$) and ($a^{x}$)', () => {
+      const input = 'Untuk kasus (a>1), nilai (a^{x}) selalu bertambah.';
+      const output = preprocessLatex(input);
+
+      expect(output).toBe('Untuk kasus ($a>1$), nilai ($a^{x}$) selalu bertambah.');
+    });
+
+    it('cleans broken expressions like (\\frac12,;0,1) into ($frac{1}{2}, 0, 1$)', () => {
+      const input = 'Titik potong berada pada (\\frac12,;0,1).';
+      const output = preprocessLatex(input);
+
+      expect(output).toBe('Titik potong berada pada ($\\frac{1}{2}, 0, 1$).');
+    });
+
+    it('normalizes Markdown table cells containing math conditions and formulas', () => {
+      const input = `| Syarat Basis | Sifat Grafik |
+| :--- | :--- |
+| (a>1) | Monoton naik, (a^{x}) membesar |
+| (0<a<1) | Monoton turun, (a^{x}) mengecil |`;
+
+      const output = preprocessLatex(input);
+
+      expect(output).toContain('| ($a>1$) | Monoton naik, ($a^{x}$) membesar |');
+      expect(output).toContain('| ($0<a<1$) | Monoton turun, ($a^{x}$) mengecil |');
+    });
+
+    it('preserves Markdown links [text](url) and citations [[node:...]] without altering them', () => {
+      const input = 'Lihat [Dokumentasi Nexora](https://nexora.app) dan rujukan [[node:step-1|Persamaan Awal]].';
+      const output = preprocessLatex(input);
+
+      expect(output).toContain('[Dokumentasi Nexora](https://nexora.app)');
+      expect(output).toContain('[[node:step-1|Persamaan Awal]]');
+    });
+
+    it('preserves task checkbox markers [x] and [ ]', () => {
+      const input = '- [x] Selesaikan turunan\n- [ ] Uji titik kritis';
+      const output = preprocessLatex(input);
+
+      expect(output).toContain('- [x] Selesaikan turunan');
+      expect(output).toContain('- [ ] Uji titik kritis');
+    });
+
     it('converts bracket display math \\[ ... \\] to $$ display blocks', () => {
       const input = 'Here is the quadratic formula:\n\\[ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]';
       const output = preprocessLatex(input);
@@ -33,8 +119,6 @@ describe('LaTeX Pre-Processor & Normalizer', () => {
       const output = preprocessLatex(input);
 
       expect(output).toBe('Let $x \\in \\mathbb{R}$ and $f(x) = x^2$.');
-      expect(output).not.toContain('\\(');
-      expect(output).not.toContain('\\)');
     });
 
     it('repairs double-escaped backslashes inside display and inline math', () => {
@@ -65,12 +149,12 @@ describe('LaTeX Pre-Processor & Normalizer', () => {
 
   describe('cleanMarkdownText in MarkdownRenderer', () => {
     it('integrates LaTeX pre-processing with header normalization', () => {
-      const raw = '### **Formula Derivation**\n\\[ E = mc^2 \\]';
+      const raw = '### **Formula Derivation**\n[f(x) = a^x]';
       const cleaned = cleanMarkdownText(raw);
 
       expect(cleaned).toContain('### Formula Derivation');
-      expect(cleaned).toContain('$$\nE = mc^2\n$$');
-      expect(cleaned).not.toContain('\\[');
+      expect(cleaned).toContain('$$\nf(x) = a^x\n$$');
+      expect(cleaned).not.toContain('[f(x)');
     });
   });
 });
