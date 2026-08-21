@@ -24,6 +24,12 @@ import {
   getCachedResponse,
   setCachedResponse,
 } from '@/services/ai-cache';
+import {
+  isProviderAvailable,
+  recordProviderSuccess,
+  recordProviderFailure,
+  getCircuitState,
+} from '@/services/ai-circuit-breaker';
 import { validationErrorResponse } from '@/lib/api-response';
 import type { ChatAttachment } from '@/types/chat';
 
@@ -214,7 +220,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     console.log(`[AI Latency Routing] Classified Prompt Complexity: ${complexityConfig.tier.toUpperCase()} (${complexityConfig.statusLabel})`);
 
-    // 6. Multi-Provider Fallback Cascade Pipeline
+    // 6. Multi-Provider Fallback Cascade Pipeline with Circuit Breakers
     const cascade = getModelCascade();
     let responseStream: AsyncIterable<{ text?: string | null }> | null = null;
     let fallbackStream: ReadableStream<string> | null = null;
@@ -222,74 +228,88 @@ export async function POST(req: NextRequest): Promise<Response> {
     let usedKeyIndex = 0;
     let lastError: unknown = null;
 
-    // Tier 1: Gemini Multi-Key Pool & Sanitized Model Cascade
-    for (let m = 0; m < cascade.length; m++) {
-      const candidateModel = cascade[m];
+    // Tier 1: Gemini Multi-Key Pool & Sanitized Model Cascade (Circuit Breaker Guarded)
+    const isGeminiAvailable = isProviderAvailable('gemini');
+    if (!isGeminiAvailable) {
+      console.warn('[Circuit Breaker] Gemini is OPEN (throttled/exhausted). Bypassing Tier 1 directly to OpenRouter...');
+    } else {
+      for (let m = 0; m < cascade.length; m++) {
+        const candidateModel = cascade[m];
 
-      for (let k = 0; k < keyPool.length; k++) {
-        const currentKey = keyPool[k];
-        try {
-          const ai = new GoogleGenAI({ apiKey: currentKey });
-          const geminiConfig: Record<string, unknown> = {
-            systemInstruction,
-            temperature: complexityConfig.temperature,
-            maxOutputTokens: complexityConfig.maxOutputTokens,
-          };
-
-          if (complexityConfig.thinkingBudget !== undefined) {
-            geminiConfig.thinkingConfig = {
-              thinkingBudget: complexityConfig.thinkingBudget,
+        for (let k = 0; k < keyPool.length; k++) {
+          const currentKey = keyPool[k];
+          try {
+            const ai = new GoogleGenAI({ apiKey: currentKey });
+            const geminiConfig: Record<string, unknown> = {
+              systemInstruction,
+              temperature: complexityConfig.temperature,
+              maxOutputTokens: complexityConfig.maxOutputTokens,
             };
-          }
 
-          responseStream = await ai.models.generateContentStream({
-            model: candidateModel,
-            contents: contentParts,
-            config: geminiConfig,
-          });
-          usedModel = candidateModel;
-          usedKeyIndex = k;
-          break; // Successfully started stream
-        } catch (apiError) {
-          lastError = apiError;
-          const errMsg = apiError instanceof Error ? apiError.message : String(apiError);
-          console.error(
-            `[AI Stream Error] Key Index: ${k}, Model: ${candidateModel}:`,
-            errMsg
-          );
+            if (complexityConfig.thinkingBudget !== undefined) {
+              geminiConfig.thinkingConfig = {
+                thinkingBudget: complexityConfig.thinkingBudget,
+              };
+            }
 
-          // If quota exhausted or key invalid, rotate to next key in pool
-          if (isKeyExhaustedOrInvalid(apiError) && k < keyPool.length - 1) {
-            console.warn(
-              `[AI Key Rotation] Rotating from Key index ${k} to ${k + 1} for model ${candidateModel}`
+            responseStream = await ai.models.generateContentStream({
+              model: candidateModel,
+              contents: contentParts,
+              config: geminiConfig,
+            });
+            usedModel = candidateModel;
+            usedKeyIndex = k;
+            recordProviderSuccess('gemini');
+            break; // Successfully started stream
+          } catch (apiError) {
+            lastError = apiError;
+            const errMsg = apiError instanceof Error ? apiError.message : String(apiError);
+            console.error(
+              `[AI Stream Error] Key Index: ${k}, Model: ${candidateModel}:`,
+              errMsg
             );
-            await delayWithJitter(200, 100);
-            continue;
-          }
 
-          // If transient server error (503 / 404), advance to next model in cascade
-          if (isTransientError(apiError)) {
-            break;
+            // If quota exhausted or key invalid, rotate to next key in pool
+            if (isKeyExhaustedOrInvalid(apiError) && k < keyPool.length - 1) {
+              console.warn(
+                `[AI Key Rotation] Rotating from Key index ${k} to ${k + 1} for model ${candidateModel}`
+              );
+              await delayWithJitter(200, 100);
+              continue;
+            }
+
+            // If transient server error (503 / 404), advance to next model in cascade
+            if (isTransientError(apiError)) {
+              break;
+            }
           }
+        }
+
+        if (responseStream) {
+          break; // Successfully launched stream with candidate model & key
+        }
+
+        if (m < cascade.length - 1) {
+          await delayWithJitter(300, 150);
         }
       }
 
-      if (responseStream) {
-        break; // Successfully launched stream with candidate model & key
-      }
-
-      if (m < cascade.length - 1) {
-        await delayWithJitter(300, 150);
+      if (!responseStream) {
+        recordProviderFailure('gemini', lastError);
       }
     }
 
-    // Tier 2: OpenRouter Free Tier Fallback Engine
+    // Tier 2: OpenRouter Free Tier Fallback Engine (Circuit Breaker Guarded)
     const openRouterKey = process.env.OPENROUTER_API_KEY;
-    if (!responseStream && openRouterKey && openRouterKey.trim() && !openRouterKey.startsWith('your-')) {
+    const isOpenRouterAvailable = isProviderAvailable('openrouter');
+
+    if (!responseStream && !isOpenRouterAvailable) {
+      console.warn('[Circuit Breaker] OpenRouter is OPEN (throttled). Bypassing Tier 2 directly to Groq...');
+    } else if (!responseStream && openRouterKey && openRouterKey.trim() && !openRouterKey.startsWith('your-')) {
       const orCandidates = ['openrouter/free', 'meta-llama/llama-3.3-70b-instruct:free'];
       for (const orModel of orCandidates) {
         try {
-          console.log(`[AI Multi-Provider Cascade] Gemini exhausted, activating OpenRouter fallback with ${orModel}`);
+          console.log(`[AI Multi-Provider Cascade] Activating OpenRouter fallback with ${orModel}`);
           const orMessages: OpenRouterChatMessage[] = [
             { role: 'system', content: systemInstruction },
             ...prunedHistory.map((m) => ({
@@ -309,17 +329,26 @@ export async function POST(req: NextRequest): Promise<Response> {
             }
           );
           usedModel = `openrouter/${orModel}`;
+          recordProviderSuccess('openrouter');
           break;
         } catch (orErr) {
           console.warn(`[AI OpenRouter Model ${orModel} Error]:`, orErr);
           lastError = orErr;
         }
       }
+
+      if (!fallbackStream) {
+        recordProviderFailure('openrouter', lastError);
+      }
     }
 
-    // Tier 3: Groq High-Speed Fallback Engine
+    // Tier 3: Groq High-Speed Fallback Engine (Circuit Breaker Guarded)
     const groqKey = process.env.GROQ_API_KEY;
-    if (!responseStream && !fallbackStream && groqKey && groqKey.trim() && !groqKey.startsWith('your-')) {
+    const isGroqAvailable = isProviderAvailable('groq');
+
+    if (!responseStream && !fallbackStream && !isGroqAvailable) {
+      console.warn('[Circuit Breaker] Groq is OPEN (throttled).');
+    } else if (!responseStream && !fallbackStream && groqKey && groqKey.trim() && !groqKey.startsWith('your-')) {
       try {
         console.log('[AI Multi-Provider Cascade] Activating Groq fallback with llama-3.3-70b-versatile');
 
@@ -342,9 +371,11 @@ export async function POST(req: NextRequest): Promise<Response> {
           }
         );
         usedModel = 'groq/llama-3.3-70b-versatile';
+        recordProviderSuccess('groq');
       } catch (groqErr) {
         console.error('[AI Groq Fallback Fatal Error]:', groqErr);
         lastError = groqErr;
+        recordProviderFailure('groq', groqErr);
       }
     }
 
