@@ -72,9 +72,13 @@ export function createReasoningFilterTransform(): TransformStream<string, string
       }
     },
     flush(controller) {
-      if (!isThinking && buffer) {
-        const clean = sanitizeReasoningContent(buffer);
-        if (clean) controller.enqueue(clean);
+      if (buffer) {
+        if (!isThinking) {
+          controller.enqueue(buffer);
+        } else {
+          const clean = sanitizeReasoningContent(buffer);
+          if (clean) controller.enqueue(clean);
+        }
       }
       buffer = '';
     },

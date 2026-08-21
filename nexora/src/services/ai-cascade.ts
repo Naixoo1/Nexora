@@ -167,6 +167,7 @@ export async function streamOpenRouterCompletion(
   const rawStream = new ReadableStream<string>({
     async start(controller) {
       let buffer = '';
+      let yieldedTokens = 0;
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -180,6 +181,10 @@ export async function streamOpenRouterCompletion(
             const trimmed = line.trim();
             if (!trimmed || trimmed.startsWith(':')) continue;
             if (trimmed === 'data: [DONE]') {
+              if (yieldedTokens === 0) {
+                controller.error(new Error(`OpenRouter (${model}) returned an empty response (0 tokens).`));
+                return;
+              }
               controller.close();
               return;
             }
@@ -189,6 +194,7 @@ export async function streamOpenRouterCompletion(
                 // Explicitly ignore delta.reasoning and delta.reasoning_content to prevent thought leaks
                 const delta = data.choices?.[0]?.delta?.content || '';
                 if (delta && typeof delta === 'string') {
+                  yieldedTokens++;
                   controller.enqueue(delta);
                 }
               } catch {
@@ -196,6 +202,11 @@ export async function streamOpenRouterCompletion(
               }
             }
           }
+        }
+
+        if (yieldedTokens === 0) {
+          controller.error(new Error(`OpenRouter (${model}) stream ended with 0 tokens.`));
+          return;
         }
         controller.close();
       } catch (err) {
@@ -251,6 +262,7 @@ export async function streamGroqCompletion(
   const rawStream = new ReadableStream<string>({
     async start(controller) {
       let buffer = '';
+      let yieldedTokens = 0;
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -264,6 +276,10 @@ export async function streamGroqCompletion(
             const trimmed = line.trim();
             if (!trimmed || trimmed.startsWith(':')) continue;
             if (trimmed === 'data: [DONE]') {
+              if (yieldedTokens === 0) {
+                controller.error(new Error(`Groq (${model}) returned an empty response (0 tokens).`));
+                return;
+              }
               controller.close();
               return;
             }
@@ -273,6 +289,7 @@ export async function streamGroqCompletion(
                 // Explicitly ignore delta.reasoning and delta.reasoning_content to prevent thought leaks
                 const delta = data.choices?.[0]?.delta?.content || '';
                 if (delta && typeof delta === 'string') {
+                  yieldedTokens++;
                   controller.enqueue(delta);
                 }
               } catch {
@@ -280,6 +297,11 @@ export async function streamGroqCompletion(
               }
             }
           }
+        }
+
+        if (yieldedTokens === 0) {
+          controller.error(new Error(`Groq (${model}) stream ended with 0 tokens.`));
+          return;
         }
         controller.close();
       } catch (err) {

@@ -247,7 +247,8 @@ export async function POST(req: NextRequest): Promise<Response> {
               maxOutputTokens: complexityConfig.maxOutputTokens,
             };
 
-            if (complexityConfig.thinkingBudget !== undefined) {
+            // Only attach thinkingConfig when thinkingBudget > 0 (avoid empty candidates on budget 0)
+            if (typeof complexityConfig.thinkingBudget === 'number' && complexityConfig.thinkingBudget > 0) {
               geminiConfig.thinkingConfig = {
                 thinkingBudget: complexityConfig.thinkingBudget,
               };
@@ -402,26 +403,167 @@ export async function POST(req: NextRequest): Promise<Response> {
     let fullAssistantResponse = '';
     const encoder = new TextEncoder();
 
-    // 1. Construct raw text stream from Gemini or Fallback Provider
+    // 1. Construct raw text stream from Gemini or Fallback Provider with Empty-Stream Auto-Fallback
     const rawTextStream = new ReadableStream<string>({
       async start(controller) {
-        try {
-          if (fallbackStream) {
+        let anyTokensYielded = false;
+
+        // Try reading from Gemini stream if prepared
+        if (responseStream) {
+          try {
+            let geminiTokens = 0;
+            for await (const chunk of responseStream) {
+              const chunkText = chunk.text || '';
+              if (chunkText) {
+                geminiTokens++;
+                anyTokensYielded = true;
+                controller.enqueue(chunkText);
+              }
+            }
+
+            if (geminiTokens > 0) {
+              controller.close();
+              return;
+            }
+            console.warn('[Gemini Empty Response] Gemini yielded 0 tokens. Auto-cascading to OpenRouter/Groq...');
+            recordProviderFailure('gemini', new Error('Gemini returned 0 tokens'));
+          } catch (geminiError) {
+            console.warn('[Gemini Stream Iteration Error]:', geminiError);
+            recordProviderFailure('gemini', geminiError);
+            if (anyTokensYielded) {
+              controller.error(geminiError);
+              return;
+            }
+          }
+        }
+
+        // Try reading from Fallback stream if prepared
+        if (!anyTokensYielded && fallbackStream) {
+          try {
             const reader = fallbackStream.getReader();
+            let fbTokens = 0;
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              if (value) controller.enqueue(value);
+              if (value) {
+                fbTokens++;
+                anyTokensYielded = true;
+                controller.enqueue(value);
+              }
             }
-          } else if (responseStream) {
-            for await (const chunk of responseStream) {
-              const chunkText = chunk.text || '';
-              if (chunkText) controller.enqueue(chunkText);
+
+            if (fbTokens > 0) {
+              controller.close();
+              return;
+            }
+          } catch (fbError) {
+            console.warn('[Fallback Stream Iteration Error]:', fbError);
+            if (anyTokensYielded) {
+              controller.error(fbError);
+              return;
             }
           }
+        }
+
+        // Dynamic in-stream OpenRouter fallback if Gemini yielded 0 tokens
+        if (!anyTokensYielded && openRouterKey && openRouterKey.trim() && !openRouterKey.startsWith('your-') && isProviderAvailable('openrouter')) {
+          const orCandidates = ['openrouter/free', 'meta-llama/llama-3.3-70b-instruct:free'];
+          for (const orModel of orCandidates) {
+            try {
+              console.log(`[AI In-Stream Fallback] Activating OpenRouter (${orModel})`);
+              const orMessages: OpenRouterChatMessage[] = [
+                { role: 'system', content: systemInstruction },
+                ...prunedHistory.map((m) => ({
+                  role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+                  content: m.content,
+                })),
+                { role: 'user', content: message },
+              ];
+
+              const dynStream = await streamOpenRouterCompletion(
+                orMessages,
+                orModel,
+                openRouterKey,
+                {
+                  temperature: complexityConfig.temperature,
+                  maxTokens: complexityConfig.maxOutputTokens,
+                }
+              );
+
+              const reader = dynStream.getReader();
+              let orTokens = 0;
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                if (value) {
+                  orTokens++;
+                  anyTokensYielded = true;
+                  controller.enqueue(value);
+                }
+              }
+
+              if (orTokens > 0) {
+                recordProviderSuccess('openrouter');
+                controller.close();
+                return;
+              }
+            } catch (orErr) {
+              console.warn(`[AI In-Stream OpenRouter Error] (${orModel}):`, orErr);
+              recordProviderFailure('openrouter', orErr);
+            }
+          }
+        }
+
+        // Dynamic in-stream Groq fallback if OpenRouter yielded 0 tokens
+        if (!anyTokensYielded && groqKey && groqKey.trim() && !groqKey.startsWith('your-') && isProviderAvailable('groq')) {
+          try {
+            console.log(`[AI In-Stream Fallback] Activating Groq (llama-3.3-70b-versatile)`);
+            const groqMessages: GroqChatMessage[] = [
+              { role: 'system', content: systemInstruction },
+              ...prunedHistory.map((m) => ({
+                role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+                content: m.content,
+              })),
+              { role: 'user', content: message },
+            ];
+
+            const dynGroqStream = await streamGroqCompletion(
+              groqMessages,
+              'llama-3.3-70b-versatile',
+              groqKey,
+              {
+                temperature: complexityConfig.temperature,
+                maxTokens: complexityConfig.maxOutputTokens,
+              }
+            );
+
+            const reader = dynGroqStream.getReader();
+            let groqTokens = 0;
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (value) {
+                groqTokens++;
+                anyTokensYielded = true;
+                controller.enqueue(value);
+              }
+            }
+
+            if (groqTokens > 0) {
+              recordProviderSuccess('groq');
+              controller.close();
+              return;
+            }
+          } catch (groqErr) {
+            console.error(`[AI In-Stream Groq Error]:`, groqErr);
+            recordProviderFailure('groq', groqErr);
+          }
+        }
+
+        if (!anyTokensYielded) {
+          controller.error(new Error('AI returned an empty response across all configured providers.'));
+        } else {
           controller.close();
-        } catch (streamError) {
-          controller.error(streamError);
         }
       },
     });

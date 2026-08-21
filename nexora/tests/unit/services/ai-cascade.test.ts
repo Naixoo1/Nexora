@@ -187,4 +187,29 @@ describe('AI Cascade & Multi-Provider Architecture', () => {
       expect(duration).toBeGreaterThanOrEqual(35);
     });
   });
+
+  describe('createReasoningFilterTransform stream flush', () => {
+    it('should flush remaining buffered non-thinking text when stream closes', async () => {
+      const { createReasoningFilterTransform } = await import('@/services/reasoning-sanitizer');
+      const readable = new ReadableStream<string>({
+        start(controller) {
+          controller.enqueue('Berikut ');
+          controller.enqueue('adalah ');
+          controller.enqueue('solusi');
+          controller.close();
+        },
+      });
+
+      const filtered = readable.pipeThrough(createReasoningFilterTransform());
+      const reader = filtered.getReader();
+      let result = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) result += value;
+      }
+
+      expect(result).toBe('Berikut adalah solusi');
+    });
+  });
 });
