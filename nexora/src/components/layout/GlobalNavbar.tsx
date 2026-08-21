@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 export const GlobalNavbar: React.FC = () => {
   const pathname = usePathname();
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending } = authClient.useSession();
   const [isOrientationCompleted, setIsOrientationCompleted] = useState<boolean>(false);
 
   const isTasks = pathname === '/tasks';
@@ -114,13 +114,13 @@ export const GlobalNavbar: React.FC = () => {
             </Link>
           </div>
 
-          {/* Tutorial / Help Trigger — conditionally rendered if not completed */}
-          {!isOrientationCompleted && (
+          {/* Tutorial / Help Trigger — only rendered when session is confirmed and not completed */}
+          {!isPending && !isOrientationCompleted && (
             <>
               <button
                 type="button"
                 onClick={handleRestartTutorial}
-                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#131926] px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-300 transition-all hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 active:scale-95"
+                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#131926] px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-300 transition-all hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 active:scale-95 animate-in fade-in duration-150"
                 title="Interactive Orientation Tutorial"
               >
                 <HelpCircle className="h-3.5 w-3.5 text-cyan-400" />
@@ -131,21 +131,30 @@ export const GlobalNavbar: React.FC = () => {
             </>
           )}
 
-          {/* Direct Auth Controls */}
-          {session?.user ? (
-            <div className="flex items-center gap-3">
-              {session.user.image && (
+          {/* Direct Auth Controls with Pending Skeleton Guard */}
+          {isPending ? (
+            <div className="flex items-center gap-2.5 px-2">
+              <div className="h-8 w-8 rounded-full bg-white/10 border border-white/5 animate-pulse" />
+              <div className="hidden md:block h-3.5 w-16 rounded-md bg-white/10 animate-pulse" />
+            </div>
+          ) : session?.user ? (
+            <div className="flex items-center gap-3 animate-in fade-in duration-150">
+              {session.user.image ? (
                 <img
                   src={session.user.image}
                   alt={session.user.name || 'Avatar'}
                   className="w-8 h-8 rounded-full border border-slate-700 object-cover"
                 />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-bold text-cyan-300 border border-cyan-500/30">
+                  {session.user.name?.charAt(0) || 'U'}
+                </div>
               )}
-              <span className="text-xs text-slate-300 hidden md:inline">{session.user.name}</span>
+              <span className="text-xs text-slate-300 hidden md:inline font-medium">{session.user.name}</span>
               <button
                 type="button"
                 onClick={() => authClient.signOut()}
-                className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors active:scale-95"
               >
                 Sign Out
               </button>
@@ -154,7 +163,7 @@ export const GlobalNavbar: React.FC = () => {
             <button
               type="button"
               onClick={() => authClient.signIn.social({ provider: 'google', callbackURL: '/' })}
-              className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow transition-colors"
+              className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow transition-colors active:scale-95 animate-in fade-in duration-150"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path

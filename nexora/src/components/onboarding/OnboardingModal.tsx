@@ -74,14 +74,14 @@ export const STUDY_TRACKS = [
 ];
 
 export const OnboardingModal: React.FC = () => {
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending } = authClient.useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [selectedTrack, setSelectedTrack] = useState('math');
 
   // Check completion flag on mount and when session loads
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || isPending) return;
 
     const isLocalCompleted =
       localStorage.getItem(ORIENTATION_STORAGE_KEY) === 'true' ||
@@ -103,7 +103,7 @@ export const OnboardingModal: React.FC = () => {
 
     window.addEventListener('nexora:restart-onboarding', handleRestart);
     return () => window.removeEventListener('nexora:restart-onboarding', handleRestart);
-  }, [session]);
+  }, [session, isPending]);
 
   const handleComplete = async () => {
     // 1. Set local storage keys

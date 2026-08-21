@@ -2,6 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { OnboardingModal, ONBOARDING_STORAGE_KEY } from '@/components/onboarding/OnboardingModal';
 
+vi.mock('@/lib/auth-client', () => ({
+  authClient: {
+    useSession: vi.fn(() => ({ data: null, isPending: false })),
+    signIn: { social: vi.fn() },
+    signOut: vi.fn(),
+  },
+}));
+
 describe('OnboardingModal', () => {
   beforeEach(() => {
     localStorage.clear();
