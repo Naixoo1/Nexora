@@ -75,10 +75,61 @@ function shouldWrapParenthesesAsMath(inner: string): boolean {
 }
 
 /**
+ * Sanitizes and repairs mismatched or orphaned \left and \right delimiter pairs,
+ * and strips stray orphaned LaTeX commands leaking into text.
+ * e.g. `2a_1 + (n-1)d\right` -> `2a_1 + (n-1)d`
+ * e.g. `\left[ 2a_1 + (n-1)d \right` -> `[ 2a_1 + (n-1)d ]`
+ */
+export function sanitizeLeftRightBrackets(str: string): string {
+  if (!str || (!str.includes('\\left') && !str.includes('\\right'))) {
+    return str;
+  }
+
+  let text = str;
+
+  // 1. Remove lone \right or \left keywords followed by whitespace, punctuation, or end of string with no delimiter attached
+  text = text.replace(/\\(left|right)\s*(?=[$\n,;><=]|$)/g, '');
+
+  // 2. Balance paired \left<delim> and \right<delim>
+  const leftMatches = text.match(/\\left\s*([()[\]{}|./]|\\[a-zA-Z]+)/g) || [];
+  const rightMatches = text.match(/\\right\s*([()[\]{}|./]|\\[a-zA-Z]+)/g) || [];
+
+  // If more \right than \left, strip the extra \right prefixes
+  if (rightMatches.length > leftMatches.length) {
+    let extra = rightMatches.length - leftMatches.length;
+    text = text.replace(/\\right\s*([()[\]{}|./]|\\[a-zA-Z]+)/g, (match, delim) => {
+      if (extra > 0) {
+        extra--;
+        return delim === '.' ? '' : delim;
+      }
+      return match;
+    });
+  }
+
+  // If more \left than \right, strip the extra \left prefixes
+  if (leftMatches.length > rightMatches.length) {
+    let extra = leftMatches.length - rightMatches.length;
+    text = text.replace(/\\left\s*([()[\]{}|./]|\\[a-zA-Z]+)/g, (match, delim) => {
+      if (extra > 0) {
+        extra--;
+        return delim === '.' ? '' : delim;
+      }
+      return match;
+    });
+  }
+
+  // 3. Clean any remaining lone \right or \left keywords not followed by valid delimiters
+  text = text.replace(/\\(left|right)(?![()[\]{}|./\\a-zA-Z])/g, '');
+
+  return text;
+}
+
+/**
  * Cleans math inner string from shorthand artifacts (e.g. `,;` -> `, `, `\frac12` -> `\frac{1}{2}`).
  */
 export function cleanMathFormula(formula: string): string {
   let f = normalizeMathBackslashes(formula.trim());
+  f = sanitizeLeftRightBrackets(f);
 
   // Fix shorthand fractions: \frac12 -> \frac{1}{2}
   f = f.replace(/\\frac(\d)(\d)/g, '\\frac{$1}{$2}');
@@ -141,6 +192,56 @@ function normalizeJammedMathLines(text: string): string {
 }
 
 /**
+ * Scans for standalone algebraic lines containing obvious math variables and operators
+ * that were emitted without delimiters (e.g. `2a_1 + (n-1)d` or `S_n = \frac{n}{2}(2a_1 + (n-1)d)`)
+ * and wraps them in clean $$ ... $$ blocks.
+ */
+function wrapUndelimitedMathLines(text: string): string {
+  const lines = text.split('\n');
+  const processedLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Skip empty lines, lines already containing math delimiters, markdown headers, lists, code fences
+    if (
+      !trimmed ||
+      trimmed.startsWith('#') ||
+      trimmed.startsWith('```') ||
+      trimmed.startsWith('- ') ||
+      trimmed.startsWith('* ') ||
+      trimmed.startsWith('> ') ||
+      trimmed.startsWith('1.') ||
+      trimmed.startsWith('2.') ||
+      trimmed.startsWith('3.') ||
+      trimmed.includes('$$') ||
+      (trimmed.startsWith('$') && trimmed.endsWith('$'))
+    ) {
+      processedLines.push(line);
+      continue;
+    }
+
+    // Check if the entire line looks like a mathematical equation or formula
+    if (
+      /^[a-zA-Z0-9\s()_^{}\\+*\/=><\-.,|]+$/.test(trimmed) &&
+      isMathExpression(trimmed) &&
+      !trimmed.includes('http')
+    ) {
+      // Ensure it doesn't contain normal prose words (> 4 chars)
+      const words = trimmed.split(/[^a-zA-Z]+/).filter(Boolean);
+      const longWords = words.filter((w) => w.length > 4);
+      if (longWords.length === 0 && words.length > 0) {
+        processedLines.push(`\n$$\n${cleanMathFormula(trimmed)}\n$$\n`);
+        continue;
+      }
+    }
+
+    processedLines.push(line);
+  }
+
+  return processedLines.join('\n');
+}
+
+/**
  * Pre-processes and normalizes LaTeX and Markdown math delimiters and escape sequences.
  * - Resolves jammed or unclosed display math delimiters (e.g. `formula $$ text $$ formula`)
  * - Cleans runaway dollar signs (e.g. `$$$$$$` -> `$$\n\n`)
@@ -149,16 +250,21 @@ function normalizeJammedMathLines(text: string): string {
  * - Converts `\\( ... \\)` to `$ ... $` inline math
  * - Repairs double-escaped LaTeX commands (`\\\\frac` -> `\frac`)
  * - Cleans template/JSON bracket artifacts (`{{ //`, `{{ ... }}`)
+ * - Sanitizes orphaned \left / \right bracket commands
+ * - Wraps undelimited standalone algebraic lines in $$ ... $$
  */
 export function preprocessLatex(content: string): string {
   if (!content || typeof content !== 'string') return '';
 
   let text = content.replace(/\r\n/g, '\n');
 
-  // 1. Normalize jammed $$ delimiters, unclosed math, and runaway dollar signs first
+  // 1. Sanitize orphaned \left / \right brackets across the raw text first
+  text = sanitizeLeftRightBrackets(text);
+
+  // 2. Normalize jammed $$ delimiters, unclosed math, and runaway dollar signs
   text = normalizeJammedMathLines(text);
 
-  // 2. Clean accidental double-curly bracket JSON/template artifacts: {{ // or {{ ... }}
+  // 3. Clean accidental double-curly bracket JSON/template artifacts: {{ // or {{ ... }}
   text = text.replace(/\{\{\s*\/\/\s*/g, '');
   text = text.replace(/\{\{([\s\S]*?)\}\}/g, (match, inner) => {
     if (inner.includes('\\') || inner.includes('=') || inner.includes('^') || inner.includes('_')) {
@@ -167,14 +273,14 @@ export function preprocessLatex(content: string): string {
     return match;
   });
 
-  // 3. Convert standard bracket display math \[ ... \] to newline-padded $$ ... $$ blocks
+  // 4. Convert standard bracket display math \[ ... \] to newline-padded $$ ... $$ blocks
   text = text.replace(/\\\[([\s\S]*?)\\\]/g, (_match, formula) => {
     const cleanFormula = cleanMathFormula(formula);
     return `\n\n$$\n${cleanFormula}\n$$\n\n`;
   });
 
-  // 4. Convert standalone bracket math [ ... ] to $$ ... $$ (exclude markdown links [title](url) and citations [[node:...]])
-  text = text.replace(/(?<!\[)\[(?!\s*\[)([^\[\]\n]+?)\](?!\s*[\(\]])/g, (match, inner) => {
+  // 5. Convert standalone bracket math [ ... ] to $$ ... $$ (exclude \left[ / \right], markdown links [title](url), and citations [[node:...]])
+  text = text.replace(/(?<!\\left\s*)(?<!\[)\[(?!\s*\[)([^\[\]\n]+?)(?<!\\right\s*)\](?!\s*[\(\]])/g, (match, inner) => {
     const trimmed = inner.trim();
     // Exclude task checkboxes [ ] or [x]
     if (trimmed === '' || trimmed === 'x' || trimmed === 'X') {
@@ -187,7 +293,7 @@ export function preprocessLatex(content: string): string {
     return match;
   });
 
-  // 5. Convert double parenthesized math (( ... )) to ($ ... $)
+  // 6. Convert double parenthesized math (( ... )) to ($ ... $)
   text = text.replace(/\(\(\s*([^()]+?)\s*\)\)/g, (match, inner) => {
     if (isMathExpression(inner)) {
       const cleanFormula = cleanMathFormula(inner);
@@ -196,13 +302,13 @@ export function preprocessLatex(content: string): string {
     return match;
   });
 
-  // 6. Convert bracket inline math \( ... \) to single dollar signs $ ... $
+  // 7. Convert bracket inline math \( ... \) to single dollar signs $ ... $
   text = text.replace(/\\\(([\s\S]*?)\\\)/g, (_match, formula) => {
     const cleanFormula = cleanMathFormula(formula);
     return `$${cleanFormula}$`;
   });
 
-  // 7. Convert single parenthesized math ( ... ) to ($ ... $) where applicable (exclude inside LaTeX formula constructs)
+  // 8. Convert single parenthesized math ( ... ) to ($ ... $) where applicable (exclude inside LaTeX formula constructs)
   text = text.replace(/(?<![a-zA-Z0-9\\\$_{^])\(\s*([^()\n]+?)\s*\)(?![a-zA-Z0-9\\\$_{^])/g, (match, inner) => {
     if (shouldWrapParenthesesAsMath(inner)) {
       const cleanFormula = cleanMathFormula(inner);
@@ -211,13 +317,16 @@ export function preprocessLatex(content: string): string {
     return match;
   });
 
-  // 8. Ensure display math blocks ($$...$$) have clean newline separation if attached to text
+  // 9. Wrap undelimited standalone math lines
+  text = wrapUndelimitedMathLines(text);
+
+  // 10. Ensure display math blocks ($$...$$) have clean newline separation if attached to text
   text = text.replace(/([^\n])\n\$\$([^\n]+?)\$\$/g, (_match, before, formula) => {
     const cleanFormula = cleanMathFormula(formula);
     return `${before}\n\n$$${cleanFormula}$$`;
   });
 
-  // 9. Normalize inline math $ ... $ backslashes while avoiding standalone currency symbols
+  // 11. Normalize inline math $ ... $ backslashes while avoiding standalone currency symbols
   text = text.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (match, formula) => {
     // If it looks like currency ($100, $5.50, $20 million) without operators, leave as is
     if (/^\s*\d+(\.\d+)?\s*(USD|usd|million|k|billion)?\s*$/.test(formula)) {
@@ -227,7 +336,7 @@ export function preprocessLatex(content: string): string {
     return `$${cleanFormula}$`;
   });
 
-  // 10. Clean up excessive whitespace around display math
+  // 12. Clean up excessive whitespace around display math
   text = text.replace(/\n{3,}\$\$/g, () => '\n\n$$');
   text = text.replace(/\$\$\n{3,}/g, () => '$$\n\n');
 

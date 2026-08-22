@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { GitFork, Sliders, TrendingUp, CheckSquare, CheckCircle2 } from 'lucide-react';
 import type { StemCanvasNode } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
+import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { cn } from '@/lib/utils';
 
@@ -89,7 +90,7 @@ export const WhatIfBranchNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data
         {/* Hypothesis Narrative */}
         <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/20 p-2.5 text-xs text-cyan-200 leading-relaxed font-sans">
           <span className="font-semibold text-white">Hypothesis: </span>
-          {outcomeComparison}
+          <MarkdownRenderer content={outcomeComparison} className="inline" />
         </div>
 
         {/* Simulated Formula Display */}

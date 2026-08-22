@@ -84,9 +84,9 @@ const NexoraNodePreviewCard: React.FC<{ rawJson: string }> = ({ rawJson }) => {
         )}
 
         {desc && (
-          <p className="text-[11px] text-slate-300 leading-relaxed font-sans mt-1">
-            {desc}
-          </p>
+          <div className="text-[11px] text-slate-300 leading-relaxed font-sans mt-1">
+            <MarkdownRenderer content={desc} />
+          </div>
         )}
       </div>
     );

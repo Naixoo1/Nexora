@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Target, Sparkles, Sliders, CheckSquare, CheckCircle2 } from 'lucide-react';
 import type { StemCanvasNode } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
+import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { cn } from '@/lib/utils';
 
@@ -77,9 +78,9 @@ export const ProblemRootNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data,
       <div className="p-4 space-y-3">
         {/* Problem Statement */}
         {statement && (
-          <p className="text-xs text-slate-300 leading-relaxed font-sans line-clamp-4">
-            {statement}
-          </p>
+          <div className="text-xs text-slate-300 leading-relaxed font-sans line-clamp-4">
+            <MarkdownRenderer content={statement} />
+          </div>
         )}
 
         {/* Primary Formula Preview */}
@@ -95,7 +96,7 @@ export const ProblemRootNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data,
             <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5 text-indigo-400" />
             <div className="min-w-0">
               <span className="font-semibold text-white">Target Goal: </span>
-              <span>{targetGoal}</span>
+              <MarkdownRenderer content={targetGoal} className="inline" />
             </div>
           </div>
         )}

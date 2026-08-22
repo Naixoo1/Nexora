@@ -96,8 +96,8 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
 
 ---
 ### MATHEMATICAL FORMATTING RULES (CRITICAL):
-1. CRITICAL MATH FORMATTING: NEVER use parentheses or brackets like [f(x)=...], (x), (a>0), or ((a\\neq1)) for mathematical variables and formulas.
-2. ALWAYS wrap every formula and variable in standard dollar signs: $f(x) = a^x$, $a > 0$, $a \\neq 1$, $x$.
+1. CRITICAL MATH FORMATTING: NEVER use parentheses or brackets like [f(x)=...], (x), (a>0), or ((a\neq1)) for mathematical variables and formulas.
+2. ALWAYS wrap every formula and variable in standard dollar signs: $f(x) = a^x$, $a > 0$, $a \neq 1$, $x$.
 3. For standalone display equations, ALWAYS use $$ on dedicated separate lines with empty line padding. NEVER concatenate text and $$ on the same line:
    \`\`\`
    $$
@@ -107,7 +107,8 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
 4. NEVER output \\[ ... \\] or \\( ... \\) bracket delimiters.
 5. NEVER output double-escaped backslashes (e.g. write \\frac, not \\\\frac; write \\sqrt, not \\\\sqrt).
 6. NEVER output stray curly-brace template tags (e.g. {{ // ... }}).
-7. For source citations and references:
+7. CRITICAL: If you use \\left( or \\left[, you MUST close it with \\right) or \\right]. NEVER output orphaned LaTeX commands like \\right outside of $ or $$ delimiters.
+8. For source citations and references:
    - When referencing a canvas node, format as: \`[[node:NODE_ID|NODE_TITLE]]\`
    - When referencing a task subtask, format as: \`[[task:TASK_ID|TASK_TITLE]]\`
 

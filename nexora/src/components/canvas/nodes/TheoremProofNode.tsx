@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { CheckSquare, BookOpen, Award, CheckCircle2 } from 'lucide-react';
 import type { StemCanvasNode } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
+import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { cn } from '@/lib/utils';
 
@@ -96,9 +97,9 @@ export const TheoremProofNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data
 
         {/* Proof Summary or Content */}
         {data.content && (
-          <p className="text-xs text-slate-300 leading-relaxed font-sans">
-            {data.content}
-          </p>
+          <div className="text-xs text-slate-300 leading-relaxed font-sans">
+            <MarkdownRenderer content={data.content} />
+          </div>
         )}
 
         {/* Applicability Conditions Checklist */}
@@ -111,7 +112,7 @@ export const TheoremProofNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, data
               {applicabilityConditions.map((cond, i) => (
                 <li key={i} className="flex items-start gap-1.5">
                   <CheckSquare className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-400" />
-                  <span>{cond}</span>
+                  <MarkdownRenderer content={cond} className="inline" />
                 </li>
               ))}
             </ul>

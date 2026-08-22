@@ -202,4 +202,39 @@ nexora-node { "title": "Beda Barisan", "type": "reasoning_step", "latexFormula":
       expect(cleaned).not.toContain('[f(x)');
     });
   });
+
+  describe('sanitizeLeftRightBrackets & Orphaned Delimiter Cleanup', () => {
+    it('sanitizes orphaned \\right commands lacking a matching \\left', () => {
+      const input = '2a_1 + (n-1)d\\right';
+      const output = preprocessLatex(input);
+
+      expect(output).not.toContain('\\right');
+      expect(output).toContain('2a_1 + (n-1)d');
+    });
+
+    it('sanitizes orphaned \\left commands lacking a matching \\right', () => {
+      const input = '\\left[ 2a_1 + (n-1)d';
+      const output = preprocessLatex(input);
+
+      expect(output).not.toContain('\\left');
+      expect(output).toContain('[ 2a_1 + (n-1)d');
+    });
+
+    it('preserves properly balanced \\left( ... \\right) and \\left[ ... \\right] expressions', () => {
+      const input = '$$\nS_n = \\frac{n}{2}\\left[ 2a_1 + (n-1)d \\right]\n$$';
+      const output = preprocessLatex(input);
+
+      expect(output).toContain('\\left[');
+      expect(output).toContain('\\right]');
+    });
+
+    it('wraps standalone undelimited algebraic lines in $$ blocks', () => {
+      const input = 'Rumus suku ke-n deret aritmetika:\n2a_1 + (n-1)d\\right\nLangkah berikutnya:';
+      const output = preprocessLatex(input);
+
+      expect(output).toContain('$$\n2a_1 + (n-1)d\n$$');
+      expect(output).toContain('Rumus suku ke-n deret aritmetika:');
+      expect(output).toContain('Langkah berikutnya:');
+    });
+  });
 });

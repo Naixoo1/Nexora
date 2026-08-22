@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { LatexRenderer } from './LatexRenderer';
+import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { cn } from '@/lib/utils';
 
 export const BranchSuggestionModal: React.FC = () => {
@@ -126,9 +127,9 @@ export const BranchSuggestionModal: React.FC = () => {
                     </button>
                   </div>
 
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    {suggestion.description}
-                  </p>
+                  <div className="text-xs text-slate-300 leading-relaxed">
+                    <MarkdownRenderer content={suggestion.description} />
+                  </div>
 
                   {suggestion.latexFormula && (
                     <div className="rounded-xl border border-white/5 bg-[#131926] p-1">
@@ -139,7 +140,7 @@ export const BranchSuggestionModal: React.FC = () => {
                   {suggestion.justification && (
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-400 italic">
                       <span className="font-semibold text-slate-300">Justification:</span>
-                      <span>{suggestion.justification}</span>
+                      <MarkdownRenderer content={suggestion.justification} className="inline" />
                     </div>
                   )}
                 </div>

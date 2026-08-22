@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { StemCanvasNode, NodeValidationStatus } from '@/types/canvas';
 import { LatexRenderer } from '../LatexRenderer';
+import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { cn } from '@/lib/utils';
 
@@ -141,9 +142,9 @@ export const ReasoningStepNode: React.FC<NodeProps<StemCanvasNode>> = ({ id, dat
 
           {/* Explanation text */}
           {data.content && (
-            <p className="text-xs text-slate-300 leading-relaxed font-sans">
-              {data.content}
-            </p>
+            <div className="text-xs text-slate-300 leading-relaxed font-sans">
+              <MarkdownRenderer content={data.content} />
+            </div>
           )}
 
           {/* Mathematical Formula Preview */}
