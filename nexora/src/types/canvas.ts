@@ -236,10 +236,14 @@ export interface NodeEvaluationResult {
   };
 }
 
+export type BranchAngleType = 'alternative_method' | 'next_progression' | 'what_if_exploration';
+
 export interface SuggestedBranchItem {
   branchType: 'deduction_step' | 'what_if_simulation' | 'alternative_method' | 'counter_example';
+  angleType?: BranchAngleType;
   title: string;
   description: string;
+  hypothesis?: string;
   latexFormula?: string;
   suggestedNodeType: CanvasNodeType;
   suggestedEdgeType: CanvasEdgeType;

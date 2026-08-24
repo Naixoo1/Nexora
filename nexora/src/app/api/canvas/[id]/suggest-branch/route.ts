@@ -4,7 +4,7 @@ import { eq, and } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { canvases, canvasNodes } from '@/db/schema/canvas';
-import { suggestBranchesForNode } from '@/services/math-solver';
+import { suggestBranchesForNode } from '@/services/branch-suggester';
 import { SuggestBranchSchema } from '@/lib/validators/canvas';
 import { successResponse, errorResponse, validationErrorResponse } from '@/lib/api-response';
 

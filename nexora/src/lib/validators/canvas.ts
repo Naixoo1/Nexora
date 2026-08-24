@@ -133,20 +133,46 @@ export const EvaluateNodeSchema = z.object({
   variableValues: z.record(z.string(), z.number()).default({}),
 });
 
+export const GraphContextNodeSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  nodeType: z.string().optional(),
+  content: z.string().optional(),
+  latexFormula: z.string().optional(),
+  variables: z.array(CanvasVariableSchema).optional(),
+});
+
 export const SuggestBranchSchema = z.object({
   targetNodeId: z.string().min(1),
-  branchType: z.enum([
-    'deduction_step',
-    'what_if_simulation',
-    'alternative_method',
-    'counter_example',
-  ]),
+  branchType: z
+    .enum([
+      'deduction_step',
+      'what_if_simulation',
+      'alternative_method',
+      'counter_example',
+      'all_angles',
+    ])
+    .optional(),
+  selectedNode: GraphContextNodeSchema.optional(),
+  ancestorNodes: z.array(GraphContextNodeSchema).optional(),
+  problemRoot: GraphContextNodeSchema.optional(),
+  targetGoal: z.string().optional(),
+  recentChatContext: z
+    .array(
+      z.object({
+        role: z.string(),
+        content: z.string(),
+      })
+    )
+    .optional(),
   simulationParameter: z
     .object({
-      variableId: z.string(),
-      deltaPercent: z.number(),
+      variableId: z.string().optional(),
+      deltaPercent: z.number().optional(),
     })
     .optional(),
+  desiredBranchesCount: z.number().int().min(1).max(5).optional(),
+  variablesContext: z.array(CanvasVariableSchema).optional(),
 });
 
 export const CanvasListQuerySchema = z.object({

@@ -125,6 +125,50 @@ export interface CanvasState {
 let autoSaveTimeout: NodeJS.Timeout | null = null;
 const DEBOUNCE_DELAY_MS = 1500;
 
+/**
+ * Traverses incoming edges backwards to retrieve the full ancestor lineage path in the DAG.
+ */
+function getAncestorNodes(
+  targetId: string,
+  nodes: StemCanvasNode[],
+  edges: StemCanvasEdge[]
+): {
+  id: string;
+  title: string;
+  nodeType?: string;
+  content?: string;
+  latexFormula?: string;
+  variables?: CanvasVariable[];
+}[] {
+  const ancestors: StemCanvasNode[] = [];
+  const visited = new Set<string>();
+  const queue = [targetId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    const incomingEdges = edges.filter((e) => e.target === currentId);
+    for (const edge of incomingEdges) {
+      if (!visited.has(edge.source)) {
+        visited.add(edge.source);
+        const parentNode = nodes.find((n) => n.id === edge.source);
+        if (parentNode) {
+          ancestors.push(parentNode);
+          queue.push(parentNode.id);
+        }
+      }
+    }
+  }
+
+  return ancestors.reverse().map((n) => ({
+    id: n.id,
+    title: n.data?.title || 'Ancestor Step',
+    nodeType: n.data?.nodeType || n.type || 'reasoning_step',
+    content: n.data?.content || '',
+    latexFormula: n.data?.latexFormula || '',
+    variables: n.data?.variables || [],
+  }));
+}
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   canvasId: null,
   title: 'Untitled STEM Canvas',
@@ -451,15 +495,74 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   suggestBranches: async (nodeId, count = 3) => {
     const canvasId = get().canvasId;
-    const node = get().nodes.find((n) => n.id === nodeId);
+    const allNodes = get().nodes;
+    const allEdges = get().edges;
+    const node = allNodes.find((n) => n.id === nodeId);
     if (!canvasId || !node) return false;
 
-    set({ isSuggestingBranches: true, error: null, branchSuggestions: [] });
+    set({ isSuggestingBranches: true, error: null, branchSuggestions: [], selectedNodeId: nodeId });
+
+    // 1. Identify Problem Root
+    const problemRootNode = allNodes.find(
+      (n) => n.type === 'problem_root' || n.data?.nodeType === 'problem_root'
+    );
+
+    const problemRootPayload = problemRootNode
+      ? {
+          id: problemRootNode.id,
+          title: problemRootNode.data?.title || 'Problem Statement',
+          nodeType: 'problem_root',
+          content: problemRootNode.data?.content || '',
+          latexFormula: problemRootNode.data?.latexFormula || '',
+          variables: problemRootNode.data?.variables || [],
+        }
+      : undefined;
+
+    // 2. Identify Target Goal
+    const targetGoal =
+      (problemRootNode?.data?.customData as { payload?: { targetGoal?: string } })?.payload
+        ?.targetGoal ||
+      problemRootNode?.data?.title ||
+      get().description ||
+      'Selesaikan pembuktian atau hitung nilai target';
+
+    // 3. Extract Ancestor Chain
+    const ancestorNodes = getAncestorNodes(nodeId, allNodes, allEdges);
+
+    // 4. Extract Selected Node
+    const selectedNodePayload = {
+      id: node.id,
+      title: node.data?.title || 'Selected Step',
+      nodeType: node.data?.nodeType || node.type || 'reasoning_step',
+      content: node.data?.content || '',
+      latexFormula: node.data?.latexFormula || '',
+      variables: node.data?.variables || [],
+    };
+
+    // 5. Extract Recent Chat Context
+    let recentChatContext: { role: string; content: string }[] = [];
+    try {
+      const { useChatStore } = await import('./useChatStore');
+      const chatMessages = useChatStore.getState().messages;
+      if (Array.isArray(chatMessages) && chatMessages.length > 0) {
+        recentChatContext = chatMessages.slice(-4).map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+      }
+    } catch {
+      // ignore
+    }
 
     const payload = {
       targetNodeId: nodeId,
-      branchType: 'what_if_simulation' as const,
+      branchType: 'all_angles' as const,
       desiredBranchesCount: count,
+      selectedNode: selectedNodePayload,
+      ancestorNodes,
+      problemRoot: problemRootPayload,
+      targetGoal,
+      recentChatContext,
       variablesContext: get().globalVariables,
     };
 
