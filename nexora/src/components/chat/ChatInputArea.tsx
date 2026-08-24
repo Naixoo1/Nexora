@@ -16,6 +16,7 @@ import {
   Languages,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useSpeechToText, cleanAndDeduplicateSpeech, sanitizeSpeechText } from '@/hooks/useSpeechToText';
 import { authClient } from '@/lib/auth-client';
 import type { AcademicTutorMode, ChatAttachment, ChatAttachmentType } from '@/types/chat';
@@ -70,6 +71,7 @@ function formatFileSize(bytes: number): string {
 }
 
 export const ChatInputArea: React.FC = () => {
+  const { t } = useTranslation();
   const { data: session, isPending: isAuthPending } = authClient.useSession();
   const {
     activeTutorMode,
@@ -586,7 +588,7 @@ export const ChatInputArea: React.FC = () => {
             placeholder={
               isListening
                 ? `🎙️ Listening (${speechLang === 'id-ID' ? 'Bahasa Indonesia' : 'English'})... Speak now`
-                : 'Ask Nexora AI, paste screenshot, or drag & drop files...'
+                : t('chat.inputPlaceholder')
             }
             disabled={isSending}
             className={cn(

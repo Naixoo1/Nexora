@@ -26,12 +26,14 @@ import {
   Share2,
 } from 'lucide-react';
 import { useExpoGameStore } from '@/stores/useExpoGameStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import type { ExpoGradeTier } from '@/types/expo';
 import { cn } from '@/lib/utils';
 
 export const ExpoChallengeArena: React.FC = () => {
+  const { t } = useTranslation();
   const {
     gamePhase,
     selectedGrade,
@@ -227,7 +229,7 @@ export const ExpoChallengeArena: React.FC = () => {
               className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-8 py-3.5 text-sm font-bold text-white shadow-xl shadow-cyan-500/25 transition-all hover:scale-105 active:scale-95"
             >
               <Trophy className="h-5 w-5" />
-              <span>Mulai Arena Tantangan</span>
+              <span>{t('expo.start')}</span>
             </button>
             <span className="text-xs text-slate-400">
               5 Soal Cerita Tantangan • Bonus Kecepatan • Socratic AI Assistant
@@ -262,7 +264,7 @@ export const ExpoChallengeArena: React.FC = () => {
             {/* Score & Live Timer */}
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Skor</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">{t('expo.score')}</span>
                 <span className="text-sm font-extrabold text-cyan-400 font-mono">{score} pts</span>
               </div>
 
@@ -401,7 +403,7 @@ export const ExpoChallengeArena: React.FC = () => {
                 disabled={!selectedOption && !textAnswerInput.trim()}
                 className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-cyan-500 px-5 py-3 text-xs font-bold text-white shadow-lg transition-all hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <span>Kirim</span>
+                <span>{t('expo.submit')}</span>
                 <Send className="h-3.5 w-3.5" />
               </button>
             </div>

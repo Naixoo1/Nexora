@@ -17,11 +17,13 @@ import {
   GraduationCap,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import { checkWebGPUSupport } from '@/services/web-llm-service';
 import type { GradeLevel } from '@/types/planner';
 import { cn } from '@/lib/utils';
 
 export const ChatSettingsModal: React.FC = () => {
+  const { t } = useTranslation();
   const {
     isSettingsOpen,
     setSettingsOpen,
@@ -324,7 +326,7 @@ export const ChatSettingsModal: React.FC = () => {
                     Saved!
                   </>
                 ) : (
-                  'Save Settings'
+                  t('chat.saveSettings')
                 )}
               </button>
             </div>

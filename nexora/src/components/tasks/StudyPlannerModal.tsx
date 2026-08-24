@@ -17,6 +17,7 @@ import {
   Building,
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import { authClient } from '@/lib/auth-client';
 import type { PlannerGeneratePayload, GradeLevel } from '@/types/task';
 import { classifyStudyContext } from '@/services/study-planner-classifier';
@@ -60,6 +61,7 @@ const GRADE_LEVELS: { id: GradeLevel; label: string; subLabel: string; icon: Rea
 ];
 
 export const StudyPlannerModal: React.FC = () => {
+  const { t } = useTranslation();
   const { isPlannerModalOpen, isGeneratingPlan, error, openPlannerModal, generateStudyPlan, clearError } =
     useTaskStore();
   const { data: session, isPending: isAuthPending } = authClient.useSession();
@@ -171,7 +173,7 @@ export const StudyPlannerModal: React.FC = () => {
           </div>
           <div>
             <h3 className="text-lg sm:text-xl font-bold tracking-tight text-white">
-              AI Curriculum Study Planner
+              {t('planner.title')}
             </h3>
             <p className="text-xs sm:text-sm text-slate-400">
               Generate curriculum-calibrated study plans with forward chronological timelines
@@ -387,12 +389,12 @@ export const StudyPlannerModal: React.FC = () => {
                 {isGeneratingPlan ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin text-white" />
-                    <span>Synthesizing Curriculum Study Plan...</span>
+                    <span>{t('planner.generating')}</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    <span>Generate Curriculum Study Plan</span>
+                    <span>{t('planner.generate')}</span>
                   </>
                 )}
               </button>

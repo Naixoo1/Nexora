@@ -11,11 +11,13 @@ import {
 } from 'lucide-react';
 import { NexoraLogo } from '../brand/NexoraLogo';
 import { LanguageSelector } from './LanguageSelector';
+import { useTranslation } from '@/hooks/useTranslation';
 import { authClient } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
 
 export const GlobalNavbar: React.FC = () => {
   const pathname = usePathname();
+  const { t } = useTranslation();
   const { data: session, isPending } = authClient.useSession();
   const [isOrientationCompleted, setIsOrientationCompleted] = useState<boolean>(false);
 
@@ -73,7 +75,7 @@ export const GlobalNavbar: React.FC = () => {
               )}
             >
               <CheckSquare className={cn('h-3.5 w-3.5', isTasks ? 'text-cyan-400' : 'text-slate-400')} />
-              <span>Study Planner & Tasks</span>
+              <span>{t('nav.planner')}</span>
             </Link>
 
             <Link
@@ -86,7 +88,7 @@ export const GlobalNavbar: React.FC = () => {
               )}
             >
               <Network className={cn('h-3.5 w-3.5', isCanvas ? 'text-cyan-400' : 'text-slate-400')} />
-              <span>STEM Logic Canvas</span>
+              <span>{t('nav.canvas')}</span>
             </Link>
 
             <Link
@@ -99,7 +101,7 @@ export const GlobalNavbar: React.FC = () => {
               )}
             >
               <Trophy className={cn('h-3.5 w-3.5', isExpo ? 'text-amber-400' : 'text-amber-400/70')} />
-              <span>Expo Arena</span>
+              <span>{t('nav.expo')}</span>
             </Link>
           </nav>
         </div>
@@ -114,7 +116,7 @@ export const GlobalNavbar: React.FC = () => {
                 'rounded-lg p-2 transition-all',
                 isTasks ? 'bg-white/10 text-cyan-300' : 'text-slate-400'
               )}
-              title="Tasks"
+              title={t('nav.planner')}
             >
               <CheckSquare className="h-4 w-4" />
             </Link>
@@ -124,7 +126,7 @@ export const GlobalNavbar: React.FC = () => {
                 'rounded-lg p-2 transition-all',
                 isCanvas ? 'bg-white/10 text-cyan-300' : 'text-slate-400'
               )}
-              title="Canvas"
+              title={t('nav.canvas')}
             >
               <Network className="h-4 w-4" />
             </Link>
@@ -134,7 +136,7 @@ export const GlobalNavbar: React.FC = () => {
                 'rounded-lg p-2 transition-all',
                 isExpo ? 'bg-white/10 text-cyan-300' : 'text-slate-400'
               )}
-              title="Expo Arena"
+              title={t('nav.expo')}
             >
               <Trophy className="h-4 w-4 text-amber-400" />
             </Link>
@@ -150,7 +152,7 @@ export const GlobalNavbar: React.FC = () => {
                 title="Interactive Orientation Tutorial"
               >
                 <HelpCircle className="h-3.5 w-3.5 text-cyan-400" />
-                <span className="hidden sm:inline">Orientation</span>
+                <span className="hidden sm:inline">{t('nav.orientation')}</span>
               </button>
 
               <div className="h-5 w-px bg-white/10 hidden sm:block" />
@@ -187,7 +189,7 @@ export const GlobalNavbar: React.FC = () => {
                 onClick={() => authClient.signOut()}
                 className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors active:scale-95"
               >
-                Sign Out
+                {t('nav.signOut')}
               </button>
             </div>
           ) : (
@@ -214,7 +216,7 @@ export const GlobalNavbar: React.FC = () => {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>Sign in with Google</span>
+              <span>{t('nav.signIn')}</span>
             </button>
           )}
         </div>

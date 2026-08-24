@@ -19,10 +19,12 @@ import {
   MessageSquareQuote,
 } from 'lucide-react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { CanvasNodeType } from '@/types/canvas';
 import { cn } from '@/lib/utils';
 
 export const CanvasToolbar: React.FC = () => {
+  const { t } = useTranslation();
   const {
     nodes,
     selectedNodeId,
@@ -75,7 +77,7 @@ export const CanvasToolbar: React.FC = () => {
             className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 px-3 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:opacity-95 active:scale-95"
           >
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add Node</span>
+            <span className="hidden sm:inline">{t('canvas.addNode')}</span>
           </button>
 
           {/* Add Node Menu */}
@@ -216,7 +218,7 @@ export const CanvasToolbar: React.FC = () => {
           ) : (
             <Zap className="h-3.5 w-3.5 text-indigo-400" />
           )}
-          <span className="hidden md:inline">Evaluate Step</span>
+          <span className="hidden md:inline">{t('canvas.evaluate')}</span>
         </button>
 
         {/* AI Action: What-If Branch Suggestion */}
@@ -237,7 +239,7 @@ export const CanvasToolbar: React.FC = () => {
           ) : (
             <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
           )}
-          <span className="hidden md:inline">Suggest Branch</span>
+          <span className="hidden md:inline">{t('canvas.suggestBranch')}</span>
         </button>
 
         <div className="h-5 w-px bg-white/10 mx-0.5" />
