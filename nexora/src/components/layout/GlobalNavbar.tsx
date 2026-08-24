@@ -7,6 +7,7 @@ import {
   CheckSquare,
   Network,
   HelpCircle,
+  Trophy,
 } from 'lucide-react';
 import { NexoraLogo } from '../brand/NexoraLogo';
 import { authClient } from '@/lib/auth-client';
@@ -19,6 +20,7 @@ export const GlobalNavbar: React.FC = () => {
 
   const isTasks = pathname === '/tasks';
   const isCanvas = pathname.startsWith('/canvas');
+  const isExpo = pathname.startsWith('/expo');
 
   useEffect(() => {
     const checkStatus = () => {
@@ -85,6 +87,19 @@ export const GlobalNavbar: React.FC = () => {
               <Network className={cn('h-3.5 w-3.5', isCanvas ? 'text-cyan-400' : 'text-slate-400')} />
               <span>STEM Logic Canvas</span>
             </Link>
+
+            <Link
+              href="/expo"
+              className={cn(
+                'flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all',
+                isExpo
+                  ? 'bg-cyan-500/20 text-cyan-300 shadow-sm ring-1 ring-cyan-400/30'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+              )}
+            >
+              <Trophy className={cn('h-3.5 w-3.5', isExpo ? 'text-amber-400' : 'text-amber-400/70')} />
+              <span>Expo Arena</span>
+            </Link>
           </nav>
         </div>
 
@@ -108,9 +123,19 @@ export const GlobalNavbar: React.FC = () => {
                 'rounded-lg p-2 transition-all',
                 isCanvas ? 'bg-white/10 text-cyan-300' : 'text-slate-400'
               )}
-              title="STEM Canvas"
+              title="Canvas"
             >
               <Network className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/expo"
+              className={cn(
+                'rounded-lg p-2 transition-all',
+                isExpo ? 'bg-white/10 text-cyan-300' : 'text-slate-400'
+              )}
+              title="Expo Arena"
+            >
+              <Trophy className="h-4 w-4 text-amber-400" />
             </Link>
           </div>
 

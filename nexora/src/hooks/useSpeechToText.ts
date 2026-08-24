@@ -2,35 +2,35 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// Web Speech API Types
-interface SpeechRecognitionEvent extends Event {
-  resultIndex: number;
-  results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-  message?: string;
-}
-
-interface ISpeechRecognition extends EventTarget {
+interface SpeechRecognitionInstance {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
   start: () => void;
   stop: () => void;
   abort: () => void;
-  onstart: ((this: ISpeechRecognition, ev: Event) => void) | null;
-  onend: ((this: ISpeechRecognition, ev: Event) => void) | null;
-  onerror: ((this: ISpeechRecognition, ev: SpeechRecognitionErrorEvent) => void) | null;
-  onresult: ((this: ISpeechRecognition, ev: SpeechRecognitionEvent) => void) | null;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onresult: ((event: {
+    resultIndex: number;
+    results: {
+      [index: number]: {
+        isFinal: boolean;
+        [index: number]: { transcript: string; confidence: number };
+      };
+      length: number;
+    };
+  }) => void) | null;
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition?: new () => ISpeechRecognition;
-    webkitSpeechRecognition?: new () => ISpeechRecognition;
-  }
+function getSpeechRecognition(): (new () => SpeechRecognitionInstance) | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const win = window as unknown as {
+    SpeechRecognition?: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+  };
+  return win.SpeechRecognition || win.webkitSpeechRecognition;
 }
 
 /**
@@ -106,19 +106,12 @@ const MAX_NETWORK_RETRIES = 2;
 
 export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false);
-  const [isSupported] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognitionConstructor =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      return Boolean(SpeechRecognitionConstructor);
-    }
-    return false;
-  });
+  const [isSupported] = useState(() => Boolean(getSpeechRecognition()));
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const recognitionRef = useRef<ISpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const optionsRef = useRef(defaultOptions);
   const lastInterimRef = useRef<string>('');
   const retryCountRef = useRef<number>(0);
@@ -166,10 +159,7 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
 
   const startListening = useCallback(
     (options?: UseSpeechToTextOptions) => {
-      if (typeof window === 'undefined') return;
-
-      const SpeechRecognitionConstructor =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
+      const SpeechRecognitionConstructor = getSpeechRecognition();
 
       if (!SpeechRecognitionConstructor) {
         setError('Speech recognition is not supported in this browser.');
@@ -207,7 +197,7 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
           retryCountRef.current = 0; // Reset network retry count on successful start
         };
 
-        recognition.onresult = (event: SpeechRecognitionEvent) => {
+        recognition.onresult = (event) => {
           let finalChunk = '';
           let interimChunk = '';
 
@@ -255,7 +245,7 @@ export function useSpeechToText(defaultOptions: UseSpeechToTextOptions = {}): Us
           }
         };
 
-        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        recognition.onerror = (event) => {
           console.warn('[Speech Recognition Error]:', event.error);
 
           if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {

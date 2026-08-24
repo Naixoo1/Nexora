@@ -94,22 +94,20 @@ describe('useSpeechToText Hook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockInstance = new MockSpeechRecognition();
-    // @ts-expect-error - mock constructor type compatibility
-    window.SpeechRecognition = MockSpeechRecognitionConstructor;
-    // @ts-expect-error - mock constructor type compatibility
-    window.webkitSpeechRecognition = MockSpeechRecognitionConstructor;
+    (window as unknown as Record<string, unknown>).SpeechRecognition = MockSpeechRecognitionConstructor;
+    (window as unknown as Record<string, unknown>).webkitSpeechRecognition = MockSpeechRecognitionConstructor;
   });
 
   afterEach(() => {
-    delete window.SpeechRecognition;
-    delete window.webkitSpeechRecognition;
+    delete (window as unknown as Record<string, unknown>).SpeechRecognition;
+    delete (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
   });
 
   describe('Browser Compatibility', () => {
     it('should indicate unsupported when neither SpeechRecognition nor webkitSpeechRecognition is available', () => {
       // Arrange
-      delete window.SpeechRecognition;
-      delete window.webkitSpeechRecognition;
+      delete (window as unknown as Record<string, unknown>).SpeechRecognition;
+      delete (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
 
       // Act
       const { result } = renderHook(() => useSpeechToText());
@@ -121,8 +119,8 @@ describe('useSpeechToText Hook', () => {
 
     it('should set error state when startListening is called in an unsupported browser', () => {
       // Arrange
-      delete window.SpeechRecognition;
-      delete window.webkitSpeechRecognition;
+      delete (window as unknown as Record<string, unknown>).SpeechRecognition;
+      delete (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
 
       const { result } = renderHook(() => useSpeechToText());
 
@@ -138,7 +136,7 @@ describe('useSpeechToText Hook', () => {
 
     it('should indicate supported when window.webkitSpeechRecognition is available', () => {
       // Arrange
-      delete window.SpeechRecognition;
+      delete (window as unknown as Record<string, unknown>).SpeechRecognition;
 
       // Act
       const { result } = renderHook(() => useSpeechToText());
