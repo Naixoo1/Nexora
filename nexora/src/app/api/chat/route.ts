@@ -32,7 +32,9 @@ import {
   getCircuitState,
 } from '@/services/ai-circuit-breaker';
 import { validationErrorResponse } from '@/lib/api-response';
+import { classifyStudyContext } from '@/services/study-planner-classifier';
 import type { ChatAttachment } from '@/types/chat';
+import type { GradeLevel, SubjectCategory } from '@/types/planner';
 
 /**
  * Strip the data URI prefix from a base64 string if present.
@@ -114,10 +116,21 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     const { sessionId, taskId, canvasId, message, mode, context, attachments } = parsed.data;
 
-    // Resolve context merging top-level mode if provided
+    // Resolve grade and subject context via payload, headers, or automatic classifier
+    const headerGrade = (req.headers.get('x-grade-level') as GradeLevel) || undefined;
+    const headerSubject = (req.headers.get('x-subject-context') as SubjectCategory) || undefined;
+
+    const classified = classifyStudyContext(
+      message,
+      `${context?.taskContext?.category || ''} ${context?.canvasContext?.category || ''}`,
+      context?.gradeLevel || headerGrade
+    );
+
     const resolvedContext = {
       ...(context || { tutorMode: 'socratic' as const }),
       tutorMode: mode || context?.tutorMode || 'socratic',
+      gradeLevel: context?.gradeLevel || headerGrade || classified.gradeLevel,
+      subjectContext: context?.subjectContext || headerSubject || classified.subjectCategory,
     };
 
     // 2. Resolve Multi-Key Pool (supports client-provided BYOK x-gemini-api-key)

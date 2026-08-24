@@ -196,4 +196,53 @@ describe('chat-prompt service (buildSystemPrompt)', () => {
       expect(prompt).toContain('Gunakan Bahasa Indonesia formal');
     });
   });
+
+  describe('Multi-Grade Tier Calibration & Subject Domain Directives', () => {
+    it('calibrates for Primary School (SD) Language & Literature (e.g. Sundanese Dialogue)', () => {
+      const context: ChatContextPayload = {
+        tutorMode: 'socratic',
+        gradeLevel: 'PRIMARY',
+        subjectContext: 'LANGUAGE_LITERATURE',
+      };
+
+      const prompt = buildSystemPrompt(context);
+
+      expect(prompt).toContain('TARGET AUDIENCE: PRIMARY SCHOOL (SD / SEKOLAH DASAR, GRADES 1-6)');
+      expect(prompt).toContain('Warm, encouraging, playful, and deeply patient');
+      expect(prompt).toContain('at most 2 simple steps per reply');
+      expect(prompt).toContain('SUBJECT DOMAIN: LANGUAGE & LITERATURE');
+      expect(prompt).toContain('STRICTLY FORBID all mathematical formulas');
+    });
+
+    it('calibrates for Junior High School (SMP) Social Studies & History (e.g. Proklamasi Kemerdekaan)', () => {
+      const context: ChatContextPayload = {
+        tutorMode: 'socratic',
+        gradeLevel: 'JUNIOR_HIGH',
+        subjectContext: 'SOCIAL_HUMANITIES',
+      };
+
+      const prompt = buildSystemPrompt(context);
+
+      expect(prompt).toContain('TARGET AUDIENCE: JUNIOR HIGH SCHOOL (SMP / SEKOLAH MENENGAH PERTAMA, GRADES 7-9)');
+      expect(prompt).toContain('Structured, encouraging, and clear');
+      expect(prompt).toContain('SUBJECT DOMAIN: SOCIAL STUDIES & HUMANITIES');
+      expect(prompt).toContain('chronological linimasa timelines, cause-and-effect kausalitas');
+    });
+
+    it('calibrates for Senior High School (SMA) STEM Analytical (e.g. Calculus & Linear Algebra)', () => {
+      const context: ChatContextPayload = {
+        tutorMode: 'step_breakdown',
+        gradeLevel: 'SENIOR_HIGH',
+        subjectContext: 'STEM_ANALYTICAL',
+      };
+
+      const prompt = buildSystemPrompt(context);
+
+      expect(prompt).toContain('TARGET AUDIENCE: SENIOR HIGH SCHOOL & UNIVERSITY');
+      expect(prompt).toContain('first-principles conceptual derivations');
+      expect(prompt).toContain('HOTS (Higher Order Thinking Skills)');
+      expect(prompt).toContain('SUBJECT DOMAIN: STEM & ANALYTICAL');
+      expect(prompt).toContain('KaTeX displays');
+    });
+  });
 });

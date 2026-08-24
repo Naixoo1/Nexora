@@ -18,6 +18,7 @@ import type {
 } from '@/types/chat';
 import type { ApiResponse, CanvasNodeType, NodeValidationStatus } from '@/types/canvas';
 import type { TaskStatus } from '@/types/task';
+import type { GradeLevel } from '@/types/planner';
 
 export interface ChatStoreState {
   // Drawer UI & View Layout
@@ -32,6 +33,7 @@ export interface ChatStoreState {
 
   // Active Context & Multimodal Attachments
   activeTutorMode: AcademicTutorMode;
+  gradeLevel: GradeLevel;
   taskContext?: TaskContextSnapshot;
   canvasContext?: CanvasContextSnapshot;
   customInstructions?: string;
@@ -52,6 +54,7 @@ export interface ChatStoreState {
     canvasContext?: CanvasContextSnapshot;
     initialPrompt?: string;
     tutorMode?: AcademicTutorMode;
+    gradeLevel?: GradeLevel;
   }) => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
@@ -67,6 +70,7 @@ export interface ChatStoreState {
 
   // Actions - Context Controls
   setTutorMode: (mode: AcademicTutorMode) => void;
+  setGradeLevel: (grade: GradeLevel) => void;
   setTaskContext: (context?: TaskContextSnapshot) => void;
   setCanvasContext: (context?: CanvasContextSnapshot) => void;
   setCustomInstructions: (instructions?: string) => void;
@@ -474,6 +478,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   webLLMStatusText: '',
 
   activeTutorMode: 'socratic',
+  gradeLevel: 'SENIOR_HIGH',
   taskContext: undefined,
   canvasContext: undefined,
   customInstructions: undefined,
@@ -493,6 +498,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       taskContext: options?.taskContext ?? state.taskContext,
       canvasContext: options?.canvasContext ?? state.canvasContext,
       activeTutorMode: options?.tutorMode ?? state.activeTutorMode,
+      gradeLevel: options?.gradeLevel ?? state.gradeLevel,
       error: null,
     }));
 
@@ -559,6 +565,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   setTutorMode: (mode) => {
     set({ activeTutorMode: mode });
+  },
+
+  setGradeLevel: (grade) => {
+    set({ gradeLevel: grade });
   },
 
   setTaskContext: (context) => {
@@ -931,6 +941,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       attachments: attachmentMetas.length > 0 ? attachmentMetas : undefined,
       contextSnapshot: {
         tutorMode: activeMode,
+        gradeLevel: get().gradeLevel,
         taskContext: taskCtx,
         canvasContext: canvasCtx,
         customInstructions: customInst,
@@ -1053,6 +1064,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         attachments: currentAttachments.length > 0 ? currentAttachments : undefined,
         context: {
           tutorMode: activeMode,
+          gradeLevel: get().gradeLevel,
           taskContext: taskCtx,
           canvasContext: canvasCtx,
           customInstructions: customInst,
@@ -1065,6 +1077,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        'x-grade-level': get().gradeLevel,
         ...(customKey && customKey.trim() ? { 'x-gemini-api-key': customKey.trim() } : {}),
       };
 

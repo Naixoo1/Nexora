@@ -63,15 +63,65 @@ function normalizeTutorMode(rawMode?: string): AcademicTutorMode {
   return 'socratic';
 }
 
+// ── Multi-Grade Tier & Subject Pedagogical Directives ─────────
+function buildGradeTierInstruction(grade?: string): string {
+  switch (grade) {
+    case 'PRIMARY':
+      return `### TARGET AUDIENCE: PRIMARY SCHOOL (SD / SEKOLAH DASAR, GRADES 1-6)
+- Tone: Warm, encouraging, playful, and deeply patient.
+- Pedagogical Scaffolding: Use concrete everyday analogies (fruits, toys, stories, everyday objects).
+- Sentence Structure: Keep sentences short, friendly, and well-spaced. Break explanations into at most 2 simple steps per reply.
+- Jargon Guard: Strictly avoid dense technical or academic jargon. Explain simple concepts intuitively.`;
+    case 'JUNIOR_HIGH':
+      return `### TARGET AUDIENCE: JUNIOR HIGH SCHOOL (SMP / SEKOLAH MENENGAH PERTAMA, GRADES 7-9)
+- Tone: Structured, encouraging, and clear.
+- Pedagogical Scaffolding: Provide clear conceptual definitions, step-by-step guided questions, and foundational principles.
+- Pacing: Bridge intuitive real-world understanding with formal rules and structured derivations.`;
+    case 'SENIOR_HIGH':
+    default:
+      return `### TARGET AUDIENCE: SENIOR HIGH SCHOOL & UNIVERSITY (SMA/SMK/PTN / UNIVERSITY, GRADES 10-12 & HIGHER ED)
+- Tone: Intellectually rigorous, analytical, and scholarly.
+- Pedagogical Scaffolding: Focus on first-principles conceptual derivations, proof verification, formal symbolic notation, and boundary condition checks.
+- Critical Thinking: Engage HOTS (Higher Order Thinking Skills) problem solving, Olympiad-level elegance, and rigorous academic synthesis.`;
+  }
+}
+
+function buildSubjectDomainInstruction(subject?: string): string {
+  switch (subject) {
+    case 'LANGUAGE_LITERATURE':
+      return `### SUBJECT DOMAIN: LANGUAGE & LITERATURE (BAHASA & SASTRA)
+- Focus on expressive dialogue delivery, pronunciation notes, grammar context, linguistic registers (e.g. undak usuk basa), vocabulary nuance, and script dynamics.
+- CRITICAL: STRICTLY FORBID all mathematical formulas, numbers, equations, and LaTeX notations ($ and $$). All dialogue and text must be clean natural prose.`;
+    case 'SOCIAL_HUMANITIES':
+      return `### SUBJECT DOMAIN: SOCIAL STUDIES & HUMANITIES (SEJARAH, SOSIAL & PPKN)
+- Focus on chronological linimasa timelines, cause-and-effect kausalitas, primary/secondary sources, constitutional analysis (UUD 1945, Pancasila), and comparative frameworks.
+- Do NOT output mathematical formulas unless specific economic/accounting equations are explicitly requested.`;
+    case 'STEM_ANALYTICAL':
+      return `### SUBJECT DOMAIN: STEM & ANALYTICAL (MATEMATIKA, FISIKA, KIMIA, INFORMATIKA)
+- Focus on step-by-step Socratic derivations, formula verification, boundary condition checks, and clean KaTeX displays ($inline$ and $$display$$).`;
+    case 'GENERAL_PROJECT':
+      return `### SUBJECT DOMAIN: GENERAL PROJECT & ACADEMIC PLANNING
+- Focus on project scoping, methodology steps, actionable task breakdowns, and milestones.`;
+    default:
+      return '';
+  }
+}
+
 /**
  * Builds the complete Nexora AI System Instruction combining core dual capabilities,
- * active mode persona, mathematical LaTeX rules, and deep attached task/canvas context.
+ * multi-grade pedagogical persona, subject-domain calibration, LaTeX rules, and attached context.
  */
 export function buildSystemPrompt(context?: ChatContextPayload): string {
   const modeKey = normalizeTutorMode(context?.tutorMode);
   const persona = TUTOR_PERSONA_PROMPTS[modeKey] || TUTOR_PERSONA_PROMPTS.socratic;
+  const gradeInstruction = buildGradeTierInstruction(context?.gradeLevel);
+  const subjectInstruction = buildSubjectDomainInstruction(context?.subjectContext);
 
   let prompt = `${persona}
+
+---
+${gradeInstruction}
+${subjectInstruction ? `\n---\n${subjectInstruction}` : ''}
 
 ---
 ### DUAL CAPABILITY & CORE BEHAVIOR:
@@ -96,8 +146,8 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
 
 ---
 ### MATHEMATICAL FORMATTING RULES (CRITICAL):
-1. CRITICAL MATH FORMATTING: NEVER use parentheses or brackets like [f(x)=...], (x), (a>0), or ((a\neq1)) for mathematical variables and formulas.
-2. ALWAYS wrap every formula and variable in standard dollar signs: $f(x) = a^x$, $a > 0$, $a \neq 1$, $x$.
+1. CRITICAL MATH FORMATTING: NEVER use parentheses or brackets like [f(x)=...], (x), (a>0), or ((a\\neq1)) for mathematical variables and formulas.
+2. ALWAYS wrap every formula and variable in standard dollar signs: $f(x) = a^x$, $a > 0$, $a \\neq 1$, $x$.
 3. For standalone display equations, ALWAYS use $$ on dedicated separate lines with empty line padding. NEVER concatenate text and $$ on the same line:
    \`\`\`
    $$

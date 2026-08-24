@@ -84,8 +84,18 @@ export const CanvasContextSnapshotSchema = z.object({
   edges: z.array(CanvasEdgeSnapshotSchema).optional(),
 });
 
+export const GradeLevelSchema = z.enum(['PRIMARY', 'JUNIOR_HIGH', 'SENIOR_HIGH']);
+export const SubjectCategorySchema = z.enum([
+  'LANGUAGE_LITERATURE',
+  'SOCIAL_HUMANITIES',
+  'STEM_ANALYTICAL',
+  'GENERAL_PROJECT',
+]);
+
 export const ChatContextPayloadSchema = z.object({
   tutorMode: AcademicTutorModeSchema.default('socratic'),
+  gradeLevel: GradeLevelSchema.optional(),
+  subjectContext: SubjectCategorySchema.optional(),
   taskContext: TaskContextSnapshotSchema.optional(),
   canvasContext: CanvasContextSnapshotSchema.optional(),
   customInstructions: z.string().max(2000).optional(),

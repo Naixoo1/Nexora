@@ -103,8 +103,12 @@ export interface CanvasContextSnapshot {
   edges?: CanvasEdgeSnapshot[];           // Logic connections & hierarchy
 }
 
+import type { GradeLevel, SubjectCategory } from './planner';
+
 export interface ChatContextPayload {
   tutorMode: AcademicTutorMode;
+  gradeLevel?: GradeLevel;
+  subjectContext?: SubjectCategory;
   taskContext?: TaskContextSnapshot;
   canvasContext?: CanvasContextSnapshot;
   customInstructions?: string;

@@ -14,9 +14,11 @@ import {
   Cpu,
   Sparkles,
   Zap,
+  GraduationCap,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
 import { checkWebGPUSupport } from '@/services/web-llm-service';
+import type { GradeLevel } from '@/types/planner';
 import { cn } from '@/lib/utils';
 
 export const ChatSettingsModal: React.FC = () => {
@@ -27,8 +29,11 @@ export const ChatSettingsModal: React.FC = () => {
     setCustomApiKey,
     useWebLLM,
     setUseWebLLM,
+    gradeLevel,
+    setGradeLevel,
   } = useChatStore();
   const [apiKeyInput, setApiKeyInput] = useState<string>('');
+  const [selectedGrade, setSelectedGrade] = useState<GradeLevel>(gradeLevel || 'SENIOR_HIGH');
   const [showKey, setShowKey] = useState<boolean>(false);
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [mounted, setMounted] = useState<boolean>(false);
@@ -38,6 +43,10 @@ export const ChatSettingsModal: React.FC = () => {
     setMounted(true);
     checkWebGPUSupport().then(setIsWebGPUSupported).catch(() => setIsWebGPUSupported(false));
   }, []);
+
+  useEffect(() => {
+    setSelectedGrade(gradeLevel || 'SENIOR_HIGH');
+  }, [gradeLevel, isSettingsOpen]);
 
   useEffect(() => {
     if (customApiKey) {
@@ -64,6 +73,7 @@ export const ChatSettingsModal: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    setGradeLevel(selectedGrade);
     const trimmed = apiKeyInput.trim();
     if (trimmed) {
       setCustomApiKey(trimmed);
@@ -74,7 +84,11 @@ export const ChatSettingsModal: React.FC = () => {
       }, 500);
     } else {
       setCustomApiKey(null);
-      setSettingsOpen(false);
+      setIsSaved(true);
+      setTimeout(() => {
+        setIsSaved(false);
+        setSettingsOpen(false);
+      }, 500);
     }
   };
 
@@ -105,10 +119,10 @@ export const ChatSettingsModal: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white tracking-tight">
-                  AI Engine & BYOK Settings
+                  AI Engine & Calibration Settings
                 </h3>
                 <p className="text-[11px] text-slate-400 font-sans">
-                  Configure Cloud Providers or On-Device WebGPU AI
+                  Configure Grade Level, Cloud BYOK or Local WebGPU AI
                 </p>
               </div>
             </div>
@@ -122,8 +136,43 @@ export const ChatSettingsModal: React.FC = () => {
             </button>
           </div>
 
+          {/* Academic Grade Level Calibration */}
+          <div className="my-4 rounded-2xl border border-white/10 bg-[#131926] p-3.5 space-y-2">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-cyan-400" />
+              <div>
+                <span className="text-xs font-semibold text-white block">Academic Tier Calibration</span>
+                <span className="text-[10px] text-slate-400 font-sans">
+                  Adjust explanation tone, depth & complexity
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 pt-1">
+              {[
+                { id: 'PRIMARY' as const, label: 'SD / Primary', sub: 'Fun & Analogies' },
+                { id: 'JUNIOR_HIGH' as const, label: 'SMP / Junior', sub: 'Guided Steps' },
+                { id: 'SENIOR_HIGH' as const, label: 'SMA / College', sub: 'Rigorous HOTS' },
+              ].map((tier) => (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => setSelectedGrade(tier.id)}
+                  className={cn(
+                    'flex flex-col items-center justify-center rounded-xl p-2 text-center transition-all border',
+                    selectedGrade === tier.id
+                      ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200 shadow-sm ring-1 ring-cyan-500/30'
+                      : 'border-white/5 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                  )}
+                >
+                  <span className="text-[11px] font-bold">{tier.label}</span>
+                  <span className="text-[9px] text-slate-400">{tier.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Current Active Status Indicator */}
-          <div className="my-4 rounded-2xl border border-white/5 bg-[#131926] p-3.5 flex items-center justify-between">
+          <div className="mb-4 rounded-2xl border border-white/5 bg-[#131926] p-3.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Cpu className="h-4 w-4 text-indigo-400" />
               <div>
