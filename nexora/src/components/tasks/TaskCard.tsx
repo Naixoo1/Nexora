@@ -19,7 +19,8 @@ import {
   Network,
 } from 'lucide-react';
 import type { Task, TaskWithChildren, TaskStatus, TaskPriority } from '@/types/task';
-import { cn, formatDate, isOverdue } from '@/lib/utils';
+import { formatRelativeDeadline } from '@/types/planner';
+import { cn, isOverdue } from '@/lib/utils';
 import { MAX_ALLOWED_DEPTH } from '@/stores/useTaskStore';
 
 export interface TaskCardProps {
@@ -263,16 +264,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   'inline-flex items-center gap-1 font-mono text-[11px] rounded-md px-2 py-0.5 border',
                   overdue
                     ? 'border-red-500/40 bg-red-500/10 text-red-400 font-medium'
-                    : 'border-white/5 bg-white/5 text-slate-300'
+                    : 'border-cyan-500/20 bg-cyan-950/30 text-cyan-300'
                 )}
               >
                 {overdue ? (
-                  <AlertCircle className="h-3 w-3 text-red-400" />
+                  <AlertCircle className="h-3 w-3 text-red-400 shrink-0" />
                 ) : (
-                  <Calendar className="h-3 w-3 text-slate-400" />
+                  <Calendar className="h-3 w-3 text-cyan-400 shrink-0" />
                 )}
-                {overdue ? 'Overdue: ' : 'Due: '}
-                {formatDate(task.dueDate)}
+                <span>{formatRelativeDeadline(task.dueDate)}</span>
               </span>
             )}
 

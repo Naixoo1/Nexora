@@ -30,14 +30,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { prompt, category, dueDate, maxTasks = 10 } = validatedData.data;
+    const { prompt, category, dueDate, gradeLevel, maxTasks = 10 } = validatedData.data;
+    const customApiKey = req.headers.get('x-gemini-api-key');
 
     // Call live Gemini AI to produce structured study plan nodes
     const planItems = await generateStudyPlanWithGemini(
       prompt,
       category,
       dueDate,
-      maxTasks
+      maxTasks,
+      customApiKey,
+      gradeLevel
     );
 
     // Generate a unique UUID for this AI planner session

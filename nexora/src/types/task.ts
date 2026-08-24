@@ -126,11 +126,15 @@ export interface PaginatedResponse<T> {
   totalPages: number;
 }
 
+import type { GradeLevel } from './planner';
+export * from './planner';
+
 // Planner types
 export interface PlannerGeneratePayload {
   prompt: string;
   dueDate?: string;
   category?: string;
+  gradeLevel?: GradeLevel;
   maxTasks?: number;
 }
 

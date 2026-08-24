@@ -81,8 +81,9 @@ export const TaskListQuerySchema = z.object({
 
 export const PlannerGenerateSchema = z.object({
   prompt: z.string().min(1).max(2000),
-  dueDate: z.string().datetime({ offset: true }).optional(),
+  dueDate: z.string().optional(),
   category: z.string().max(50).optional(),
+  gradeLevel: z.enum(['PRIMARY', 'JUNIOR_HIGH', 'SENIOR_HIGH']).default('SENIOR_HIGH').optional(),
   maxTasks: z.number().int().min(1).max(50).default(10),
 });
 

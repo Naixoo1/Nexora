@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Sparkles,
   X,
@@ -13,31 +11,52 @@ import {
   Code,
   AlertCircle,
   LogIn,
+  Clock,
+  BookOpen,
+  School,
+  Building,
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
 import { authClient } from '@/lib/auth-client';
-import type { PlannerGeneratePayload } from '@/types/task';
+import type { PlannerGeneratePayload, GradeLevel } from '@/types/task';
+import { classifyStudyContext } from '@/services/study-planner-classifier';
 import { cn } from '@/lib/utils';
 
 const PRESET_PROMPTS = [
   {
+    title: 'Drama Basa Sunda',
+    category: 'Bahasa & Sastra',
+    prompt: 'Susun rencana latihan naskah Drama Basa Sunda (Paguneman) tema kapahlawanan: draf naskah, undak usuk basa, olah vokal, dan gladi pementasan.',
+    gradeLevel: 'SENIOR_HIGH' as GradeLevel,
+    icon: BookOpen,
+  },
+  {
     title: 'UTBK Fisika Modern',
     category: 'Ujian Masuk PTN',
     prompt: 'Rencanakan jadwal belajar komprehensif untuk Fisika Modern UTBK: Dualisme Gelombang-Partikel, Efek Fotolistrik, dan Teori Relativitas Khusus.',
+    gradeLevel: 'SENIOR_HIGH' as GradeLevel,
     icon: Calculator,
   },
   {
-    title: 'Skripsi Metodologi',
-    category: 'Tesis & Skripsi',
-    prompt: 'Susun langkah pengerjaan Skripsi Bab 3 Metodologi Penelitian: Desain instrumen kualitatif, validasi triangulasi data, dan analisis tematik.',
+    title: 'Linimasa Sejarah Kemerdekaan',
+    category: 'Sejarah & Sosial',
+    prompt: 'Buat rencana belajar Sejarah Indonesia: Linimasa Peristiwa Rengasdengklok, Proklamasi 17 Agustus 1945, dan pembentukan kelengkapan negara.',
+    gradeLevel: 'JUNIOR_HIGH' as GradeLevel,
     icon: GraduationCap,
   },
   {
-    title: 'Struktur Data & Algoritma',
-    category: 'Informatika',
-    prompt: 'Roadmap penguasaan Dynamic Programming, Graph Traversal (DFS/BFS), dan Binary Search Tree untuk persiapan ujian semester.',
+    title: 'English Academic Dialogue',
+    category: 'Language Arts',
+    prompt: 'Create a preparation roadmap for English Parliamentary Debate on AI Ethics: argument drafting, vocabulary drills, rebuttal cues, and mock debate.',
+    gradeLevel: 'SENIOR_HIGH' as GradeLevel,
     icon: Code,
   },
+];
+
+const GRADE_LEVELS: { id: GradeLevel; label: string; subLabel: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'PRIMARY', label: 'SD / Primary', subLabel: 'Kelas 1 - 6 (Tuntunan Ringkas)', icon: School },
+  { id: 'JUNIOR_HIGH', label: 'SMP / Junior High', subLabel: 'Kelas 7 - 9 (Struktur Bertahap)', icon: BookOpen },
+  { id: 'SENIOR_HIGH', label: 'SMA / Senior High', subLabel: 'Kelas 10 - 12 / PTN (Analitis HOTS)', icon: Building },
 ];
 
 export const StudyPlannerModal: React.FC = () => {
@@ -47,10 +66,18 @@ export const StudyPlannerModal: React.FC = () => {
 
   const [prompt, setPrompt] = useState('');
   const [category, setCategory] = useState('Ujian & Studi');
+  const [gradeLevel, setGradeLevel] = useState<GradeLevel>('SENIOR_HIGH');
   const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('23:59');
   const [maxTasks, setMaxTasks] = useState(8);
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+
+  // Live subject taxonomy classification preview
+  const liveClassification = useMemo(() => {
+    if (!prompt.trim()) return null;
+    return classifyStudyContext(prompt, category, gradeLevel);
+  }, [prompt, category, gradeLevel]);
 
   if (!isPlannerModalOpen) return null;
 
@@ -83,10 +110,20 @@ export const StudyPlannerModal: React.FC = () => {
     setLocalError(null);
     clearError();
 
+    let fullIsoDueDate: string | undefined = undefined;
+    if (dueDate) {
+      const timePart = dueTime || '23:59';
+      const parsed = new Date(`${dueDate}T${timePart}:00`);
+      if (!isNaN(parsed.getTime())) {
+        fullIsoDueDate = parsed.toISOString();
+      }
+    }
+
     const payload: PlannerGeneratePayload = {
       prompt: prompt.trim(),
       category: category.trim() || undefined,
-      dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+      gradeLevel,
+      dueDate: fullIsoDueDate,
       maxTasks,
     };
 
@@ -101,6 +138,7 @@ export const StudyPlannerModal: React.FC = () => {
   const handleApplyPreset = (preset: (typeof PRESET_PROMPTS)[0]) => {
     setPrompt(preset.prompt);
     setCategory(preset.category);
+    setGradeLevel(preset.gradeLevel);
     setLocalError(null);
   };
 
@@ -115,7 +153,7 @@ export const StudyPlannerModal: React.FC = () => {
       />
 
       {/* Modal Card */}
-      <div className="relative w-full max-w-xl rounded-2xl border border-white/10 bg-[#131926] p-6 sm:p-7 shadow-2xl transition-all">
+      <div className="relative w-full max-w-xl rounded-2xl border border-white/10 bg-[#131926] p-6 sm:p-7 shadow-2xl transition-all max-h-[90vh] overflow-y-auto">
         {/* Close Button */}
         <button
           type="button"
@@ -133,10 +171,10 @@ export const StudyPlannerModal: React.FC = () => {
           </div>
           <div>
             <h3 className="text-lg sm:text-xl font-bold tracking-tight text-white">
-              AI Study Planner
+              AI Curriculum Study Planner
             </h3>
             <p className="text-xs sm:text-sm text-slate-400">
-              Generate atomic study milestones and hierarchical sub-tasks
+              Generate curriculum-calibrated study plans with forward chronological timelines
             </p>
           </div>
         </div>
@@ -168,12 +206,12 @@ export const StudyPlannerModal: React.FC = () => {
           </div>
         )}
 
-        {/* Preset Chips (purely optional autofill) */}
-        <div className="mt-5">
+        {/* Preset Chips */}
+        <div className="mt-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            Quick Topic Presets
+            Kurikulum & Topik Populer
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {PRESET_PROMPTS.map((preset, idx) => {
               const Icon = preset.icon;
               return (
@@ -181,9 +219,9 @@ export const StudyPlannerModal: React.FC = () => {
                   key={idx}
                   type="button"
                   onClick={() => handleApplyPreset(preset)}
-                  className="flex items-center gap-2 rounded-xl border border-white/5 bg-[#0B0F17]/60 p-2.5 text-left text-xs transition-all hover:border-cyan-500/40 hover:bg-[#1A2234]"
+                  className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-[#0B0F17]/60 p-2 text-left text-xs transition-all hover:border-cyan-500/40 hover:bg-[#1A2234]"
                 >
-                  <Icon className="h-4 w-4 text-cyan-400 shrink-0" />
+                  <Icon className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
                   <span className="font-medium text-slate-200 truncate">{preset.title}</span>
                 </button>
               );
@@ -192,25 +230,67 @@ export const StudyPlannerModal: React.FC = () => {
         </div>
 
         {/* Main Form */}
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          {/* Grade Level Selector */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              Jenjang Pendidikan / Grade Tier <span className="text-cyan-400">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {GRADE_LEVELS.map((g) => {
+                const Icon = g.icon;
+                const isSelected = gradeLevel === g.id;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setGradeLevel(g.id)}
+                    className={cn(
+                      'flex flex-col items-center justify-center gap-1 rounded-xl border p-2.5 text-center transition-all',
+                      isSelected
+                        ? 'border-cyan-400 bg-cyan-500/15 text-white ring-1 ring-cyan-400/30 shadow-md font-semibold'
+                        : 'border-white/5 bg-[#0B0F17] text-slate-400 hover:border-white/20 hover:text-slate-200'
+                    )}
+                  >
+                    <Icon className={cn('h-4 w-4', isSelected ? 'text-cyan-400' : 'text-slate-400')} />
+                    <span className="text-xs">{g.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Prompt Input */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Study Goal / Subject Topic <span className="text-cyan-400">*</span>
+              Tujuan Belajar / Topik Penugasan <span className="text-cyan-400">*</span>
             </label>
             <textarea
               rows={3}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g. Persiapan Ujian Akhir Semester Fisika Kuantum & Struktur Atom..."
+              placeholder="e.g. Latihan naskah drama Bahasa Sunda, Analisis Bab 3 Skripsi, Persiapan UTBK Fisika Modern..."
               className="w-full rounded-xl border border-white/10 bg-[#0B0F17] p-3 text-sm text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/50"
               disabled={isGeneratingPlan}
               required
             />
+
+            {/* Live Taxonomy Detection Preview */}
+            {liveClassification && (
+              <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-cyan-950/20 border border-cyan-500/20 px-2.5 py-1 text-[11px] text-cyan-300">
+                <span className="flex items-center gap-1 font-mono truncate">
+                  <Sparkles className="h-3 w-3 text-cyan-400 shrink-0" />
+                  Mata Pelajaran: <strong>{liveClassification.subject}</strong> ({liveClassification.subjectCategory.replace('_', ' ')})
+                </span>
+                <span className="text-[10px] text-slate-400 shrink-0">
+                  {liveClassification.forbidMathFormulas ? 'Bebas Rumus' : 'STEM LaTeX Aktif'}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Grid: Category & Due Date */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Grid: Category, Target Date & Time */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {/* Category */}
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1">
@@ -221,8 +301,8 @@ export const StudyPlannerModal: React.FC = () => {
                 type="text"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                placeholder="e.g. Ujian, Skripsi, Riset"
-                className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                placeholder="e.g. Ujian, Tugas, Tesis"
+                className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
                 disabled={isGeneratingPlan}
               />
             </div>
@@ -231,13 +311,28 @@ export const StudyPlannerModal: React.FC = () => {
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                Target Due Date
+                Target Tanggal
               </label>
               <input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none [color-scheme:dark]"
+                className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3 py-2 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none [color-scheme:dark]"
+                disabled={isGeneratingPlan}
+              />
+            </div>
+
+            {/* Target Due Time */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5 text-slate-400" />
+                Waktu (HH:mm)
+              </label>
+              <input
+                type="time"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-[#0B0F17] px-3 py-2 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none [color-scheme:dark]"
                 disabled={isGeneratingPlan}
               />
             </div>
@@ -248,14 +343,14 @@ export const StudyPlannerModal: React.FC = () => {
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
               <span className="flex items-center gap-1">
                 <Layers className="h-3.5 w-3.5 text-slate-400" />
-                Task Scope Breakdown
+                Skala Target Milestone
               </span>
-              <span className="font-mono text-cyan-400">{maxTasks} tasks</span>
+              <span className="font-mono text-cyan-400">{maxTasks} milestones</span>
             </div>
             <input
               type="range"
               min={3}
-              max={15}
+              max={12}
               value={maxTasks}
               onChange={(e) => setMaxTasks(Number(e.target.value))}
               className="w-full accent-cyan-400 bg-slate-800 rounded-lg h-2"
@@ -263,8 +358,8 @@ export const StudyPlannerModal: React.FC = () => {
             />
           </div>
 
-          {/* Submit Button with Inline Auth Check */}
-          <div className="pt-2">
+          {/* Submit Button */}
+          <div className="pt-1">
             {!isAuthenticated ? (
               <button
                 type="button"
@@ -292,12 +387,12 @@ export const StudyPlannerModal: React.FC = () => {
                 {isGeneratingPlan ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin text-white" />
-                    <span>Synthesizing Atomic Study Plan...</span>
+                    <span>Synthesizing Curriculum Study Plan...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    <span>Generate Study Plan</span>
+                    <span>Generate Curriculum Study Plan</span>
                   </>
                 )}
               </button>
@@ -308,3 +403,4 @@ export const StudyPlannerModal: React.FC = () => {
     </div>
   );
 };
+
