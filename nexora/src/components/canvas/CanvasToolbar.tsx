@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState } from 'react';
 import {
   Plus,
@@ -15,6 +13,10 @@ import {
   Binary,
   Sparkles,
   Loader2,
+  HelpCircle,
+  History,
+  Scale,
+  MessageSquareQuote,
 } from 'lucide-react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import type { CanvasNodeType } from '@/types/canvas';
@@ -83,17 +85,17 @@ export const CanvasToolbar: React.FC = () => {
                 className="fixed inset-0 z-40"
                 onClick={() => setShowAddMenu(false)}
               />
-              <div className="absolute bottom-12 left-0 z-50 w-56 rounded-2xl border border-white/10 bg-[#131926] p-2 shadow-2xl backdrop-blur-xl">
+              <div className="absolute bottom-12 left-0 z-50 w-64 rounded-2xl border border-white/10 bg-[#131926] p-2 shadow-2xl backdrop-blur-xl max-h-96 overflow-y-auto">
                 <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Select STEM Node Type
+                  STEM & Analytical
                 </div>
                 <div className="space-y-1 mt-1">
                   <button
                     type="button"
                     onClick={() => handleAddNodeType('reasoning_step')}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs text-left text-slate-200 transition-colors hover:bg-indigo-600/20 hover:text-white"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-left text-slate-200 transition-colors hover:bg-indigo-600/20 hover:text-white"
                   >
-                    <Cpu className="h-4 w-4 text-indigo-400" />
+                    <Cpu className="h-4 w-4 text-indigo-400 shrink-0" />
                     <div>
                       <div className="font-semibold">Reasoning Step</div>
                       <div className="text-[10px] text-slate-400">Deduction & derivation</div>
@@ -103,9 +105,9 @@ export const CanvasToolbar: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleAddNodeType('what_if_branch')}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs text-left text-slate-200 transition-colors hover:bg-cyan-600/20 hover:text-white"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-left text-slate-200 transition-colors hover:bg-cyan-600/20 hover:text-white"
                   >
-                    <GitFork className="h-4 w-4 text-cyan-400" />
+                    <GitFork className="h-4 w-4 text-cyan-400 shrink-0" />
                     <div>
                       <div className="font-semibold">What-If Branch</div>
                       <div className="text-[10px] text-slate-400">Variable simulation</div>
@@ -115,9 +117,9 @@ export const CanvasToolbar: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleAddNodeType('formula_block')}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs text-left text-slate-200 transition-colors hover:bg-sky-600/20 hover:text-white"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-left text-slate-200 transition-colors hover:bg-sky-600/20 hover:text-white"
                   >
-                    <Binary className="h-4 w-4 text-sky-400" />
+                    <Binary className="h-4 w-4 text-sky-400 shrink-0" />
                     <div>
                       <div className="font-semibold">Formula Block</div>
                       <div className="text-[10px] text-slate-400">Interactive KaTeX math</div>
@@ -127,24 +129,65 @@ export const CanvasToolbar: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleAddNodeType('theorem_proof')}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs text-left text-slate-200 transition-colors hover:bg-amber-600/20 hover:text-white"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-left text-slate-200 transition-colors hover:bg-amber-600/20 hover:text-white"
                   >
-                    <Award className="h-4 w-4 text-amber-400" />
+                    <Award className="h-4 w-4 text-amber-400 shrink-0" />
                     <div>
                       <div className="font-semibold">Theorem / Lemma</div>
                       <div className="text-[10px] text-slate-400">Axioms & conditions</div>
                     </div>
                   </button>
+                </div>
+
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-2 border-t border-white/5 pt-1.5">
+                  Humanities, Languages & Recall
+                </div>
+                <div className="space-y-1 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleAddNodeType('active_recall_flashcard')}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-left text-slate-200 transition-colors hover:bg-cyan-600/20 hover:text-white"
+                  >
+                    <HelpCircle className="h-4 w-4 text-cyan-400 shrink-0" />
+                    <div>
+                      <div className="font-semibold">Recall Flashcard</div>
+                      <div className="text-[10px] text-slate-400">Question & hidden answer</div>
+                    </div>
+                  </button>
 
                   <button
                     type="button"
-                    onClick={() => handleAddNodeType('problem_root')}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs text-left text-slate-200 transition-colors hover:bg-indigo-600/20 hover:text-white border-t border-white/5 pt-1.5"
+                    onClick={() => handleAddNodeType('timeline_event')}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-left text-slate-200 transition-colors hover:bg-amber-600/20 hover:text-white"
                   >
-                    <Target className="h-4 w-4 text-cyan-400" />
+                    <History className="h-4 w-4 text-amber-400 shrink-0" />
                     <div>
-                      <div className="font-semibold">Problem Statement</div>
-                      <div className="text-[10px] text-slate-400">Target problem root</div>
+                      <div className="font-semibold">Timeline Event</div>
+                      <div className="text-[10px] text-slate-400">Date, event & significance</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAddNodeType('concept_comparison')}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-left text-slate-200 transition-colors hover:bg-indigo-600/20 hover:text-white"
+                  >
+                    <Scale className="h-4 w-4 text-indigo-400 shrink-0" />
+                    <div>
+                      <div className="font-semibold">Concept Comparison</div>
+                      <div className="text-[10px] text-slate-400">Entity A vs Entity B matrix</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAddNodeType('dialogue_rehearsal')}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-left text-slate-200 transition-colors hover:bg-emerald-600/20 hover:text-white"
+                  >
+                    <MessageSquareQuote className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <div className="font-semibold">Dialogue Rehearsal</div>
+                      <div className="text-[10px] text-slate-400">Roleplay & pronunciation</div>
                     </div>
                   </button>
                 </div>

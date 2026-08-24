@@ -19,6 +19,10 @@ import { ReasoningStepNode } from './nodes/ReasoningStepNode';
 import { WhatIfBranchNode } from './nodes/WhatIfBranchNode';
 import { TheoremProofNode } from './nodes/TheoremProofNode';
 import { FormulaBlockNode } from './nodes/FormulaBlockNode';
+import { FlashcardNode } from './nodes/FlashcardNode';
+import { TimelineEventNode } from './nodes/TimelineEventNode';
+import { ConceptComparisonNode } from './nodes/ConceptComparisonNode';
+import { DialogueRehearsalNode } from './nodes/DialogueRehearsalNode';
 import { LogicEdge } from './edges/LogicEdge';
 import { CanvasToolbar } from './CanvasToolbar';
 import { VariableSidebar } from './VariableSidebar';
@@ -112,6 +116,10 @@ export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
       what_if_branch: WhatIfBranchNode,
       theorem_proof: TheoremProofNode,
       formula_block: FormulaBlockNode,
+      active_recall_flashcard: FlashcardNode,
+      timeline_event: TimelineEventNode,
+      concept_comparison: ConceptComparisonNode,
+      dialogue_rehearsal: DialogueRehearsalNode,
     }),
     []
   );

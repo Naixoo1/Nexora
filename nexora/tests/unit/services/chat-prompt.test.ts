@@ -19,7 +19,7 @@ describe('chat-prompt service (buildSystemPrompt)', () => {
       expect(prompt).toContain('NEVER provide full final answers immediately');
       expect(prompt).toContain('MATHEMATICAL FORMATTING RULES');
       expect(prompt).toContain('Strict Persona & Anti-Thought Leaking');
-      expect(prompt).toContain('MANDATORY STEM CANVAS NODE GENERATION');
+      expect(prompt).toContain('CANVAS NODE GENERATION');
       expect(prompt).toContain('[[node:NODE_ID|NODE_TITLE]]');
     });
 

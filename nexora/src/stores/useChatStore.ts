@@ -184,26 +184,113 @@ export function parseAndApplyNexoraNodes(text: string) {
         parsed = parsed.node;
       }
 
-      if (!parsed.title && !parsed.latexFormula && !parsed.latex) continue;
+      if (
+        !parsed.title &&
+        !parsed.latexFormula &&
+        !parsed.latex &&
+        !parsed.question &&
+        !parsed.eventTitle &&
+        !parsed.characterRole &&
+        !parsed.dialogueLine
+      ) {
+        continue;
+      }
 
       const rawType = (parsed.type || parsed.nodeType || 'reasoning_step').toLowerCase();
-      const nodeType =
-        rawType === 'derivation' || rawType === 'step' || rawType === 'reasoning_step'
-          ? ('reasoning_step' as const)
+      const nodeType: CanvasNodeType =
+        rawType === 'flashcard' ||
+        rawType === 'recall' ||
+        rawType === 'active_recall' ||
+        rawType === 'active_recall_flashcard'
+          ? 'active_recall_flashcard'
+          : rawType === 'timeline' ||
+            rawType === 'timeline_event' ||
+            rawType === 'event' ||
+            rawType === 'milestone'
+          ? 'timeline_event'
+          : rawType === 'comparison' ||
+            rawType === 'compare' ||
+            rawType === 'concept_comparison'
+          ? 'concept_comparison'
+          : rawType === 'dialogue' ||
+            rawType === 'rehearsal' ||
+            rawType === 'dialogue_rehearsal' ||
+            rawType === 'roleplay'
+          ? 'dialogue_rehearsal'
+          : rawType === 'derivation' ||
+            rawType === 'step' ||
+            rawType === 'reasoning_step'
+          ? 'reasoning_step'
           : rawType === 'formula' || rawType === 'formula_block'
-          ? ('formula_block' as const)
+          ? 'formula_block'
           : rawType === 'theorem' || rawType === 'theorem_proof'
-          ? ('theorem_proof' as const)
+          ? 'theorem_proof'
           : rawType === 'what_if' || rawType === 'what_if_branch'
-          ? ('what_if_branch' as const)
+          ? 'what_if_branch'
           : rawType === 'problem_root' || rawType === 'root'
-          ? ('problem_root' as const)
-          : ('reasoning_step' as const);
+          ? 'problem_root'
+          : 'reasoning_step';
 
-      const title = parsed.title || 'Derived Step';
+      const title =
+        parsed.title ||
+        parsed.eventTitle ||
+        parsed.question ||
+        parsed.characterRole ||
+        'Derived Step';
       const latexFormula = parsed.latexFormula || parsed.latex || '';
-      const content = parsed.content || parsed.description || '';
+      const content =
+        parsed.content ||
+        parsed.description ||
+        parsed.answer ||
+        parsed.causeOrSignificance ||
+        '';
       const validationStatus = parsed.validationStatus || parsed.status || 'valid';
+
+      // Build structured customData for multidisciplinary nodes
+      let customData: Record<string, unknown> = parsed.customData || {};
+      if (nodeType === 'active_recall_flashcard') {
+        customData = {
+          type: 'active_recall_flashcard',
+          payload: {
+            question: parsed.question || title,
+            answer: parsed.answer || content,
+            topicTag: parsed.topicTag,
+            confidenceScore: parsed.confidenceScore ?? 0,
+          },
+        };
+      } else if (nodeType === 'timeline_event') {
+        customData = {
+          type: 'timeline_event',
+          payload: {
+            dateOrPeriod: parsed.dateOrPeriod || parsed.date || parsed.period || 'Historical Date',
+            eventTitle: parsed.eventTitle || title,
+            causeOrSignificance: parsed.causeOrSignificance || content,
+            keyFigures: parsed.keyFigures || [],
+            eraTag: parsed.eraTag,
+          },
+        };
+      } else if (nodeType === 'concept_comparison') {
+        customData = {
+          type: 'concept_comparison',
+          payload: {
+            entityA: parsed.entityA || { name: 'Entity A', traits: [] },
+            entityB: parsed.entityB || { name: 'Entity B', traits: [] },
+            criteriaMatrix: parsed.criteriaMatrix || [],
+            keyTakeaway: parsed.keyTakeaway || content,
+          },
+        };
+      } else if (nodeType === 'dialogue_rehearsal') {
+        customData = {
+          type: 'dialogue_rehearsal',
+          payload: {
+            characterRole: parsed.characterRole || parsed.role || title,
+            dialogueLine: parsed.dialogueLine || parsed.dialogue || title,
+            phoneticOrPronunciationCue: parsed.phoneticOrPronunciationCue || parsed.pronunciation,
+            toneOrContextCue: parsed.toneOrContextCue || parsed.tone,
+            translationOrMeaning: parsed.translationOrMeaning || parsed.meaning || content,
+          },
+        };
+      }
 
       const canvasStore = useCanvasStore.getState();
 
@@ -244,6 +331,7 @@ export function parseAndApplyNexoraNodes(text: string) {
             latexFormula,
             content,
             validationStatus,
+            customData,
           });
 
           // Auto-connect from parent node

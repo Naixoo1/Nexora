@@ -6,7 +6,11 @@ export type CanvasNodeType =
   | 'reasoning_step'
   | 'what_if_branch'
   | 'theorem_proof'
-  | 'formula_block';
+  | 'formula_block'
+  | 'active_recall_flashcard'
+  | 'timeline_event'
+  | 'concept_comparison'
+  | 'dialogue_rehearsal';
 
 export type CanvasEdgeType =
   | 'implication'    // Logical deduction step (=>)
@@ -96,6 +100,52 @@ export interface FormulaBlockData {
   activeVariables: CanvasVariable[];
 }
 
+export interface ActiveRecallFlashcardData {
+  question: string;
+  answer: string;
+  topicTag?: string;
+  confidenceScore?: number; // 1 (Again), 2 (Hard), 3 (Good), 4 (Easy)
+  isFlipped?: boolean;
+  lastReviewedAt?: string;
+}
+
+export interface TimelineEventData {
+  dateOrPeriod: string;
+  eventTitle: string;
+  causeOrSignificance: string;
+  keyFigures?: string[];
+  eraTag?: string;
+  impactScore?: number;
+}
+
+export interface ConceptComparisonData {
+  entityA: {
+    name: string;
+    traits: string[];
+    summary?: string;
+  };
+  entityB: {
+    name: string;
+    traits: string[];
+    summary?: string;
+  };
+  criteriaMatrix?: {
+    criterion: string;
+    entityAValue: string;
+    entityBValue: string;
+  }[];
+  keyTakeaway?: string;
+}
+
+export interface DialogueRehearsalData {
+  characterRole: string;
+  dialogueLine: string;
+  phoneticOrPronunciationCue?: string;
+  toneOrContextCue?: string;
+  translationOrMeaning?: string;
+  rehearsalCompleted?: boolean;
+}
+
 // ── Union of All Node Data Payloads ───────────────────────
 export interface CanvasNodeData {
   label?: string;
@@ -112,6 +162,10 @@ export interface CanvasNodeData {
     | { type: 'what_if_branch'; payload: WhatIfBranchData }
     | { type: 'theorem_proof'; payload: TheoremProofData }
     | { type: 'formula_block'; payload: FormulaBlockData }
+    | { type: 'active_recall_flashcard'; payload: ActiveRecallFlashcardData }
+    | { type: 'timeline_event'; payload: TimelineEventData }
+    | { type: 'concept_comparison'; payload: ConceptComparisonData }
+    | { type: 'dialogue_rehearsal'; payload: DialogueRehearsalData }
     | Record<string, unknown>;
   [key: string]: unknown;
 }

@@ -6,6 +6,10 @@ export const CanvasNodeTypeSchema = z.enum([
   'what_if_branch',
   'theorem_proof',
   'formula_block',
+  'active_recall_flashcard',
+  'timeline_event',
+  'concept_comparison',
+  'dialogue_rehearsal',
 ]);
 
 export const CanvasEdgeTypeSchema = z.enum([

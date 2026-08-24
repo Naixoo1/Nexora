@@ -249,6 +249,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       what_if_branch: 'What-If Simulation Scenario',
       theorem_proof: 'Theorem & Axiom Applicability',
       formula_block: 'Interactive Formula Block',
+      active_recall_flashcard: 'Active Recall Flashcard',
+      timeline_event: 'Chronological Timeline Event',
+      concept_comparison: 'Concept Comparison Matrix',
+      dialogue_rehearsal: 'Dialogue & Roleplay Rehearsal',
     };
 
     const nodePos = position || {

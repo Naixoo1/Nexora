@@ -113,8 +113,10 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
    - When referencing a task subtask, format as: \`[[task:TASK_ID|TASK_TITLE]]\`
 
 ---
-### MANDATORY STEM CANVAS NODE GENERATION (nexora-node):
-When explaining a mathematical derivation, key formula, or concept step (especially when an active canvas is loaded), you MUST ALWAYS conclude your response with a structured node action block wrapped strictly inside code fences:
+### MANDATORY STEM & MULTI-DISCIPLINARY CANVAS NODE GENERATION (nexora-node):
+When explaining a derivation, vocabulary term, historical event, concept comparison, or language dialogue (especially when an active canvas is loaded), you MUST ALWAYS conclude your response with a structured node action block wrapped strictly inside code fences:
+
+1. **For STEM Derivations & Calculations:**
 \`\`\`nexora-node
 {
   "title": "Beda Barisan (b)",
@@ -124,7 +126,69 @@ When explaining a mathematical derivation, key formula, or concept step (especia
   "validationStatus": "valid"
 }
 \`\`\`
-Supported types: "reasoning_step" (default), "formula_block", "theorem_proof", "what_if_branch", "problem_root".
+
+2. **For Active Recall Flashcards (Vocab, Biology, Definition):**
+\`\`\`nexora-node
+{
+  "title": "Mitokondria",
+  "type": "active_recall_flashcard",
+  "question": "Apa fungsi utama organel mitokondria dalam sel eukariotik?",
+  "answer": "Pusat respirasi seluler dan produksi energi ATP melalui fosforilasi oksidatif.",
+  "topicTag": "Biologi Sel"
+}
+\`\`\`
+
+3. **For Historical & Narrative Timelines:**
+\`\`\`nexora-node
+{
+  "title": "Proklamasi Kemerdekaan",
+  "type": "timeline_event",
+  "dateOrPeriod": "17 Agustus 1945",
+  "eventTitle": "Pembacaan Teks Proklamasi di Pegangsaan Timur",
+  "causeOrSignificance": "Menandai lahirnya Negara Kesatuan Republik Indonesia secara de facto dan de jure.",
+  "keyFigures": ["Ir. Soekarno", "Drs. Mohammad Hatta"],
+  "eraTag": "Revolusi Nasional"
+}
+\`\`\`
+
+4. **For Concept Comparisons (A vs B):**
+\`\`\`nexora-node
+{
+  "title": "Mitosis vs Meiosis",
+  "type": "concept_comparison",
+  "entityA": {
+    "name": "Mitosis",
+    "traits": ["Menghasilkan 2 sel anak identik diploid (2n)", "Berperan dalam pertumbuhan dan perbaikan jaringan"],
+    "summary": "Pembelahan sel somatik."
+  },
+  "entityB": {
+    "name": "Meiosis",
+    "traits": ["Menghasilkan 4 sel gamet rekombinan haploid (n)", "Berperan dalam reproduksi seksual"],
+    "summary": "Pembelahan reduksi sel gamet."
+  },
+  "criteriaMatrix": [
+    { "criterion": "Jumlah Sel Anak", "entityAValue": "2 sel", "entityBValue": "4 sel" },
+    { "criterion": "Ploidi Anak", "entityAValue": "Diploid (2n)", "entityBValue": "Haploid (n)" }
+  ],
+  "keyTakeaway": "Mitosis menjaga identitas genetik somatik; Meiosis menciptakan variasi genetik gamet."
+}
+\`\`\`
+
+5. **For Language & Dialogue Rehearsal:**
+\`\`\`nexora-node
+{
+  "title": "Paguneman Sopan Santun",
+  "type": "dialogue_rehearsal",
+  "characterRole": "Murid ka Guru",
+  "dialogueLine": "Punten Bapa, dupi perkawis tugas dinten ieu parantos tiasa dikempelkeun?",
+  "phoneticOrPronunciationCue": "Undak Usuk Basa: Ragam Basa Lemes ka Sepuh",
+  "toneOrContextCue": "Rengkuh, sopan, sora halon",
+  "translationOrMeaning": "Permisi Pak, apakah tugas untuk hari ini sudah boleh dikumpulkan?"
+}
+\`\`\`
+
+Supported types: "reasoning_step", "active_recall_flashcard", "timeline_event", "concept_comparison", "dialogue_rehearsal", "formula_block", "theorem_proof", "what_if_branch", "problem_root".
+Choose the node type best suited for the subject domain.
 `;
 
   // Inject Active STEM Canvas Context & DAG Tree
