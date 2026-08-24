@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { useCanvasStore } from './useCanvasStore';
 import { useTaskStore } from './useTaskStore';
+import { useLanguageStore } from './useLanguageStore';
 import type {
   AcademicTutorMode,
   ChatMessage,
@@ -931,6 +932,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     const activeSessionId = get().currentSession?.id || `guest-${Date.now()}`;
 
+    const currentLocale = useLanguageStore.getState().locale || 'id';
+
     // Temporary User Message
     const tempUserMessage: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -942,6 +945,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       contextSnapshot: {
         tutorMode: activeMode,
         gradeLevel: get().gradeLevel,
+        locale: currentLocale,
         taskContext: taskCtx,
         canvasContext: canvasCtx,
         customInstructions: customInst,
@@ -1065,6 +1069,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         context: {
           tutorMode: activeMode,
           gradeLevel: get().gradeLevel,
+          locale: currentLocale,
           taskContext: taskCtx,
           canvasContext: canvasCtx,
           customInstructions: customInst,
@@ -1078,6 +1083,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-grade-level': get().gradeLevel,
+        'x-user-locale': currentLocale,
         ...(customKey && customKey.trim() ? { 'x-gemini-api-key': customKey.trim() } : {}),
       };
 

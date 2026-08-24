@@ -10,6 +10,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { NexoraLogo } from '../brand/NexoraLogo';
+import { LanguageSelector } from './LanguageSelector';
 import { authClient } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
 
@@ -155,6 +156,11 @@ export const GlobalNavbar: React.FC = () => {
               <div className="h-5 w-px bg-white/10 hidden sm:block" />
             </>
           )}
+
+          {/* Global Language Selector */}
+          <LanguageSelector />
+
+          <div className="h-5 w-px bg-white/10" />
 
           {/* Direct Auth Controls with Pending Skeleton Guard */}
           {isPending ? (

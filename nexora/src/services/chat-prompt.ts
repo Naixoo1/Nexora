@@ -107,6 +107,26 @@ function buildSubjectDomainInstruction(subject?: string): string {
   }
 }
 
+function buildLanguageInstruction(locale?: string): string {
+  switch (locale) {
+    case 'en':
+      return `### TARGET RESPONSE LANGUAGE: ENGLISH (UK/US)
+- Language Delivery: Respond entirely in natural, articulate, and grammatically precise English.
+- Math Preservation: Keep all mathematical formulas, variables, identities, and LaTeX notation intact ($inline$ and $$display$$).
+- Tone & Terminology: Use standard English academic and pedagogical terminology.`;
+    case 'su':
+      return `### TARGET RESPONSE LANGUAGE: BASA SUNDA (SUNDANESE)
+- Language Delivery: Respond in smooth, polite Basa Sunda (Loma/Lemes yang komunikatif dan ramah).
+- Math Preservation: Tetap gunakan simbol matematika, variabel, persamaan, dan KaTeX LaTeX standar ($inline$ dan $$display$$).
+- Cultural Scaffolding: Gunakan ungkapan atau partikel Sunda yang wajar (sapertos 'mangga', 'tiasa', 'leres', 'hayu urang pedar') untuk memperjelas konsep secara ramah.`;
+    case 'id':
+    default:
+      return `### TARGET RESPONSE LANGUAGE: BAHASA INDONESIA
+- Language Delivery: Respond naturally and fluently in standard, communicative Bahasa Indonesia.
+- Math Preservation: Keep all mathematical formulas, variables, identities, and LaTeX notation intact ($inline$ and $$display$$).`;
+  }
+}
+
 /**
  * Builds the complete Nexora AI System Instruction combining core dual capabilities,
  * multi-grade pedagogical persona, subject-domain calibration, LaTeX rules, and attached context.
@@ -116,8 +136,12 @@ export function buildSystemPrompt(context?: ChatContextPayload): string {
   const persona = TUTOR_PERSONA_PROMPTS[modeKey] || TUTOR_PERSONA_PROMPTS.socratic;
   const gradeInstruction = buildGradeTierInstruction(context?.gradeLevel);
   const subjectInstruction = buildSubjectDomainInstruction(context?.subjectContext);
+  const languageInstruction = buildLanguageInstruction(context?.locale);
 
   let prompt = `${persona}
+
+---
+${languageInstruction}
 
 ---
 ${gradeInstruction}

@@ -104,11 +104,13 @@ export interface CanvasContextSnapshot {
 }
 
 import type { GradeLevel, SubjectCategory } from './planner';
+import type { AppLocale } from '@/stores/useLanguageStore';
 
 export interface ChatContextPayload {
   tutorMode: AcademicTutorMode;
   gradeLevel?: GradeLevel;
   subjectContext?: SubjectCategory;
+  locale?: AppLocale;
   taskContext?: TaskContextSnapshot;
   canvasContext?: CanvasContextSnapshot;
   customInstructions?: string;

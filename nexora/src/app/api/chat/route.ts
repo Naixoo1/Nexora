@@ -116,9 +116,10 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     const { sessionId, taskId, canvasId, message, mode, context, attachments } = parsed.data;
 
-    // Resolve grade and subject context via payload, headers, or automatic classifier
+    // Resolve grade, subject, and language locale context via payload, headers, or automatic classifier
     const headerGrade = (req.headers.get('x-grade-level') as GradeLevel) || undefined;
     const headerSubject = (req.headers.get('x-subject-context') as SubjectCategory) || undefined;
+    const headerLocale = (req.headers.get('x-user-locale') as 'id' | 'en' | 'su') || undefined;
 
     const classified = classifyStudyContext(
       message,
@@ -131,6 +132,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       tutorMode: mode || context?.tutorMode || 'socratic',
       gradeLevel: context?.gradeLevel || headerGrade || classified.gradeLevel,
       subjectContext: context?.subjectContext || headerSubject || classified.subjectCategory,
+      locale: context?.locale || headerLocale || 'id',
     };
 
     // 2. Resolve Multi-Key Pool (supports client-provided BYOK x-gemini-api-key)
