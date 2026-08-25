@@ -91,25 +91,86 @@ export function stripPlainTextMonologue(text: string): string {
 }
 
 /**
- * Strips `<think>...</think>` blocks, reasoning tags, plain-text monologue,
- * and leaked safety tokens from a completed string.
+ * Cleans token hallucinations, multilingual bleed (e.g. Chinese/CJK characters
+ * leaking into Latin words like "deret几何rinya" -> "deret geometrinya"),
+ * and removes rogue foreign script tokens for Latin locales ('id', 'en', 'su').
  */
-export function sanitizeReasoningContent(text: string): string {
+export function cleanScriptBleed(text: string, locale: string = 'id'): string {
   if (!text || typeof text !== 'string') return '';
 
-  // 1. Strip leaked safety tokens first so downstream monologue detection sees clean text
-  let result = stripSafetyMetadata(text);
+  const isLatinLocale = !locale || ['id', 'en', 'su'].some((l) => locale.startsWith(l));
+  if (!isLatinLocale) return text;
 
-  // 2. Strip complete <think>...</think> blocks
+  let cleaned = text;
+
+  // 1. Replace known multilingual subword token leaks
+  // Specifically geometry: deret几何rinya -> deret geometrinya, 几何rinya -> geometrinya, 几何 -> geometri / geometry
+  cleaned = cleaned.replace(/([a-zA-Z]+)几何(?=rinya|ri|tri)/gi, '$1 geomet');
+  cleaned = cleaned.replace(/几何(?=rinya|ri|tri)/gi, 'geomet');
+  cleaned = cleaned.replace(/([a-zA-Z]+)几何/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'geometry' : 'geometri'}`);
+  cleaned = cleaned.replace(/几何/g, locale.startsWith('en') ? 'geometry' : 'geometri');
+
+  // Common STEM terms occasionally emitted by multilingual tokenizers:
+  cleaned = cleaned.replace(/([a-zA-Z]+)算术/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'arithmetic' : 'aritmetika'}`);
+  cleaned = cleaned.replace(/算术/g, locale.startsWith('en') ? 'arithmetic' : 'aritmetika');
+
+  cleaned = cleaned.replace(/([a-zA-Z]+)数学/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'mathematics' : 'matematika'}`);
+  cleaned = cleaned.replace(/数学/g, locale.startsWith('en') ? 'mathematics' : 'matematika');
+
+  cleaned = cleaned.replace(/([a-zA-Z]+)函数/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'function' : 'fungsi'}`);
+  cleaned = cleaned.replace(/函数/g, locale.startsWith('en') ? 'function' : 'fungsi');
+
+  cleaned = cleaned.replace(/([a-zA-Z]+)方程/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'equation' : 'persamaan'}`);
+  cleaned = cleaned.replace(/方程/g, locale.startsWith('en') ? 'equation' : 'persamaan');
+
+  cleaned = cleaned.replace(/([a-zA-Z]+)向量/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'vector' : 'vektor'}`);
+  cleaned = cleaned.replace(/向量/g, locale.startsWith('en') ? 'vector' : 'vektor');
+
+  cleaned = cleaned.replace(/([a-zA-Z]+)矩阵/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'matrix' : 'matriks'}`);
+  cleaned = cleaned.replace(/矩阵/g, locale.startsWith('en') ? 'matrix' : 'matriks');
+
+  cleaned = cleaned.replace(/([a-zA-Z]+)概率/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'probability' : 'peluang'}`);
+  cleaned = cleaned.replace(/概率/g, locale.startsWith('en') ? 'probability' : 'peluang');
+
+  cleaned = cleaned.replace(/([a-zA-Z]+)微积分/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'calculus' : 'kalkulus'}`);
+  cleaned = cleaned.replace(/微积分/g, locale.startsWith('en') ? 'calculus' : 'kalkulus');
+
+  cleaned = cleaned.replace(/([a-zA-Z]+)导数/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'derivative' : 'turunan'}`);
+  cleaned = cleaned.replace(/导数/g, locale.startsWith('en') ? 'derivative' : 'turunan');
+
+  cleaned = cleaned.replace(/([a-zA-Z]+)积分/g, (_m, prefix) => `${prefix} ${locale.startsWith('en') ? 'integral' : 'integral'}`);
+  cleaned = cleaned.replace(/积分/g, locale.startsWith('en') ? 'integral' : 'integral');
+
+  // 2. Remove any remaining rogue standalone CJK characters for Latin locales
+  // CJK Unified Ideographs (\u4e00-\u9fa5), CJK Extension A (\u3400-\u4dbf), Hiragana/Katakana (\u3040-\u30ff), Hangul (\uac00-\ud7af)
+  cleaned = cleaned.replace(/[\u4e00-\u9fa5\u3400-\u4dbf\u3040-\u30ff\uac00-\ud7af]/g, '');
+
+  return cleaned;
+}
+
+/**
+ * Strips `<think>...</think>` blocks, reasoning tags, plain-text monologue,
+ * multilingual script bleeds, and leaked safety tokens from a completed string.
+ */
+export function sanitizeReasoningContent(text: string, locale: string = 'id'): string {
+  if (!text || typeof text !== 'string') return '';
+
+  // 1. Clean multilingual token bleeds (e.g. "deret几何rinya" -> "deret geometrinya")
+  let result = cleanScriptBleed(text, locale);
+
+  // 2. Strip leaked safety tokens first so downstream monologue detection sees clean text
+  result = stripSafetyMetadata(result);
+
+  // 3. Strip complete <think>...</think> blocks
   result = result
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    // 3. Strip unclosed <think> blocks if stream was truncated
+    // 4. Strip unclosed <think> blocks if stream was truncated
     .replace(/<think>[\s\S]*$/gi, '')
-    // 4. Strip standalone closing </think> tags
+    // 5. Strip standalone closing </think> tags
     .replace(/<\/think>/gi, '')
     .trim();
 
-  // 5. Strip plain-text monologue blocks
+  // 6. Strip plain-text monologue blocks
   result = stripPlainTextMonologue(result);
 
   return result.trim();
@@ -117,9 +178,9 @@ export function sanitizeReasoningContent(text: string): string {
 
 /**
  * Creates a stateful TransformStream that strips `<think>...</think>` blocks,
- * leading plain-text monologue, and leaked safety tokens on the fly.
+ * leading plain-text monologue, script bleed, and leaked safety tokens on the fly.
  */
-export function createReasoningFilterTransform(): TransformStream<string, string> {
+export function createReasoningFilterTransform(locale: string = 'id'): TransformStream<string, string> {
   let isThinking = false;
   let isCheckingPreamble = true;
   let buffer = '';
@@ -129,7 +190,8 @@ export function createReasoningFilterTransform(): TransformStream<string, string
 
   return new TransformStream<string, string>({
     transform(chunk, controller) {
-      buffer += chunk;
+      const sanitizedChunk = cleanScriptBleed(chunk, locale);
+      buffer += sanitizedChunk;
 
       // Handle leading plain-text monologue or safety header detection at start of stream
       if (isCheckingPreamble) {
@@ -201,7 +263,7 @@ export function createReasoningFilterTransform(): TransformStream<string, string
     },
     flush(controller) {
       if (buffer) {
-        const clean = sanitizeReasoningContent(buffer);
+        const clean = sanitizeReasoningContent(buffer, locale);
         if (clean) controller.enqueue(clean);
       }
       buffer = '';

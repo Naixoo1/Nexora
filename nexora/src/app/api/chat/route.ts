@@ -608,8 +608,10 @@ export async function POST(req: NextRequest): Promise<Response> {
       },
     });
 
-    // 2. Filter internal thinking tags (<think>...</think>) before transmitting
-    const sanitizedTextStream = rawTextStream.pipeThrough(createReasoningFilterTransform());
+    // 2. Filter internal thinking tags (<think>...</think>) & script bleeds before transmitting
+    const sanitizedTextStream = rawTextStream.pipeThrough(
+      createReasoningFilterTransform(resolvedContext.locale)
+    );
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {

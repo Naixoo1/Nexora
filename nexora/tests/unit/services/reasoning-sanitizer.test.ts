@@ -3,6 +3,7 @@ import {
   sanitizeReasoningContent,
   stripPlainTextMonologue,
   stripSafetyMetadata,
+  cleanScriptBleed,
   createReasoningFilterTransform,
 } from '@/services/reasoning-sanitizer';
 
@@ -193,5 +194,74 @@ $$`);
       expect(result).not.toContain('<think>');
       expect(result).not.toContain('Analyzing problem');
     });
+
+    it('filters multilingual script bleeds like "deret几何rinya" in streaming chunks', async () => {
+      const chunks = [
+        'Mari kita periksa ',
+        'deret几何rinya ',
+        'dan rasio tetapnya.',
+      ];
+
+      const readable = new ReadableStream<string>({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(chunk);
+          }
+          controller.close();
+        },
+      });
+
+      const filteredStream = readable.pipeThrough(createReasoningFilterTransform('id'));
+      const reader = filteredStream.getReader();
+
+      let result = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) result += value;
+      }
+
+      expect(result).toBe('Mari kita periksa deret geometrinya dan rasio tetapnya.');
+      expect(result).not.toContain('几何');
+    });
+  });
+
+  describe('cleanScriptBleed (Multilingual Token Hallucination Sanitizer)', () => {
+    it('sanitizes "deret几何rinya" into "deret geometrinya" in Indonesian locale', () => {
+      const input = 'Mari kita hitung deret几何rinya dengan suku pertama $a=2$.';
+      const output = cleanScriptBleed(input, 'id');
+
+      expect(output).toBe('Mari kita hitung deret geometrinya dengan suku pertama $a=2$.');
+      expect(output).not.toContain('几何');
+    });
+
+    it('sanitizes standalone math Hanzi terms into Indonesian', () => {
+      const input = 'Konsep 几何 dan 算术 sangat mendasar dalam matematika.';
+      const output = cleanScriptBleed(input, 'id');
+
+      expect(output).toBe('Konsep geometri dan aritmetika sangat mendasar dalam matematika.');
+      expect(output).not.toContain('几何');
+      expect(output).not.toContain('算术');
+    });
+
+    it('sanitizes math Hanzi terms into English when locale is "en"', () => {
+      const input = 'The concept of 几何 and 算术 is fundamental.';
+      const output = cleanScriptBleed(input, 'en');
+
+      expect(output).toBe('The concept of geometry and arithmetic is fundamental.');
+      expect(output).not.toContain('几何');
+      expect(output).not.toContain('算术');
+    });
+
+    it('removes rogue standalone CJK characters for Latin locales without affecting math symbols', () => {
+      const input = 'Tentukan nilai $x$ dari 这 persamaan $x^2 - 4 = 0$ 吧.';
+      const output = cleanScriptBleed(input, 'id');
+
+      expect(output).toBe('Tentukan nilai $x$ dari  persamaan $x^2 - 4 = 0$ .');
+      expect(output).not.toContain('这');
+      expect(output).not.toContain('吧');
+      expect(output).toContain('$x^2 - 4 = 0$');
+    });
   });
 });
+

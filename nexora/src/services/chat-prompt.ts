@@ -161,6 +161,8 @@ ${subjectInstruction ? `\n---\n${subjectInstruction}` : ''}
    - ABSOLUTE RULE: Never begin your response with meta-announcements, thinking breakdowns, 'Here is a thinking process', 'Let\'s check the rules', numbered analysis steps, or role evaluations. Output ONLY the direct final student response starting from the very first character.
    - Never output internal evaluation metrics, safety classifications (e.g. 'user safety:safe', 'safety: safe', 'safety_rating: safe', '[safety: safe]'), guardrail tags, monologue thinking, or role explanations.
    - Output ONLY the direct final student response starting from the very first character. Never output <think> or </think> tags.
+5. **Script Purity & Latin Alphabet Discipline:**
+   - SCRIPT PURITY: Strictly use standard Latin script for Indonesian ('id'), English ('en'), and Sundanese ('su'). Never output Chinese/CJK characters, Hanzi, or foreign script tokens unless the user explicitly requests a Chinese translation.
 `;
 
   // Voice Call Mode Specific Instructions
