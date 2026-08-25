@@ -12,8 +12,11 @@ import {
 } from 'lucide-react';
 import { GlobalNavbar } from '@/components/layout/GlobalNavbar';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function Home() {
+  const { t } = useTranslation();
+
   return (
     <div className="min-h-screen bg-[#0B0F17] text-[#F1F5F9] antialiased flex flex-col justify-between">
       {/* Background Ambient Glows */}
@@ -32,20 +35,20 @@ export default function Home() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1 text-xs font-semibold text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
             <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
-            <span>AI Academic Companion for High School & University</span>
+            <span>{t('home.heroBadge')}</span>
           </div>
 
           {/* Headline */}
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-tight">
-            Master complex derivations with{' '}
+            {t('home.heroTitle1')}{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-sky-300 to-teal-300">
-              Interactive AI Logic Trees
+              {t('home.heroTitle2')}
             </span>
           </h1>
 
           {/* Subheading */}
           <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Deconstruct advanced mathematics and physics into verifiable DAG proof trees. Transform derivations into study tasks and brainstorm with multimodal voice AI tutors.
+            {t('home.heroSubtitle')}
           </p>
 
           {/* Action CTAs */}
@@ -55,7 +58,7 @@ export default function Home() {
               className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 px-6 py-3.5 text-sm font-bold text-white shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all hover:opacity-95 active:scale-95"
             >
               <CheckSquare className="h-4 w-4" />
-              <span>Study Planner & Tasks</span>
+              <span>{t('home.ctaTasks')}</span>
               <ArrowRight className="h-4 w-4 ml-1" />
             </Link>
 
@@ -64,7 +67,7 @@ export default function Home() {
               className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#131926] px-6 py-3.5 text-sm font-bold text-white transition-all hover:border-cyan-500/40 hover:bg-cyan-950/20 hover:text-cyan-300 active:scale-95 shadow-md"
             >
               <Network className="h-4 w-4 text-cyan-400" />
-              <span>STEM Logic Canvas</span>
+              <span>{t('home.ctaCanvas')}</span>
             </Link>
           </div>
         </div>
@@ -75,9 +78,9 @@ export default function Home() {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-400 text-white shadow-md">
               <Network className="h-6 w-6" />
             </div>
-            <h3 className="mt-4 text-base font-bold text-white">STEM Logic Trees</h3>
+            <h3 className="mt-4 text-base font-bold text-white">{t('home.feature1Title')}</h3>
             <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-              Step-by-step mathematical expansions with live KaTeX formulas, dynamic parameter sliders, and rule verification.
+              {t('home.feature1Desc')}
             </p>
           </div>
 
@@ -85,9 +88,9 @@ export default function Home() {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
               <Sparkles className="h-6 w-6" />
             </div>
-            <h3 className="mt-4 text-base font-bold text-white">AI Study Planner</h3>
+            <h3 className="mt-4 text-base font-bold text-white">{t('home.feature2Title')}</h3>
             <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-              Synthesize UTBK, semester exam, and thesis roadmaps into hierarchical tasks with estimated completion dates.
+              {t('home.feature2Desc')}
             </p>
           </div>
 
@@ -95,9 +98,9 @@ export default function Home() {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
               <Brain className="h-6 w-6" />
             </div>
-            <h3 className="mt-4 text-base font-bold text-white">Multimodal Tutor</h3>
+            <h3 className="mt-4 text-base font-bold text-white">{t('home.feature3Title')}</h3>
             <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-              Brainstorm with voice dictation, attach textbook photos, and explore Olympiad or Socratic pedagogical reasoning.
+              {t('home.feature3Desc')}
             </p>
           </div>
 
@@ -105,9 +108,9 @@ export default function Home() {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
               <Layers className="h-6 w-6" />
             </div>
-            <h3 className="mt-4 text-base font-bold text-white">Canvas & Task Sync</h3>
+            <h3 className="mt-4 text-base font-bold text-white">{t('home.feature4Title')}</h3>
             <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-              Convert difficult derivation steps or theorem proof nodes into tracked study subtasks with a single click.
+              {t('home.feature4Desc')}
             </p>
           </div>
         </div>
@@ -115,7 +118,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-white/10 bg-[#0B0F17] py-6 text-center text-xs text-slate-500">
-        <p>Nexora &bull; AI-Powered Academic Assistant for High School & University Students</p>
+        <p>{t('home.footer')}</p>
       </footer>
 
       {/* Interactive Orientation Modal */}

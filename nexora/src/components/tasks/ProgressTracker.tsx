@@ -13,10 +13,12 @@ import {
   Award,
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { ProgressStatus } from '@/types/task';
 import { cn } from '@/lib/utils';
 
 export const ProgressTracker: React.FC = () => {
+  const { t, locale } = useTranslation();
   const {
     activeProgressSnapshot,
     toggleProgressTarget,
@@ -36,15 +38,15 @@ export const ProgressTracker: React.FC = () => {
             <BrainCircuit className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">AI Progress Tracker</h3>
-            <p className="text-xs text-slate-400">Live milestone verification</p>
+            <h3 className="text-sm font-semibold text-white">{t('dashboard.trackerTitle')}</h3>
+            <p className="text-xs text-slate-400">{t('dashboard.trackerSubtitle')}</p>
           </div>
         </div>
 
         <div className="mt-5 rounded-xl border border-dashed border-white/10 bg-[#0B0F17]/60 p-5 text-center">
           <Sparkles className="mx-auto h-6 w-6 text-cyan-400 opacity-80" />
           <p className="mt-2 text-xs leading-relaxed text-slate-300">
-            No active tracking session. Start a task or generate a study plan to track live milestones.
+            {t('dashboard.trackerEmpty')}
           </p>
           <button
             type="button"
@@ -52,7 +54,7 @@ export const ProgressTracker: React.FC = () => {
             className="mt-3.5 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md transition-all hover:opacity-95 active:scale-95"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Generate Study Plan</span>
+            <span>{t('dashboard.btnGeneratePlan')}</span>
           </button>
         </div>
       </div>
@@ -76,6 +78,8 @@ export const ProgressTracker: React.FC = () => {
     setIsConfirmingCancel(false);
   };
 
+  const remainingSteps = totalSteps - completedSteps;
+
   return (
     <div className="rounded-2xl border border-white/10 bg-[#131926] p-5 sm:p-6 shadow-xl backdrop-blur-md transition-all">
       {/* Header */}
@@ -85,8 +89,8 @@ export const ProgressTracker: React.FC = () => {
             <BrainCircuit className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-sm sm:text-base font-semibold text-white">AI Progress Tracker</h3>
-            <p className="text-xs text-slate-400">Live milestone verification</p>
+            <h3 className="text-sm sm:text-base font-semibold text-white">{t('dashboard.trackerTitle')}</h3>
+            <p className="text-xs text-slate-400">{t('dashboard.trackerSubtitle')}</p>
           </div>
         </div>
 
@@ -98,25 +102,25 @@ export const ProgressTracker: React.FC = () => {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-500"></span>
               </span>
-              Active
+              {t('dashboard.sessionActive')}
             </span>
           )}
           {status === 'paused' && (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-400 border border-amber-500/30">
               <Pause className="h-3 w-3" />
-              Paused
+              {t('dashboard.sessionPaused')}
             </span>
           )}
           {status === 'completed' && (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400 border border-emerald-500/30">
               <Award className="h-3 w-3" />
-              Done
+              {t('dashboard.sessionDone')}
             </span>
           )}
           {status === 'cancelled' && (
             <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-400 border border-rose-500/30">
               <XCircle className="h-3 w-3" />
-              Cancelled
+              {t('dashboard.sessionCancelled')}
             </span>
           )}
         </div>
@@ -127,7 +131,7 @@ export const ProgressTracker: React.FC = () => {
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium text-slate-300 flex items-center gap-1">
             <Flame className="h-3.5 w-3.5 text-amber-400" />
-            Milestone Completion
+            {t('dashboard.milestoneCompletion')}
           </span>
           <span className="font-mono font-semibold text-cyan-300">{percentage}%</span>
         </div>
@@ -142,9 +146,19 @@ export const ProgressTracker: React.FC = () => {
 
         <div className="flex justify-between text-[11px] font-mono text-slate-400">
           <span>
-            {completedSteps} of {totalSteps} targets reached
+            {locale === 'en'
+              ? `${completedSteps} of ${totalSteps} targets reached`
+              : locale === 'su'
+              ? `${completedSteps} tina ${totalSteps} udagan kahontal`
+              : `${completedSteps} dari ${totalSteps} target tercapai`}
           </span>
-          <span>{totalSteps - completedSteps} remaining</span>
+          <span>
+            {locale === 'en'
+              ? `${remainingSteps} remaining`
+              : locale === 'su'
+              ? `Sésa ${remainingSteps}`
+              : `Sisa ${remainingSteps}`}
+          </span>
         </div>
       </div>
 
@@ -197,26 +211,26 @@ export const ProgressTracker: React.FC = () => {
               )}
             >
               {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
-              {isPaused ? 'Resume Session' : 'Pause Session'}
+              {isPaused ? t('dashboard.resumeSession') : t('dashboard.pauseSession')}
             </button>
 
             {/* Cancel Control */}
             {isConfirmingCancel ? (
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-rose-300">Cancel session?</span>
+                <span className="text-[11px] text-rose-300">{t('dashboard.cancelConfirm')}</span>
                 <button
                   type="button"
                   onClick={handleCancel}
                   className="rounded-lg bg-rose-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-rose-500"
                 >
-                  Yes
+                  {t('dashboard.yes')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsConfirmingCancel(false)}
                   className="rounded-lg bg-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/20"
                 >
-                  No
+                  {t('dashboard.no')}
                 </button>
               </div>
             ) : (
@@ -226,7 +240,7 @@ export const ProgressTracker: React.FC = () => {
                 className="flex items-center gap-1 text-xs text-rose-400 hover:text-rose-300"
               >
                 <XCircle className="h-3.5 w-3.5" />
-                Cancel Session
+                {t('dashboard.cancelSession')}
               </button>
             )}
           </>
@@ -237,7 +251,7 @@ export const ProgressTracker: React.FC = () => {
             className="flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Generate New Study Plan</span>
+            <span>{t('dashboard.generateNewPlan')}</span>
           </button>
         )}
       </div>

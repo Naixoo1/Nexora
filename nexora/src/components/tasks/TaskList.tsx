@@ -14,9 +14,11 @@ import {
 import type { Task, TaskWithChildren, TaskPriority, TaskSource } from '@/types/task';
 import { TaskCard } from './TaskCard';
 import { useTaskStore, type TaskFilters } from '@/stores/useTaskStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import { cn } from '@/lib/utils';
 
 export const TaskList: React.FC = () => {
+  const { t } = useTranslation();
   const {
     tasks,
     taskTree,
@@ -152,7 +154,7 @@ export const TaskList: React.FC = () => {
             type="text"
             value={filters.search}
             onChange={(e) => setFilter('search', e.target.value)}
-            placeholder="Search tasks, categories, or keywords..."
+            placeholder={t('dashboard.searchPlaceholder')}
             className="w-full rounded-xl border border-white/10 bg-[#131926] py-2.5 pl-10 pr-9 text-sm text-white placeholder-slate-500 transition-all focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
           />
           {filters.search && (
@@ -174,7 +176,7 @@ export const TaskList: React.FC = () => {
             className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all hover:opacity-95 active:scale-[0.98]"
           >
             <Sparkles className="h-4 w-4" />
-            <span>AI Study Planner</span>
+            <span>{t('dashboard.btnAiPlanner')}</span>
           </button>
 
           <button
@@ -183,7 +185,7 @@ export const TaskList: React.FC = () => {
             className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-white transition-all hover:bg-indigo-500 active:scale-[0.98]"
           >
             <Plus className="h-4 w-4" />
-            <span>Add Task</span>
+            <span>{t('dashboard.btnNewTask')}</span>
           </button>
         </div>
       </div>
@@ -194,11 +196,11 @@ export const TaskList: React.FC = () => {
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {(
             [
-              { id: 'all', label: 'All', count: counts.all },
-              { id: 'todo', label: 'To Do', count: counts.todo },
-              { id: 'in_progress', label: 'In Progress', count: counts.in_progress },
-              { id: 'completed', label: 'Completed', count: counts.completed },
-              { id: 'cancelled', label: 'Cancelled', count: counts.cancelled },
+              { id: 'all', label: t('dashboard.filters.all'), count: counts.all },
+              { id: 'todo', label: t('dashboard.filters.todo'), count: counts.todo },
+              { id: 'in_progress', label: t('dashboard.filters.inProgress'), count: counts.in_progress },
+              { id: 'completed', label: t('dashboard.filters.completed'), count: counts.completed },
+              { id: 'cancelled', label: t('dashboard.filters.cancelled'), count: counts.cancelled },
             ] as const
           ).map((tab) => (
             <button
@@ -235,11 +237,11 @@ export const TaskList: React.FC = () => {
             onChange={(e) => setFilter('priority', e.target.value as TaskPriority | 'all')}
             className="rounded-lg border border-white/10 bg-[#131926] px-2.5 py-1.5 text-xs text-slate-300 transition-colors focus:border-indigo-500 focus:outline-none"
           >
-            <option value="all">All Priorities</option>
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
+            <option value="all">{t('dashboard.filters.allPriorities')}</option>
+            <option value="urgent">{t('task.urgent')}</option>
+            <option value="high">{t('task.high')}</option>
+            <option value="medium">{t('task.medium')}</option>
+            <option value="low">{t('task.low')}</option>
           </select>
 
           {/* Source Filter */}
@@ -248,10 +250,10 @@ export const TaskList: React.FC = () => {
             onChange={(e) => setFilter('source', e.target.value as TaskSource | 'all')}
             className="rounded-lg border border-white/10 bg-[#131926] px-2.5 py-1.5 text-xs text-slate-300 transition-colors focus:border-indigo-500 focus:outline-none"
           >
-            <option value="all">All Sources</option>
-            <option value="manual">Manual</option>
-            <option value="ai_planner">AI Planner</option>
-            <option value="ai_brainstorm">AI Brainstorm</option>
+            <option value="all">{t('dashboard.filters.allSources')}</option>
+            <option value="manual">{t('dashboard.filters.sourceManual')}</option>
+            <option value="ai_planner">{t('dashboard.filters.sourceAiPlanner')}</option>
+            <option value="ai_brainstorm">{t('dashboard.filters.sourceAiBrainstorm')}</option>
           </select>
 
           {/* Sort By */}
@@ -263,10 +265,10 @@ export const TaskList: React.FC = () => {
               }
               className="bg-transparent px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
             >
-              <option value="sort_order">Default Order</option>
-              <option value="due_date">Due Date</option>
-              <option value="priority">Priority</option>
-              <option value="created_at">Date Created</option>
+              <option value="sort_order">{t('dashboard.filters.defaultOrder')}</option>
+              <option value="due_date">{t('dashboard.filters.dueDate')}</option>
+              <option value="priority">{t('dashboard.filters.priority')}</option>
+              <option value="created_at">{t('dashboard.filters.createdAt')}</option>
             </select>
             <button
               type="button"
@@ -286,7 +288,7 @@ export const TaskList: React.FC = () => {
               type="button"
               onClick={expandAllTasks}
               className="p-1.5 text-slate-400 hover:text-white"
-              title="Expand all"
+              title={t('dashboard.expandAll')}
             >
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
@@ -294,7 +296,7 @@ export const TaskList: React.FC = () => {
               type="button"
               onClick={collapseAllTasks}
               className="p-1.5 text-slate-400 hover:text-white border-l border-white/10"
-              title="Collapse all"
+              title={t('dashboard.collapseAll')}
             >
               <ChevronUp className="h-3.5 w-3.5" />
             </button>
@@ -318,11 +320,11 @@ export const TaskList: React.FC = () => {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20">
             <ListTodo className="h-7 w-7" />
           </div>
-          <h3 className="mt-4 text-base font-semibold text-white">No tasks found</h3>
+          <h3 className="mt-4 text-base font-semibold text-white">{t('dashboard.emptyTitle')}</h3>
           <p className="mt-1 max-w-md text-xs sm:text-sm text-slate-400">
             {filters.search || filters.status !== 'all' || filters.priority !== 'all'
-              ? 'No tasks match your active filters. Try adjusting your query or reset filters.'
-              : 'You have no study tasks yet. Create a task manually or let AI generate a structured study plan for you.'}
+              ? t('dashboard.emptyFilterSubtitle')
+              : t('dashboard.emptySubtitle')}
           </p>
 
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
@@ -332,7 +334,7 @@ export const TaskList: React.FC = () => {
                 onClick={resetFilters}
                 className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white"
               >
-                Reset Filters
+                {t('dashboard.filters.resetFilters')}
               </button>
             ) : (
               <>
@@ -342,7 +344,7 @@ export const TaskList: React.FC = () => {
                   className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:opacity-90"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  Generate AI Study Plan
+                  {t('dashboard.btnGeneratePlan')}
                 </button>
                 <button
                   type="button"
@@ -350,7 +352,7 @@ export const TaskList: React.FC = () => {
                   className="flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-white/20"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Create Task
+                  {t('dashboard.btnCreateTask')}
                 </button>
               </>
             )}

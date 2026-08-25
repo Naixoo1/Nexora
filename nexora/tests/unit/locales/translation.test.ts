@@ -13,7 +13,7 @@ describe('UI Localization Dictionaries & Translation Engine', () => {
   describe('Dictionary Parity & Completeness', () => {
     const requiredKeys = Object.keys(id) as (keyof typeof id)[];
 
-    it('ensures Indonesian (id) has all essential UI keys', () => {
+    it('ensures Indonesian (id) has all essential UI and dashboard keys', () => {
       expect(id['nav.canvas']).toBe('Kanvas Logika');
       expect(id['nav.planner']).toBe('Rencana Belajar');
       expect(id['nav.expo']).toBe('Arena Tantangan');
@@ -25,6 +25,22 @@ describe('UI Localization Dictionaries & Translation Engine', () => {
       expect(id['chat.listenMsg']).toBe('Dengarkan Suara');
       expect(id['chat.callAI']).toBe('Telepon Nexora');
       expect(id['task.todo']).toBe('Akan Dikerjakan');
+
+      // Dashboard
+      expect(id['dashboard.badge']).toBe('PENDAMPING AKADEMIK NEXORA');
+      expect(id['dashboard.title']).toBe('Rencana Belajar & Tugas');
+      expect(id['dashboard.subtitle']).toContain('Kelola target belajar');
+      expect(id['dashboard.stats.totalTasks']).toBe('Total Tugas');
+      expect(id['dashboard.hierarchyTitle']).toBe('Hierarki Tugas Belajar');
+      expect(id['dashboard.btnAiPlanner']).toBe('Perencana Belajar AI');
+      expect(id['dashboard.btnNewTask']).toBe('+ Tugas Baru');
+      expect(id['dashboard.trackerTitle']).toBe('Pelacak Progres AI');
+      expect(id['dashboard.acceleratorTitle']).toContain('Persiapan Ujian');
+      expect(id['dashboard.tipsTitle']).toBe('TIPS BELAJAR');
+
+      // Home
+      expect(id['home.heroTitle1']).toContain('Kuasai penurunan rumus');
+      expect(id['home.ctaTasks']).toBe('Rencana Belajar & Tugas');
     });
 
     it('ensures English (en) has parity with all keys in id', () => {
@@ -38,6 +54,9 @@ describe('UI Localization Dictionaries & Translation Engine', () => {
       expect(en['nav.call']).toBe('AI Call');
       expect(en['chat.callAI']).toBe('Call Nexora');
       expect(en['expo.readQuestion']).toBe('Read Question');
+      expect(en['dashboard.title']).toBe('Study Planner & Tasks');
+      expect(en['dashboard.btnAiPlanner']).toBe('AI Study Planner');
+      expect(en['dashboard.btnNewTask']).toBe('+ New Task');
     });
 
     it('ensures Basa Sunda (su) has parity with all keys in id', () => {
@@ -51,6 +70,9 @@ describe('UI Localization Dictionaries & Translation Engine', () => {
       expect(su['nav.call']).toBe('Telepon AI');
       expect(su['chat.listenMsg']).toBe('Dangukeun Sora');
       expect(su['expo.readQuestion']).toBe('Dangukeun Soal');
+      expect(su['dashboard.title']).toBe('Rancangan Diajar & Pancén');
+      expect(su['dashboard.btnAiPlanner']).toBe('Rancangan Diajar AI');
+      expect(su['dashboard.btnNewTask']).toBe('+ Pancén Anyar');
     });
   });
 
@@ -63,6 +85,10 @@ describe('UI Localization Dictionaries & Translation Engine', () => {
       expect(getTranslation('id', 'nav.signOut')).toBe('Keluar');
       expect(getTranslation('en', 'nav.signOut')).toBe('Sign Out');
       expect(getTranslation('su', 'nav.signOut')).toBe('Kaluar');
+
+      expect(getTranslation('id', 'dashboard.title')).toBe('Rencana Belajar & Tugas');
+      expect(getTranslation('en', 'dashboard.title')).toBe('Study Planner & Tasks');
+      expect(getTranslation('su', 'dashboard.title')).toBe('Rancangan Diajar & Pancén');
     });
 
     it('substitutes parameter tokens properly', () => {
