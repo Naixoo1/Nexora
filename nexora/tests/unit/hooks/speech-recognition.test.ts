@@ -46,17 +46,6 @@ describe('useSpeechRecognition Hook', () => {
     mockInstance = new MockSpeechRecognition();
     (window as unknown as Record<string, unknown>).SpeechRecognition = MockSpeechRecognitionConstructor;
     (window as unknown as Record<string, unknown>).webkitSpeechRecognition = MockSpeechRecognitionConstructor;
-
-    // Mock navigator.mediaDevices.getUserMedia
-    Object.defineProperty(navigator, 'mediaDevices', {
-      value: {
-        getUserMedia: vi.fn().mockResolvedValue({
-          getTracks: () => [{ stop: vi.fn() }],
-        }),
-      },
-      writable: true,
-      configurable: true,
-    });
   });
 
   afterEach(() => {
@@ -65,36 +54,59 @@ describe('useSpeechRecognition Hook', () => {
   });
 
   describe('Microphone Permission & Browser Compatibility', () => {
-    it('requests getUserMedia microphone permission before starting SpeechRecognition', async () => {
+    it('starts recognition smoothly and sets status to listening', async () => {
       const { result } = renderHook(() => useSpeechRecognition());
       expect(result.current.isSupported).toBe(true);
+      expect(result.current.recognitionStatus).toBe('idle');
 
       await act(async () => {
         await result.current.startListening('id-ID');
       });
 
-      expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({ audio: true });
+      expect(mockInstance.start).toHaveBeenCalled();
       expect(result.current.isListening).toBe(true);
+      expect(result.current.recognitionStatus).toBe('listening');
       expect(result.current.isPermissionDenied).toBe(false);
       expect(result.current.error).toBeNull();
     });
 
-    it('handles microphone permission denial gracefully and flags isPermissionDenied', async () => {
-      navigator.mediaDevices.getUserMedia = vi.fn().mockRejectedValue(new Error('Permission denied'));
-
+    it('handles fatal not-allowed error by setting isPermissionDenied and halting restart', async () => {
       const { result } = renderHook(() => useSpeechRecognition());
 
       await act(async () => {
         await result.current.startListening('id-ID');
       });
 
+      act(() => {
+        mockInstance.onerror?.({ error: 'not-allowed' });
+        mockInstance.onend?.();
+      });
+
       expect(result.current.isListening).toBe(false);
       expect(result.current.isPermissionDenied).toBe(true);
-      expect(result.current.error).toContain('Microphone access is required');
+      expect(result.current.recognitionStatus).toBe('error');
+      expect(result.current.error).toContain('Microphone access denied');
+    });
+
+    it('handles audio-capture busy error without infinite restart loop', async () => {
+      const { result } = renderHook(() => useSpeechRecognition());
+
+      await act(async () => {
+        await result.current.startListening('id-ID');
+      });
+
+      act(() => {
+        mockInstance.onerror?.({ error: 'audio-capture' });
+        mockInstance.onend?.();
+      });
+
+      expect(result.current.isListening).toBe(false);
+      expect(result.current.recognitionStatus).toBe('error');
+      expect(result.current.error).toContain('No microphone found or audio input device is busy');
     });
   });
 
-  describe('Streaming Speech & Mobile Auto-Restart', () => {
+  describe('Streaming Speech & Mobile Auto-Restart Throttling', () => {
     it('captures interim and final transcripts smoothly', async () => {
       const { result } = renderHook(() => useSpeechRecognition());
 
@@ -148,7 +160,7 @@ describe('useSpeechRecognition Hook', () => {
       expect(result.current.transcript).toBe('');
     });
 
-    it('stops listening when stopListening is invoked', async () => {
+    it('stops listening cleanly and sets status to stopped when stopListening is invoked', async () => {
       const { result } = renderHook(() => useSpeechRecognition());
 
       await act(async () => {
@@ -161,6 +173,7 @@ describe('useSpeechRecognition Hook', () => {
       });
 
       expect(result.current.isListening).toBe(false);
+      expect(result.current.recognitionStatus).toBe('stopped');
     });
   });
 });

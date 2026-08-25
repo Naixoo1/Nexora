@@ -13,6 +13,8 @@ import {
   X,
   AlertCircle,
   RotateCcw,
+  Send,
+  Radio,
 } from 'lucide-react';
 import { useCallModeStore, type CallStatus } from '@/stores/useCallModeStore';
 import { useLanguageStore } from '@/stores/useLanguageStore';
@@ -49,6 +51,7 @@ export const AICallModal: React.FC = () => {
     interimTranscript,
     isSupported: isSpeechRecSupported,
     isPermissionDenied,
+    recognitionStatus,
     error: speechRecError,
     startListening,
     stopListening,
@@ -90,6 +93,90 @@ export const AICallModal: React.FC = () => {
     transcript ? `${transcript} ${interimTranscript}` : interimTranscript
   ).trim();
 
+  // Query Nexora AI with voice transcript
+  const sendVoiceQuery = useCallback(
+    async (queryText: string) => {
+      if (!queryText.trim() || isQueryingRef.current) return;
+
+      isQueryingRef.current = true;
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      stopListening();
+      setCallStatus('PROCESSING');
+      addMessageToHistory('user', queryText);
+      setUserTranscript(queryText);
+      setAiResponseText('');
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: 'user',
+                content: queryText,
+              },
+            ],
+            tutorMode: activeTutorMode || 'socratic',
+            gradeLevel: gradeLevel || 'SENIOR_HIGH',
+            customApiKey: customApiKey || undefined,
+            locale: locale || 'id',
+          }),
+        });
+
+        if (!response.ok || !response.body) {
+          throw new Error('Failed to query Nexora AI');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullResponse = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fullResponse += decoder.decode(value, { stream: true });
+          setAiResponseText(sanitizeReasoningContent(fullResponse));
+        }
+
+        const cleaned = sanitizeReasoningContent(fullResponse);
+        addMessageToHistory('assistant', cleaned);
+        setCallStatus('SPEAKING');
+
+        // Read response aloud
+        speak(cleaned, locale);
+      } catch (err) {
+        console.error('AI Call error:', err);
+        const fallbackText =
+          locale === 'en'
+            ? 'I could not connect to the reasoning server. Please try speaking again.'
+            : locale === 'su'
+            ? 'Hapunten, aya gangguan dina sambungan AI. Mangga carioskeun deui.'
+            : 'Maaf, terjadi gangguan koneksi ke server AI. Silakan coba bicara kembali.';
+        setAiResponseText(fallbackText);
+        setCallStatus('SPEAKING');
+        speak(fallbackText, locale);
+      } finally {
+        isQueryingRef.current = false;
+      }
+    },
+    [
+      stopListening,
+      setCallStatus,
+      addMessageToHistory,
+      setUserTranscript,
+      setAiResponseText,
+      activeTutorMode,
+      gradeLevel,
+      customApiKey,
+      locale,
+      speak,
+    ]
+  );
+
   // 2. Smart Silence Detection (1.2-second debounce timer)
   useEffect(() => {
     if (callStatus === 'LISTENING' && currentLiveSpeech) {
@@ -111,7 +198,7 @@ export const AICallModal: React.FC = () => {
         }, 1200);
       }
     }
-  }, [currentLiveSpeech, callStatus, setUserTranscript]);
+  }, [currentLiveSpeech, callStatus, setUserTranscript, sendVoiceQuery]);
 
   // Handle call start / stop lifecycle
   useEffect(() => {
@@ -138,73 +225,6 @@ export const AICallModal: React.FC = () => {
     speechRecognitionLang,
   ]);
 
-  // Query Nexora AI with voice transcript
-  const sendVoiceQuery = async (queryText: string) => {
-    if (!queryText.trim() || isQueryingRef.current) return;
-
-    isQueryingRef.current = true;
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    stopListening();
-    setCallStatus('PROCESSING');
-    addMessageToHistory('user', queryText);
-    setUserTranscript(queryText);
-    setAiResponseText('');
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: 'user',
-              content: queryText,
-            },
-          ],
-          tutorMode: activeTutorMode || 'socratic',
-          gradeLevel: gradeLevel || 'SENIOR_HIGH',
-          customApiKey: customApiKey || undefined,
-          locale: locale || 'id',
-        }),
-      });
-
-      if (!response.ok || !response.body) {
-        throw new Error('Failed to query Nexora AI');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullResponse = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fullResponse += decoder.decode(value, { stream: true });
-        setAiResponseText(sanitizeReasoningContent(fullResponse));
-      }
-
-      const cleaned = sanitizeReasoningContent(fullResponse);
-      addMessageToHistory('assistant', cleaned);
-      setCallStatus('SPEAKING');
-
-      // Read response aloud
-      speak(cleaned, locale);
-    } catch (err) {
-      console.error('AI Call error:', err);
-      const fallbackText =
-        locale === 'en'
-          ? 'I could not connect to the reasoning server. Please try speaking again.'
-          : locale === 'su'
-          ? 'Hapunten, aya gangguan dina sambungan AI. Mangga carioskeun deui.'
-          : 'Maaf, terjadi gangguan koneksi ke server AI. Silakan coba bicara kembali.';
-      setAiResponseText(fallbackText);
-      setCallStatus('SPEAKING');
-      speak(fallbackText, locale);
-    } finally {
-      isQueryingRef.current = false;
-    }
-  };
-
   const handleSkipSpeaking = () => {
     stopSpeaking();
     handleAiSpeechEnd();
@@ -228,8 +248,17 @@ export const AICallModal: React.FC = () => {
     endCall();
   };
 
-  const handleRetryPermission = () => {
+  const handleManualStartSpeak = () => {
+    resetTranscript();
+    setUserTranscript('');
     startListening(speechRecognitionLang);
+  };
+
+  const handleManualSubmitNow = () => {
+    const textToSubmit = currentLiveSpeech || userTranscript;
+    if (textToSubmit.trim()) {
+      sendVoiceQuery(textToSubmit.trim());
+    }
   };
 
   if (!mounted || !isCallOpen) return null;
@@ -261,13 +290,48 @@ export const AICallModal: React.FC = () => {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
             </h2>
-            <p className="text-xs text-slate-400 font-sans">
-              {locale === 'en'
-                ? 'Socratic & STEM Interactive Voice Call'
-                : locale === 'su'
-                ? 'Panggero Sora Interaktif Socratic & STEM'
-                : 'Panggilan Suara Interaktif Socratic & STEM'}
-            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-slate-400 font-sans">
+                {locale === 'en'
+                  ? 'Socratic & STEM Interactive Voice Call'
+                  : locale === 'su'
+                  ? 'Panggero Sora Interaktif Socratic & STEM'
+                  : 'Panggilan Suara Interaktif Socratic & STEM'}
+              </p>
+              {/* Live Recognition Status Diagnostic Badge */}
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full px-2 py-0.2 text-[10px] font-mono border',
+                  recognitionStatus === 'listening' &&
+                    'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+                  recognitionStatus === 'initializing' &&
+                    'border-amber-500/30 bg-amber-500/10 text-amber-300',
+                  recognitionStatus === 'error' &&
+                    'border-rose-500/30 bg-rose-500/10 text-rose-400',
+                  recognitionStatus === 'stopped' &&
+                    'border-white/10 bg-white/5 text-slate-400'
+                )}
+              >
+                <Radio className="h-2.5 w-2.5" />
+                <span>
+                  {recognitionStatus === 'listening'
+                    ? locale === 'en'
+                      ? 'Live'
+                      : 'Aktif'
+                    : recognitionStatus === 'initializing'
+                    ? locale === 'en'
+                      ? 'Connecting'
+                      : 'Menyambungkan'
+                    : recognitionStatus === 'error'
+                    ? locale === 'en'
+                      ? 'Manual'
+                      : 'Mode Manual'
+                    : locale === 'en'
+                    ? 'Standby'
+                    : 'Siaga'}
+                </span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -282,7 +346,7 @@ export const AICallModal: React.FC = () => {
       </div>
 
       {/* Microphone Permission Warning Banner */}
-      {(isPermissionDenied || speechRecError) && (
+      {(isPermissionDenied || (speechRecError && recognitionStatus === 'error')) && (
         <div className="z-20 mt-3 w-full max-w-lg rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-200 backdrop-blur-md shadow-lg flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2.5">
             <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
@@ -297,7 +361,7 @@ export const AICallModal: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={handleRetryPermission}
+            onClick={handleManualStartSpeak}
             className="flex items-center gap-1 rounded-xl bg-amber-500 px-3 py-1.5 font-bold text-slate-950 hover:bg-amber-400 shrink-0 transition-colors"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -311,7 +375,7 @@ export const AICallModal: React.FC = () => {
         {/* Animated Sound Wave / Pulse Orb */}
         <div className="relative flex items-center justify-center">
           {/* Ripple rings */}
-          {callStatus === 'LISTENING' && !isMuted && (
+          {callStatus === 'LISTENING' && !isMuted && isListening && (
             <>
               <div className="absolute h-56 w-56 rounded-full border border-cyan-400/30 animate-ping opacity-50" />
               <div className="absolute h-72 w-72 rounded-full border border-cyan-500/20 animate-pulse opacity-40" />
@@ -331,10 +395,13 @@ export const AICallModal: React.FC = () => {
 
           {/* Core Orb */}
           <div
+            onClick={callStatus === 'LISTENING' && !isListening ? handleManualStartSpeak : undefined}
             className={cn(
-              'flex h-40 w-40 items-center justify-center rounded-full shadow-2xl transition-all duration-500',
-              callStatus === 'LISTENING' &&
+              'flex h-40 w-40 items-center justify-center rounded-full shadow-2xl transition-all duration-500 cursor-pointer',
+              callStatus === 'LISTENING' && isListening &&
                 'bg-gradient-to-tr from-cyan-600 via-sky-500 to-indigo-500 shadow-[0_0_50px_rgba(6,182,212,0.5)] scale-105',
+              callStatus === 'LISTENING' && !isListening &&
+                'bg-gradient-to-tr from-indigo-700 via-slate-700 to-cyan-800 shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:scale-105',
               callStatus === 'PROCESSING' &&
                 'bg-gradient-to-tr from-indigo-600 via-purple-500 to-sky-600 shadow-[0_0_50px_rgba(99,102,241,0.5)] scale-100 animate-pulse',
               callStatus === 'SPEAKING' &&
@@ -349,8 +416,10 @@ export const AICallModal: React.FC = () => {
               <Volume2 className="h-14 w-14 text-white animate-bounce" />
             ) : isMuted ? (
               <MicOff className="h-14 w-14 text-red-300" />
-            ) : (
+            ) : isListening ? (
               <Mic className="h-14 w-14 text-white animate-pulse" />
+            ) : (
+              <Mic className="h-14 w-14 text-cyan-300" />
             )}
           </div>
         </div>
@@ -360,8 +429,10 @@ export const AICallModal: React.FC = () => {
           <span
             className={cn(
               'rounded-full px-4 py-1.5 text-xs font-extrabold uppercase tracking-widest border transition-colors',
-              callStatus === 'LISTENING' &&
+              callStatus === 'LISTENING' && isListening &&
                 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.2)]',
+              callStatus === 'LISTENING' && !isListening &&
+                'border-indigo-500/40 bg-indigo-500/15 text-indigo-300',
               callStatus === 'PROCESSING' &&
                 'border-indigo-500/40 bg-indigo-500/15 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.2)]',
               callStatus === 'SPEAKING' &&
@@ -370,11 +441,17 @@ export const AICallModal: React.FC = () => {
             )}
           >
             {callStatus === 'LISTENING'
-              ? locale === 'en'
-                ? 'Listening... Speak Now'
+              ? isListening
+                ? locale === 'en'
+                  ? 'Listening... Speak Now'
+                  : locale === 'su'
+                  ? 'Nuju Ngadangukeun... Mangga Carioskeun'
+                  : 'Mendengarkan... Silakan Bicara'
+                : locale === 'en'
+                ? 'Tap Orb or Button to Speak'
                 : locale === 'su'
-                ? 'Nuju Ngadangukeun... Mangga Carioskeun'
-                : 'Mendengarkan... Silakan Bicara'
+                ? 'Pencet Orb kanggo Nyarios'
+                : 'Tekan Orb untuk Bicara'
               : callStatus === 'PROCESSING'
               ? locale === 'en'
                 ? 'Nexora is reasoning...'
@@ -404,7 +481,11 @@ export const AICallModal: React.FC = () => {
             <p className="text-xs sm:text-sm text-cyan-200 leading-relaxed font-sans">
               <strong className="text-cyan-400 flex items-center gap-1.5 text-[10px] uppercase font-mono mb-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
-                {locale === 'en' ? 'Transcribing Live:' : locale === 'su' ? 'Nuju Dirékam:' : 'Mendengarkan Langsung:'}
+                {locale === 'en'
+                  ? 'Transcribing Live:'
+                  : locale === 'su'
+                  ? 'Nuju Dirékam:'
+                  : 'Mendengarkan Langsung:'}
               </strong>
               &ldquo;{currentLiveSpeech}&rdquo;
             </p>
@@ -423,6 +504,31 @@ export const AICallModal: React.FC = () => {
                 ? 'Carioskeun perkawis rumus, soal matematika, atanapi konsép naon waé...'
                 : 'Ucapkan soal matematika, konsep, atau pertanyaan belajar apa pun...'}
             </p>
+          )}
+        </div>
+
+        {/* Push-to-Talk / Quick Submit Action Button */}
+        <div className="mt-3 flex items-center justify-center gap-2">
+          {callStatus === 'LISTENING' && !isListening && (
+            <button
+              type="button"
+              onClick={handleManualStartSpeak}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:opacity-95 active:scale-95"
+            >
+              <Mic className="h-3.5 w-3.5" />
+              <span>{locale === 'en' ? 'Tap to Speak' : locale === 'su' ? 'Pencet kanggo Nyarios' : 'Tekan untuk Bicara'}</span>
+            </button>
+          )}
+
+          {callStatus === 'LISTENING' && currentLiveSpeech.length > 0 && (
+            <button
+              type="button"
+              onClick={handleManualSubmitNow}
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:bg-emerald-500 active:scale-95 animate-in fade-in"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{locale === 'en' ? 'Send Voice Query' : locale === 'su' ? 'Kintun Pertarosan' : 'Kirim Sekarang'}</span>
+            </button>
           )}
         </div>
       </div>
