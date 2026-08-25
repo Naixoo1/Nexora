@@ -137,12 +137,17 @@ export async function POST(req: NextRequest): Promise<Response> {
       context?.gradeLevel || headerGrade
     );
 
+    const isCallMode = Boolean(
+      context?.isCallMode || req.headers.get('x-call-mode') === 'true'
+    );
+
     const resolvedContext = {
       ...(context || { tutorMode: 'socratic' as const }),
       tutorMode: mode || context?.tutorMode || 'socratic',
       gradeLevel: context?.gradeLevel || headerGrade || classified.gradeLevel,
       subjectContext: context?.subjectContext || headerSubject || classified.subjectCategory,
       locale: context?.locale || headerLocale || 'id',
+      isCallMode,
     };
 
     // 2. Resolve Multi-Key Pool (supports client-provided BYOK x-gemini-api-key)
@@ -198,8 +203,18 @@ export async function POST(req: NextRequest): Promise<Response> {
       }
     }
 
-    // Dynamic Prompt Complexity Classification & Parameter Optimization
-    const complexityConfig = getComplexityConfig(message);
+    // Dynamic Prompt Complexity Classification & Parameter Optimization (Sub-second latency for Voice Call)
+    const baseComplexityConfig = getComplexityConfig(message);
+    const complexityConfig = isCallMode
+      ? {
+          ...baseComplexityConfig,
+          tier: 'fast' as const,
+          maxOutputTokens: 512,
+          thinkingBudget: 0, // 0ms thinking pause for sub-second voice synthesis
+          temperature: 0.4,
+          statusLabel: 'Synthesizing voice response...',
+        }
+      : baseComplexityConfig;
 
     // 4. Redis Semantic & Exact Cache Lookup (for static queries without attachments or BYOK keys)
     const hasAttachments = Boolean(attachments && attachments.length > 0);

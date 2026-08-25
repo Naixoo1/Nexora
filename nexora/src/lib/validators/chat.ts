@@ -97,6 +97,7 @@ export const ChatContextPayloadSchema = z.object({
   gradeLevel: GradeLevelSchema.optional(),
   subjectContext: SubjectCategorySchema.optional(),
   locale: z.enum(['id', 'en', 'su']).optional(),
+  isCallMode: z.boolean().optional(),
   taskContext: TaskContextSnapshotSchema.optional(),
   canvasContext: CanvasContextSnapshotSchema.optional(),
   customInstructions: z.string().max(2000).optional(),

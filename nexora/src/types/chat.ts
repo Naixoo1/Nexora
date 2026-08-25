@@ -111,6 +111,7 @@ export interface ChatContextPayload {
   gradeLevel?: GradeLevel;
   subjectContext?: SubjectCategory;
   locale?: AppLocale;
+  isCallMode?: boolean;
   taskContext?: TaskContextSnapshot;
   canvasContext?: CanvasContextSnapshot;
   customInstructions?: string;

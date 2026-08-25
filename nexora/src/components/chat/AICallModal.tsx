@@ -127,6 +127,7 @@ export const AICallModal: React.FC = () => {
             tutorMode: activeTutorMode || 'socratic',
             gradeLevel: gradeLevel || 'SENIOR_HIGH',
             locale: locale || 'id',
+            isCallMode: true,
           },
         };
 

@@ -1,8 +1,35 @@
 /**
  * Reasoning Sanitizer & Stream Filter.
  * Strips internal chain-of-thought tokens, `<think>...</think>` tags, plain-text monologue preambles,
- * and reasoning deltas to ensure that internal model reasoning is never leaked to the client.
+ * leaked safety tokens/metadata, and reasoning deltas to ensure that internal model reasoning
+ * or evaluation artifacts are never leaked to the client.
  */
+
+/**
+ * Strips leaked internal safety tags, safety evaluation ratings, guardrail metadata,
+ * and classifier tokens from LLM responses.
+ * e.g., "user safety:safe", "safety_rating: safe", "safety: safe", "[safety: safe]",
+ * "Input Safety: Safe", "Safety Assessment: Safe", "Content Safety: safe".
+ */
+export function stripSafetyMetadata(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+
+  let cleaned = text;
+
+  // 1. Bracketed safety tags: [safety: safe], [user safety: safe], [Safety: None]
+  cleaned = cleaned.replace(/\[\s*(?:user\s*)?safety(?:_rating)?\s*:[^\]]+\]/gi, '');
+
+  // 2. Standalone line starts: "user safety:safe", "safety: safe", "Input Safety: Safe", "Safety Assessment: Safe"
+  cleaned = cleaned.replace(/^(?:(?:Input|Content|Prompt|User|Context)\s+)?safety(?:_rating)?\s*:[^\n]*$/gim, '');
+  cleaned = cleaned.replace(/^safety\s*(?:assessment|check)\s*:[^\n]*$/gim, '');
+  cleaned = cleaned.replace(/^content\s*filter\s*:[^\n]*$/gim, '');
+
+  // 3. Inline safety tokens: "user safety:safe", "user safety: safe", "safety: safe"
+  cleaned = cleaned.replace(/\b(?:user\s*)?safety(?:_rating)?\s*:\s*\w+\b/gi, '');
+
+  // Clean up any remaining multiple empty newlines at boundaries
+  return cleaned.replace(/^\s*\n+/, '').trim();
+}
 
 /**
  * Strips leading plain-text chain-of-thought and monologue preambles
@@ -64,60 +91,67 @@ export function stripPlainTextMonologue(text: string): string {
 }
 
 /**
- * Strips `<think>...</think>` blocks, reasoning tags, and plain-text monologue from a completed string.
+ * Strips `<think>...</think>` blocks, reasoning tags, plain-text monologue,
+ * and leaked safety tokens from a completed string.
  */
 export function sanitizeReasoningContent(text: string): string {
   if (!text || typeof text !== 'string') return '';
 
-  let result = text
-    // 1. Strip complete <think>...</think> blocks
+  // 1. Strip leaked safety tokens first so downstream monologue detection sees clean text
+  let result = stripSafetyMetadata(text);
+
+  // 2. Strip complete <think>...</think> blocks
+  result = result
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    // 2. Strip unclosed <think> blocks if stream was truncated
+    // 3. Strip unclosed <think> blocks if stream was truncated
     .replace(/<think>[\s\S]*$/gi, '')
-    // 3. Strip standalone closing </think> tags
+    // 4. Strip standalone closing </think> tags
     .replace(/<\/think>/gi, '')
     .trim();
 
-  // 4. Strip plain-text monologue blocks
+  // 5. Strip plain-text monologue blocks
   result = stripPlainTextMonologue(result);
 
-  return result;
+  return result.trim();
 }
 
 /**
- * Creates a stateful TransformStream that strips `<think>...</think>` blocks
- * and leading plain-text monologue on the fly.
+ * Creates a stateful TransformStream that strips `<think>...</think>` blocks,
+ * leading plain-text monologue, and leaked safety tokens on the fly.
  */
 export function createReasoningFilterTransform(): TransformStream<string, string> {
   let isThinking = false;
   let isCheckingPreamble = true;
   let buffer = '';
 
-  const monologuePrefixCheck =
-    /^(?:#{1,4}\s*)?(?:\*{0,2})(?:Here'?s (?:a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (?:check the rules|analyze|draft)|1\.\s*(?:\*{0,2})Analyze)/i;
+  const monologueOrSafetyCheck =
+    /^(?:#{1,4}\s*)?(?:\*{0,2})(?:Here'?s (?:a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (?:check the rules|analyze|draft)|1\.\s*(?:\*{0,2})Analyze|(?:user\s*)?safety(?:_rating)?\s*:\s*\w+|\[\s*(?:user\s*)?safety(?:_rating)?\s*:\s*[^\]]+\]|(?:Input|Content|Prompt|User|Context)\s*Safety\s*:\s*\w+|Safety\s*Assessment\s*:\s*\w+)/i;
 
   return new TransformStream<string, string>({
     transform(chunk, controller) {
       buffer += chunk;
 
-      // Handle leading plain-text monologue detection at start of stream
+      // Handle leading plain-text monologue or safety header detection at start of stream
       if (isCheckingPreamble) {
-        if (monologuePrefixCheck.test(buffer.trim())) {
-          // If a monologue preamble is detected, wait until double newline / end of monologue
+        if (monologueOrSafetyCheck.test(buffer.trim())) {
+          // If a monologue preamble or safety header is detected, wait until double newline or newline
           const doubleNewlineIdx = buffer.indexOf('\n\n');
-          if (doubleNewlineIdx !== -1) {
-            const potentialMonologue = buffer.slice(0, doubleNewlineIdx);
-            const remaining = buffer.slice(doubleNewlineIdx + 2);
+          const singleNewlineIdx = buffer.indexOf('\n');
+          const splitIdx = doubleNewlineIdx !== -1 ? doubleNewlineIdx : singleNewlineIdx;
 
-            // Check if remaining still looks like monologue
-            if (!monologuePrefixCheck.test(remaining.trim())) {
-              buffer = remaining.trimStart();
+          if (splitIdx !== -1) {
+            const potentialArtifact = buffer.slice(0, splitIdx);
+            const remaining = buffer.slice(splitIdx + (doubleNewlineIdx !== -1 ? 2 : 1));
+
+            // Check if remaining still looks like monologue or safety
+            if (!monologueOrSafetyCheck.test(remaining.trim())) {
+              buffer = remaining.replace(/^\s*\n+/, '');
               isCheckingPreamble = false;
             }
           }
           return;
         } else if (buffer.length > 40 || buffer.includes('\n')) {
-          // No monologue detected at beginning
+          // No preamble artifact detected at beginning
           isCheckingPreamble = false;
         } else {
           // Buffer too short to determine, wait for next chunk

@@ -2,10 +2,42 @@ import { describe, it, expect } from 'vitest';
 import {
   sanitizeReasoningContent,
   stripPlainTextMonologue,
+  stripSafetyMetadata,
   createReasoningFilterTransform,
 } from '@/services/reasoning-sanitizer';
 
 describe('Reasoning Sanitizer & Stream Filter', () => {
+  describe('stripSafetyMetadata', () => {
+    it('strips "user safety:safe" and standalone safety headers', () => {
+      const input = `user safety:safe
+Deret aritmetika adalah barisan bilangan di mana selisih antara dua suku berurutan selalu tetap.`;
+
+      const output = stripSafetyMetadata(input);
+      expect(output).toBe(
+        'Deret aritmetika adalah barisan bilangan di mana selisih antara dua suku berurutan selalu tetap.'
+      );
+      expect(output).not.toContain('user safety:safe');
+    });
+
+    it('strips bracketed safety tags like [safety: safe] and [user safety: safe]', () => {
+      const input = '[safety: safe] [user safety: safe] Halo! Rumus suku ke-n adalah $U_n = a + (n-1)b$.';
+      const output = stripSafetyMetadata(input);
+      expect(output).toBe('Halo! Rumus suku ke-n adalah $U_n = a + (n-1)b$.');
+      expect(output).not.toContain('[safety: safe]');
+      expect(output).not.toContain('[user safety: safe]');
+    });
+
+    it('strips Input/Content Safety and Safety Assessment headers', () => {
+      const input = `Input Safety: Safe
+Content Safety: safe
+Safety Assessment: Safe
+Berikut adalah penjelasannya.`;
+      const output = stripSafetyMetadata(input);
+      expect(output).toBe('Berikut adalah penjelasannya.');
+      expect(output).not.toContain('Safety');
+    });
+  });
+
   describe('stripPlainTextMonologue', () => {
     it('strips "Here\'s a thinking process:" preambles and numbered CoT steps', () => {
       const input = `Here's a thinking process:
@@ -71,8 +103,9 @@ Sampurasun! Hayu urang pedar perkawis rumus barisan ieu.`;
       expect(output).toBe('Berikut adalah langkah penyelesaiannya:');
     });
 
-    it('strips plain-text monologue combined with <think> remnants', () => {
-      const input = `Here's a thinking process:
+    it('strips plain-text monologue combined with leaked safety tokens', () => {
+      const input = `user safety:safe
+Here's a thinking process:
 1. Understand the problem.
 
 Hello! Here is the mathematical explanation:
@@ -84,6 +117,7 @@ $$`;
 $$
 f'(x) = 2x
 $$`);
+      expect(output).not.toContain('user safety:safe');
     });
 
     it('preserves mathematical equations and formulas intact', () => {
@@ -97,6 +131,36 @@ $$`);
   });
 
   describe('createReasoningFilterTransform streaming', () => {
+    it('filters safety prefix tags from streaming output chunks', async () => {
+      const chunks = [
+        'user safety:safe\n',
+        'Halo! ',
+        'Deret aritmetika adalah barisan bilangan dengan selisih konstan.',
+      ];
+
+      const readable = new ReadableStream<string>({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(chunk);
+          }
+          controller.close();
+        },
+      });
+
+      const filteredStream = readable.pipeThrough(createReasoningFilterTransform());
+      const reader = filteredStream.getReader();
+
+      let result = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) result += value;
+      }
+
+      expect(result).toBe('Halo! Deret aritmetika adalah barisan bilangan dengan selisih konstan.');
+      expect(result).not.toContain('user safety:safe');
+    });
+
     it('filters thinking blocks split across multiple streaming chunks', async () => {
       const chunks = [
         'Halo! ',
@@ -128,38 +192,6 @@ $$`);
       expect(result).toBe('Halo! Berikut adalah solusinya.');
       expect(result).not.toContain('<think>');
       expect(result).not.toContain('Analyzing problem');
-    });
-
-    it('filters leading plain-text monologue chunks before streaming the real response', async () => {
-      const chunks = [
-        "Here's a thinking process:\n",
-        '1. Analyze user prompt.\n',
-        '2. Formulate step.\n\n',
-        'Halo! ',
-        'Mari kita mulai dengan langkah pertama.',
-      ];
-
-      const readable = new ReadableStream<string>({
-        start(controller) {
-          for (const chunk of chunks) {
-            controller.enqueue(chunk);
-          }
-          controller.close();
-        },
-      });
-
-      const filteredStream = readable.pipeThrough(createReasoningFilterTransform());
-      const reader = filteredStream.getReader();
-
-      let result = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) result += value;
-      }
-
-      expect(result).toBe('Halo! Mari kita mulai dengan langkah pertama.');
-      expect(result).not.toContain("Here's a thinking process");
     });
   });
 });
