@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { Task, TaskWithChildren, TaskStatus, TaskPriority } from '@/types/task';
 import { formatRelativeDeadline } from '@/types/planner';
+import { useTranslation } from '@/hooks/useTranslation';
 import { cn, isOverdue } from '@/lib/utils';
 import { MAX_ALLOWED_DEPTH } from '@/stores/useTaskStore';
 
@@ -110,12 +111,27 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onEditTask,
   onDeleteTask,
 }) => {
+  const { t } = useTranslation();
   const [showMenu, setShowMenu] = useState(false);
   const hasChildren = task.children && task.children.length > 0;
   const isComplete = task.status === 'completed';
   const overdue = task.dueDate && !isComplete && isOverdue(task.dueDate);
   const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
   const statusInfo = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
+
+  const priorityLabels: Record<TaskPriority, string> = {
+    urgent: t('task.urgent'),
+    high: t('task.high'),
+    medium: t('task.medium'),
+    low: t('task.low'),
+  };
+
+  const statusLabels: Record<TaskStatus, string> = {
+    todo: t('task.todo'),
+    in_progress: t('task.inProgress'),
+    completed: t('task.completed'),
+    cancelled: t('task.cancelled'),
+  };
 
   // Subtask progress calculation
   const completedSubtasks = hasChildren
@@ -243,7 +259,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 priority.glow
               )}
             >
-              {priority.label}
+              {priorityLabels[task.priority] || priority.label}
             </span>
 
             {/* Status Pill */}
@@ -254,7 +270,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 statusInfo.badgeText
               )}
             >
-              {statusInfo.label}
+              {statusLabels[task.status] || statusInfo.label}
             </span>
 
             {/* Due Date Indicator */}
@@ -280,7 +296,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             {hasChildren && (
               <span className="inline-flex items-center gap-1 rounded-md bg-white/5 px-2 py-0.5 text-[11px] text-slate-300 font-mono border border-white/5">
                 <Clock className="h-3 w-3 text-cyan-400" />
-                {completedSubtasks}/{task.children.length} sub-tasks
+                {completedSubtasks}/{task.children.length} {t('planner.tasksCount')}
               </span>
             )}
           </div>
@@ -297,7 +313,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               title="Add Sub-task (Max 3 levels)"
             >
               <Plus className="h-3.5 w-3.5 text-indigo-400" />
-              <span className="hidden sm:inline">Sub-task</span>
+              <span className="hidden sm:inline">{t('task.addSubtask')}</span>
             </button>
           )}
 
@@ -349,7 +365,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                                 status === 'todo' && 'text-slate-500'
                               )}
                             />
-                            {STATUS_CONFIG[status].label}
+                            {statusLabels[status] || STATUS_CONFIG[status].label}
                           </button>
                         )
                       )}
@@ -366,7 +382,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                       className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
                     >
                       <Edit3 className="h-3.5 w-3.5 text-slate-400" />
-                      Edit Task
+                      {t('task.editTask')}
                     </button>
                   )}
 
@@ -379,7 +395,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-rose-400 transition-colors hover:bg-rose-500/10"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    Delete Task
+                    {t('task.deleteTask')}
                   </button>
                 </div>
               </>

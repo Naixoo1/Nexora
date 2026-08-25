@@ -143,7 +143,7 @@ export const ChatSettingsModal: React.FC = () => {
             <div className="flex items-center gap-2">
               <GraduationCap className="h-4 w-4 text-cyan-400" />
               <div>
-                <span className="text-xs font-semibold text-white block">Academic Tier Calibration</span>
+                <span className="text-xs font-semibold text-white block">{t('chat.academicTier')}</span>
                 <span className="text-[10px] text-slate-400 font-sans">
                   Adjust explanation tone, depth & complexity
                 </span>

@@ -28,6 +28,7 @@ import { CanvasToolbar } from './CanvasToolbar';
 import { VariableSidebar } from './VariableSidebar';
 import { BranchSuggestionModal } from './BranchSuggestionModal';
 import { NodeToTaskModal } from './NodeToTaskModal';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Check, Loader2, AlertCircle } from 'lucide-react';
 
 export interface StemCanvasProps {
@@ -35,6 +36,7 @@ export interface StemCanvasProps {
 }
 
 export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const targetNodeIdFromQuery = searchParams.get('nodeId');
 
@@ -162,7 +164,7 @@ export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
         {isSaving ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
-            <span className="font-medium text-cyan-300">Auto-saving...</span>
+            <span className="font-medium text-cyan-300">{t('canvas.saving')}</span>
           </>
         ) : error ? (
           <div className="flex items-center gap-1 text-rose-400">
@@ -181,7 +183,7 @@ export const StemCanvas: React.FC<StemCanvasProps> = ({ canvasId }) => {
             <Check className="h-3.5 w-3.5 text-emerald-400" />
             <span className="text-slate-400">
               {lastSavedAt
-                ? `Saved ${new Intl.DateTimeFormat('id-ID', {
+                ? `${t('canvas.saved')} ${new Intl.DateTimeFormat('id-ID', {
                     hour: '2-digit',
                     minute: '2-digit',
                     second: '2-digit',

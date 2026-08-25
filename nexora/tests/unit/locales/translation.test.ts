@@ -17,10 +17,14 @@ describe('UI Localization Dictionaries & Translation Engine', () => {
       expect(id['nav.canvas']).toBe('Kanvas Logika');
       expect(id['nav.planner']).toBe('Rencana Belajar');
       expect(id['nav.expo']).toBe('Arena Tantangan');
+      expect(id['nav.call']).toBe('Panggilan AI');
       expect(id['canvas.addNode']).toBe('Tambah Node');
       expect(id['planner.title']).toBe('Generator Rencana Belajar AI');
       expect(id['expo.title']).toBe('Arena Tantangan Cerdas Nexora');
-      expect(id['chat.inputPlaceholder']).toBeTruthy();
+      expect(id['expo.readQuestion']).toBe('Dengarkan Soal');
+      expect(id['chat.listenMsg']).toBe('Dengarkan Suara');
+      expect(id['chat.callAI']).toBe('Telepon Nexora');
+      expect(id['task.todo']).toBe('Akan Dikerjakan');
     });
 
     it('ensures English (en) has parity with all keys in id', () => {
@@ -31,7 +35,9 @@ describe('UI Localization Dictionaries & Translation Engine', () => {
       });
       expect(en['nav.canvas']).toBe('Logic Canvas');
       expect(en['nav.planner']).toBe('Study Planner');
-      expect(en['canvas.addNode']).toBe('Add Node');
+      expect(en['nav.call']).toBe('AI Call');
+      expect(en['chat.callAI']).toBe('Call Nexora');
+      expect(en['expo.readQuestion']).toBe('Read Question');
     });
 
     it('ensures Basa Sunda (su) has parity with all keys in id', () => {
@@ -42,7 +48,9 @@ describe('UI Localization Dictionaries & Translation Engine', () => {
       });
       expect(su['nav.chat']).toBe('Taros AI');
       expect(su['nav.planner']).toBe('Rancangan Diajar');
-      expect(su['canvas.addNode']).toBe('Tambih Node');
+      expect(su['nav.call']).toBe('Telepon AI');
+      expect(su['chat.listenMsg']).toBe('Dangukeun Sora');
+      expect(su['expo.readQuestion']).toBe('Dangukeun Soal');
     });
   });
 

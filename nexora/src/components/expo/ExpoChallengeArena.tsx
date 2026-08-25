@@ -21,6 +21,7 @@ import {
   Send,
   Zap,
   Volume2,
+  VolumeX,
   BookOpen,
   Network,
   Share2,
@@ -28,12 +29,18 @@ import {
 import { useExpoGameStore } from '@/stores/useExpoGameStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import type { ExpoGradeTier } from '@/types/expo';
 import { cn } from '@/lib/utils';
 
 export const ExpoChallengeArena: React.FC = () => {
   const { t } = useTranslation();
+  const {
+    isPlaying: isReadingQuestion,
+    speak: speakQuestion,
+    stop: stopSpeakingQuestion,
+  } = useTextToSpeech();
   const {
     gamePhase,
     selectedGrade,
@@ -301,7 +308,38 @@ export const ExpoChallengeArena: React.FC = () => {
               </span>
             </div>
 
-            <h2 className="text-lg font-bold text-white tracking-tight">{currentQuestion.title}</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-white tracking-tight">{currentQuestion.title}</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isReadingQuestion) {
+                    stopSpeakingQuestion();
+                  } else {
+                    speakQuestion(`${currentQuestion.title}. ${currentQuestion.storyScenario}`);
+                  }
+                }}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all shrink-0',
+                  isReadingQuestion
+                    ? 'border-cyan-400 bg-cyan-500/20 text-cyan-300 animate-pulse'
+                    : 'border-white/10 bg-[#0B0F17] text-slate-300 hover:text-white hover:border-white/20'
+                )}
+                title={isReadingQuestion ? t('expo.stopReading') : t('expo.readQuestion')}
+              >
+                {isReadingQuestion ? (
+                  <>
+                    <VolumeX className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>{t('expo.stopReading')}</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>{t('expo.readQuestion')}</span>
+                  </>
+                )}
+              </button>
+            </div>
 
             <div className="text-sm text-slate-200 leading-relaxed font-sans border-l-2 border-l-cyan-400 pl-3.5">
               <MarkdownRenderer content={currentQuestion.storyScenario} />
