@@ -39,8 +39,9 @@ export interface UseSpeechRecognitionReturn {
   transcript: string;
   interimTranscript: string;
   isSupported: boolean;
+  isPermissionDenied: boolean;
   error: string | null;
-  startListening: (lang?: string) => void;
+  startListening: (lang?: string) => Promise<void>;
   stopListening: () => void;
   resetTranscript: () => void;
 }
@@ -50,9 +51,12 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
   const [isSupported, setIsSupported] = useState<boolean>(false);
+  const [isPermissionDenied, setIsPermissionDenied] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const shouldKeepListeningRef = useRef<boolean>(false);
+  const activeLangRef = useRef<string>('id-ID');
 
   useEffect(() => {
     setIsSupported(Boolean(getSpeechRecognitionConstructor()));
@@ -65,7 +69,8 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   }, []);
 
   const stopListening = useCallback(() => {
-    if (recognitionRef.current && isListening) {
+    shouldKeepListeningRef.current = false;
+    if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
       } catch (err) {
@@ -73,16 +78,38 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       }
     }
     setIsListening(false);
-  }, [isListening]);
+    setInterimTranscript('');
+  }, []);
 
   const startListening = useCallback(
-    (lang = 'id-ID') => {
+    async (lang = 'id-ID') => {
       setError(null);
+      setIsPermissionDenied(false);
+      activeLangRef.current = lang;
+      shouldKeepListeningRef.current = true;
+
+      // 1. Explicitly verify & request microphone access via getUserMedia
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          // Release tracks so SpeechRecognition has unrestricted microphone access
+          stream.getTracks().forEach((track) => track.stop());
+        } catch (err: unknown) {
+          console.warn('[useSpeechRecognition] Microphone permission denied:', err);
+          setIsPermissionDenied(true);
+          setError('Microphone access is required for AI Call. Please allow microphone permissions in your browser.');
+          setIsListening(false);
+          shouldKeepListeningRef.current = false;
+          return;
+        }
+      }
 
       const SpeechRecognitionConstructor = getSpeechRecognitionConstructor();
 
       if (!SpeechRecognitionConstructor) {
         setError('Browser does not support Web Speech API.');
+        setIsListening(false);
+        shouldKeepListeningRef.current = false;
         return;
       }
 
@@ -103,6 +130,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
         recognition.onstart = () => {
           setIsListening(true);
+          setError(null);
         };
 
         recognition.onresult = (event) => {
@@ -129,18 +157,35 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         recognition.onerror = (event) => {
           console.warn('[useSpeechRecognition] Error event:', event.error);
           if (event.error === 'not-allowed') {
+            setIsPermissionDenied(true);
             setError('Microphone access denied. Please grant microphone permission.');
+            shouldKeepListeningRef.current = false;
+            setIsListening(false);
           } else if (event.error === 'no-speech') {
-            // benign
+            // Benign silence event: keep listening state
+          } else if (event.error === 'network') {
+            // Mobile network hiccup: allow auto-restart on onend
           } else {
             setError(`Speech recognition error: ${event.error}`);
           }
-          setIsListening(false);
         };
 
         recognition.onend = () => {
-          setIsListening(false);
           setInterimTranscript('');
+          if (shouldKeepListeningRef.current) {
+            // Mobile browser lifecycle auto-restart (iOS Safari / Chrome Android)
+            try {
+              setTimeout(() => {
+                if (shouldKeepListeningRef.current && recognitionRef.current) {
+                  recognitionRef.current.start();
+                }
+              }, 200);
+            } catch {
+              setIsListening(false);
+            }
+          } else {
+            setIsListening(false);
+          }
         };
 
         recognitionRef.current = recognition;
@@ -149,6 +194,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         console.error('[useSpeechRecognition] Failed to start:', err);
         setError(err instanceof Error ? err.message : 'Failed to start speech recognition');
         setIsListening(false);
+        shouldKeepListeningRef.current = false;
       }
     },
     []
@@ -156,6 +202,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
   useEffect(() => {
     return () => {
+      shouldKeepListeningRef.current = false;
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
@@ -171,6 +218,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     transcript,
     interimTranscript,
     isSupported,
+    isPermissionDenied,
     error,
     startListening,
     stopListening,

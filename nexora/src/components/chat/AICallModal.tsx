@@ -8,11 +8,11 @@ import {
   MicOff,
   Sparkles,
   Volume2,
-  VolumeX,
   FastForward,
   Loader2,
-  Languages,
   X,
+  AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
 import { useCallModeStore, type CallStatus } from '@/stores/useCallModeStore';
 import { useLanguageStore } from '@/stores/useLanguageStore';
@@ -46,7 +46,10 @@ export const AICallModal: React.FC = () => {
   const {
     isListening,
     transcript,
+    interimTranscript,
     isSupported: isSpeechRecSupported,
+    isPermissionDenied,
+    error: speechRecError,
     startListening,
     stopListening,
     resetTranscript,
@@ -58,11 +61,12 @@ export const AICallModal: React.FC = () => {
     if (useCallModeStore.getState().isCallOpen) {
       setCallStatus('LISTENING');
       resetTranscript();
+      setUserTranscript('');
       if (!useCallModeStore.getState().isMuted) {
         startListening(speechRecognitionLang);
       }
     }
-  }, [setCallStatus, resetTranscript, startListening, speechRecognitionLang]);
+  }, [setCallStatus, resetTranscript, setUserTranscript, startListening, speechRecognitionLang]);
 
   const {
     isPlaying: isAiSpeaking,
@@ -75,48 +79,71 @@ export const AICallModal: React.FC = () => {
   // Track silence / commit timer when user stops speaking
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isQueryingRef = useRef<boolean>(false);
+  const activePromptRef = useRef<string>('');
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Update transcript into store when speech recognition captures text
-  useEffect(() => {
-    if (transcript && callStatus === 'LISTENING') {
-      setUserTranscript(transcript);
+  // Compute full current live speech (committed + interim)
+  const currentLiveSpeech = (
+    transcript ? `${transcript} ${interimTranscript}` : interimTranscript
+  ).trim();
 
-      // Reset debounce timer on new speech
+  // 2. Smart Silence Detection (1.2-second debounce timer)
+  useEffect(() => {
+    if (callStatus === 'LISTENING' && currentLiveSpeech) {
+      setUserTranscript(currentLiveSpeech);
+      activePromptRef.current = currentLiveSpeech;
+
+      // Reset timer on any new speech chunk
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
       }
 
-      // If user pauses for 1.8 seconds, automatically process voice input
-      silenceTimerRef.current = setTimeout(() => {
-        if (transcript.trim().length > 2 && !isQueryingRef.current) {
-          sendVoiceQuery(transcript.trim());
-        }
-      }, 1800);
+      // Check if user has spoken at least 2 words or 4 characters
+      const words = currentLiveSpeech.split(/\s+/).filter(Boolean);
+      if (words.length >= 2 || currentLiveSpeech.length >= 4) {
+        silenceTimerRef.current = setTimeout(() => {
+          if (!isQueryingRef.current && activePromptRef.current.trim().length > 0) {
+            sendVoiceQuery(activePromptRef.current.trim());
+          }
+        }, 1200);
+      }
     }
-  }, [transcript, callStatus, setUserTranscript]);
+  }, [currentLiveSpeech, callStatus, setUserTranscript]);
 
   // Handle call start / stop lifecycle
   useEffect(() => {
     if (isCallOpen) {
       setCallStatus('LISTENING');
       resetTranscript();
+      setUserTranscript('');
+      setAiResponseText('');
       startListening(speechRecognitionLang);
     } else {
       stopListening();
       stopSpeaking();
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     }
-  }, [isCallOpen, setCallStatus, resetTranscript, startListening, stopListening, stopSpeaking, speechRecognitionLang]);
+  }, [
+    isCallOpen,
+    setCallStatus,
+    resetTranscript,
+    setUserTranscript,
+    setAiResponseText,
+    startListening,
+    stopListening,
+    stopSpeaking,
+    speechRecognitionLang,
+  ]);
 
   // Query Nexora AI with voice transcript
   const sendVoiceQuery = async (queryText: string) => {
     if (!queryText.trim() || isQueryingRef.current) return;
 
     isQueryingRef.current = true;
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     stopListening();
     setCallStatus('PROCESSING');
     addMessageToHistory('user', queryText);
@@ -201,6 +228,10 @@ export const AICallModal: React.FC = () => {
     endCall();
   };
 
+  const handleRetryPermission = () => {
+    startListening(speechRecognitionLang);
+  };
+
   if (!mounted || !isCallOpen) return null;
 
   const modalContent = (
@@ -250,8 +281,33 @@ export const AICallModal: React.FC = () => {
         </button>
       </div>
 
+      {/* Microphone Permission Warning Banner */}
+      {(isPermissionDenied || speechRecError) && (
+        <div className="z-20 mt-3 w-full max-w-lg rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-200 backdrop-blur-md shadow-lg flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
+            <span>
+              {speechRecError ||
+                (locale === 'en'
+                  ? 'Microphone access is required for AI Call. Please allow microphone permissions.'
+                  : locale === 'su'
+                  ? 'Aksés mikrofon diperyogikeun kanggo Telepon AI. Mangga widian izin mikrofon dina browser.'
+                  : 'Akses mikrofon diperlukan untuk Panggilan AI. Silakan izinkan akses mikrofon di browser.')}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleRetryPermission}
+            className="flex items-center gap-1 rounded-xl bg-amber-500 px-3 py-1.5 font-bold text-slate-950 hover:bg-amber-400 shrink-0 transition-colors"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>{locale === 'en' ? 'Retry' : 'Coba Lagi'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Center Interactive Animated Voice Orb */}
-      <div className="z-10 flex flex-1 flex-col items-center justify-center my-8 text-center max-w-lg w-full">
+      <div className="z-10 flex flex-1 flex-col items-center justify-center my-6 text-center max-w-lg w-full">
         {/* Animated Sound Wave / Pulse Orb */}
         <div className="relative flex items-center justify-center">
           {/* Ripple rings */}
@@ -300,7 +356,7 @@ export const AICallModal: React.FC = () => {
         </div>
 
         {/* State Label */}
-        <div className="mt-8">
+        <div className="mt-7">
           <span
             className={cn(
               'rounded-full px-4 py-1.5 text-xs font-extrabold uppercase tracking-widest border transition-colors',
@@ -335,14 +391,22 @@ export const AICallModal: React.FC = () => {
           </span>
         </div>
 
-        {/* Realtime Live Transcript Box */}
-        <div className="mt-6 w-full rounded-2xl border border-white/10 bg-[#131926]/90 p-4 text-left shadow-xl min-h-[90px] max-h-[140px] overflow-y-auto">
+        {/* Realtime Live Transcript Visual Box */}
+        <div className="mt-5 w-full rounded-2xl border border-white/10 bg-[#131926]/90 p-4 text-left shadow-xl min-h-[90px] max-h-[140px] overflow-y-auto">
           {callStatus === 'SPEAKING' && aiResponseText ? (
             <p className="text-xs sm:text-sm text-emerald-300 leading-relaxed font-sans line-clamp-4">
               <strong className="text-white block text-[10px] uppercase font-mono mb-1">
                 Nexora AI:
               </strong>
               {aiResponseText}
+            </p>
+          ) : currentLiveSpeech ? (
+            <p className="text-xs sm:text-sm text-cyan-200 leading-relaxed font-sans">
+              <strong className="text-cyan-400 flex items-center gap-1.5 text-[10px] uppercase font-mono mb-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
+                {locale === 'en' ? 'Transcribing Live:' : locale === 'su' ? 'Nuju Dirékam:' : 'Mendengarkan Langsung:'}
+              </strong>
+              &ldquo;{currentLiveSpeech}&rdquo;
             </p>
           ) : userTranscript ? (
             <p className="text-xs sm:text-sm text-cyan-200 leading-relaxed font-sans">
