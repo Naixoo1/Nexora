@@ -83,10 +83,21 @@ export const AICallModal: React.FC = () => {
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isQueryingRef = useRef<boolean>(false);
   const activePromptRef = useRef<string>('');
+  const transcriptContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Auto-scroll transcript container smoothly as speech is streamed
+  useEffect(() => {
+    if (transcriptContainerRef.current) {
+      transcriptContainerRef.current.scrollTo({
+        top: transcriptContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [aiResponseText, userTranscript, callStatus]);
 
   // Compute full current live speech (committed + interim)
   const currentLiveSpeech = (
@@ -493,18 +504,24 @@ export const AICallModal: React.FC = () => {
           </span>
         </div>
 
-        {/* Realtime Live Transcript Visual Box */}
-        <div className="mt-5 w-full rounded-2xl border border-white/10 bg-[#131926]/90 p-4 text-left shadow-xl min-h-[90px] max-h-[140px] overflow-y-auto">
+        {/* Realtime Live Transcript Visual Box with Auto-Scroll */}
+        <div
+          ref={transcriptContainerRef}
+          className="mt-5 w-full rounded-2xl border border-white/10 bg-[#131926]/90 p-4.5 text-left shadow-2xl min-h-[100px] max-h-48 md:max-h-60 overflow-y-auto custom-scrollbar backdrop-blur-md transition-all"
+        >
           {callStatus === 'SPEAKING' && aiResponseText ? (
-            <p className="text-xs sm:text-sm text-emerald-300 leading-relaxed font-sans line-clamp-4">
-              <strong className="text-white block text-[10px] uppercase font-mono mb-1">
+            <div className="space-y-1.5">
+              <strong className="text-emerald-400 flex items-center gap-1.5 text-[11px] uppercase font-mono tracking-wider">
+                <Volume2 className="h-3.5 w-3.5 animate-pulse text-emerald-400" />
                 Nexora AI:
               </strong>
-              {aiResponseText}
-            </p>
+              <p className="text-sm md:text-base text-emerald-100/95 leading-relaxed font-sans whitespace-pre-wrap break-words selection:bg-emerald-500/30">
+                {aiResponseText}
+              </p>
+            </div>
           ) : currentLiveSpeech ? (
-            <p className="text-xs sm:text-sm text-cyan-200 leading-relaxed font-sans">
-              <strong className="text-cyan-400 flex items-center gap-1.5 text-[10px] uppercase font-mono mb-1">
+            <div className="space-y-1.5">
+              <strong className="text-cyan-400 flex items-center gap-1.5 text-[11px] uppercase font-mono tracking-wider">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
                 {locale === 'en'
                   ? 'Transcribing Live:'
@@ -512,17 +529,21 @@ export const AICallModal: React.FC = () => {
                   ? 'Nuju Dirékam:'
                   : 'Mendengarkan Langsung:'}
               </strong>
-              &ldquo;{currentLiveSpeech}&rdquo;
-            </p>
+              <p className="text-sm md:text-base text-cyan-100 leading-relaxed font-sans whitespace-pre-wrap break-words italic">
+                &ldquo;{currentLiveSpeech}&rdquo;
+              </p>
+            </div>
           ) : userTranscript ? (
-            <p className="text-xs sm:text-sm text-cyan-200 leading-relaxed font-sans">
-              <strong className="text-slate-400 block text-[10px] uppercase font-mono mb-1">
+            <div className="space-y-1.5">
+              <strong className="text-slate-400 block text-[11px] uppercase font-mono tracking-wider">
                 You:
               </strong>
-              {userTranscript}
-            </p>
+              <p className="text-sm md:text-base text-slate-200 leading-relaxed font-sans whitespace-pre-wrap break-words">
+                {userTranscript}
+              </p>
+            </div>
           ) : (
-            <p className="text-xs text-slate-500 italic text-center pt-3">
+            <p className="text-xs sm:text-sm text-slate-500 italic text-center pt-4">
               {locale === 'en'
                 ? 'Say any math problem, concept, or question naturally...'
                 : locale === 'su'
