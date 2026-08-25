@@ -40,12 +40,25 @@ export function stripPlainTextMonologue(text: string): string {
 
   let cleaned = text.trim();
 
+  // 1. Direct inline/prefix stripping for "Drafting the Content (Mental Refinement):", "Mental Refinement:", etc.
+  cleaned = cleaned
+    .replace(
+      /^(?:#{1,4}[^\S\r\n]*)?(?:\*{0,2})(?:Drafting the Content\s*(?:\([^)]*\))?|Mental Refinement|Drafting response|Internal Monologue|Thinking Process|Analyzing the request|Let's think)(?:\*{0,2}):?[^\S\r\n]*[^\n]*(?:\r?\n+|$)/i,
+      ''
+    )
+    .trim();
+
+  // Strip any residual inline "(Mental Refinement):" or "Drafting the Content (Mental Refinement):"
+  cleaned = cleaned
+    .replace(/(?:\*{0,2})(?:Drafting the Content\s*(?:\([^)]*\))?|Mental Refinement)(?:\*{0,2}):?[^\S\r\n]*/gi, '')
+    .trim();
+
   // Monologue Header & CoT Indicators
   const monologueHeaderPattern =
-    /^(#{1,4}\s*)?(\*{0,2})(Here'?s (a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (check the rules|analyze|draft a response|break down)|Identify Persona|We need to respond in|Guidelines to follow)(\*{0,2}):?/i;
+    /^(#{1,4}\s*)?(\*{0,2})(Here'?s (a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (check the rules|analyze|draft a response|break down|think)|Drafting the Content|Mental Refinement|Analyzing the request|Identify Persona|We need to respond in|Guidelines to follow)(\*{0,2}):?/i;
 
   const numberedCotPattern =
-    /^(\*{0,2})(\d+\.|\*|-)\s*(\*{0,2})(Analyze|Understand|Identify|Check|Determine|Formulate|Draft|Translate|Plan|Rules?|Persona|Response Strategy|User Intent|Target Audience)\b/i;
+    /^(\*{0,2})(\d+\.|\*|-)\s*(\*{0,2})(Analyze|Understand|Identify|Check|Determine|Formulate|Draft|Translate|Plan|Rules?|Persona|Response Strategy|User Intent|Target Audience|Mental Refinement|Drafting)\b/i;
 
   if (monologueHeaderPattern.test(cleaned) || numberedCotPattern.test(cleaned)) {
     // Split into paragraphs (separated by 2 or more newlines)
@@ -57,7 +70,7 @@ export function stripPlainTextMonologue(text: string): string {
       const isMonologueParagraph =
         monologueHeaderPattern.test(p) ||
         numberedCotPattern.test(p) ||
-        /^(The user is asking|I should respond in|The prompt asks for|My role is|Make sure to|Don't forget to|Output strictly)\b/i.test(
+        /^(The user is asking|I should respond in|The prompt asks for|My role is|Make sure to|Don't forget to|Output strictly|Drafting the Content|Mental Refinement)\b/i.test(
           p
         ) ||
         /^(Let'?s draft|Drafting response|Now formulating|Final response):?$/i.test(p);
@@ -75,7 +88,7 @@ export function stripPlainTextMonologue(text: string): string {
       // If paragraphs didn't cleanly split, use regex lookahead for real content start
       cleaned = cleaned
         .replace(
-          /^((#{1,4}\s*)?(\*{0,2})(Here'?s (a |my )?thinking process|Thinking Process|Let'?s check the rules|Let'?s analyze|\d+\.\s*(\*{0,2})(Analyze|Identify|Check|Determine))[\s\S]*?)(?=\n\n(Halo|Sampurasun|Hello|Hai|Selamat|Dear|[A-Z][a-z]+|\$\$|#{1,3}\s+[A-Z]|\$[a-zA-Z0-9]))/i,
+          /^((#{1,4}\s*)?(\*{0,2})(Here'?s (a |my )?thinking process|Thinking Process|Let'?s check the rules|Let'?s analyze|Drafting the Content|Mental Refinement|\d+\.\s*(\*{0,2})(Analyze|Identify|Check|Determine))[\s\S]*?)(?=\n\n(Halo|Sampurasun|Hello|Hai|Selamat|Dear|[A-Z][a-z]+|\$\$|#{1,3}\s+[A-Z]|\$[a-zA-Z0-9]))/i,
           ''
         )
         .trim();
@@ -186,7 +199,7 @@ export function createReasoningFilterTransform(locale: string = 'id'): Transform
   let buffer = '';
 
   const monologueOrSafetyCheck =
-    /^(?:#{1,4}\s*)?(?:\*{0,2})(?:Here'?s (?:a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (?:check the rules|analyze|draft)|1\.\s*(?:\*{0,2})Analyze|(?:user\s*)?safety(?:_rating)?\s*:\s*\w+|\[\s*(?:user\s*)?safety(?:_rating)?\s*:\s*[^\]]+\]|(?:Input|Content|Prompt|User|Context)\s*Safety\s*:\s*\w+|Safety\s*Assessment\s*:\s*\w+)/i;
+    /^(?:#{1,4}\s*)?(?:\*{0,2})(?:Here'?s (?:a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (?:check the rules|analyze|draft|think)|1\.\s*(?:\*{0,2})Analyze|Drafting the Content|Mental Refinement|Drafting response|Analyzing the request|(?:user\s*)?safety(?:_rating)?\s*:\s*\w+|\[\s*(?:user\s*)?safety(?:_rating)?\s*:\s*[^\]]+\]|(?:Input|Content|Prompt|User|Context)\s*Safety\s*:\s*\w+|Safety\s*Assessment\s*:\s*\w+)/i;
 
   return new TransformStream<string, string>({
     transform(chunk, controller) {

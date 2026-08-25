@@ -59,6 +59,8 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const finalTranscriptRef = useRef<string>('');
+  const interimTranscriptRef = useRef<string>('');
   const shouldKeepListeningRef = useRef<boolean>(false);
   const activeLangRef = useRef<string>('id-ID');
   const consecutiveFailuresRef = useRef<number>(0);
@@ -71,6 +73,8 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   }, []);
 
   const resetTranscript = useCallback(() => {
+    finalTranscriptRef.current = '';
+    interimTranscriptRef.current = '';
     setTranscript('');
     setInterimTranscript('');
     setError(null);
@@ -136,7 +140,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         // Successful speech received: reset failure throttling counters
         consecutiveFailuresRef.current = 0;
 
-        let currentFinal = '';
+        let sessionNewFinal = '';
         let currentInterim = '';
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -144,15 +148,21 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
           const transcriptChunk = result[0]?.transcript || '';
 
           if (result.isFinal) {
-            currentFinal += transcriptChunk + ' ';
+            sessionNewFinal += transcriptChunk + ' ';
           } else {
             currentInterim += transcriptChunk;
           }
         }
 
-        if (currentFinal) {
-          setTranscript((prev) => (prev ? `${prev} ${currentFinal}` : currentFinal).trim());
+        if (sessionNewFinal) {
+          finalTranscriptRef.current = (
+            finalTranscriptRef.current
+              ? `${finalTranscriptRef.current} ${sessionNewFinal}`
+              : sessionNewFinal
+          ).trim();
+          setTranscript(finalTranscriptRef.current);
         }
+        interimTranscriptRef.current = currentInterim;
         setInterimTranscript(currentInterim);
       };
 

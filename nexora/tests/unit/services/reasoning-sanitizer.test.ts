@@ -71,6 +71,28 @@ Sampurasun! Hayu urang pedar perkawis rumus barisan ieu.`;
       expect(output).not.toContain("Let's check the rules");
     });
 
+    it('strips "Drafting the Content (Mental Refinement):" preamble from text', () => {
+      const input = `Drafting the Content (Mental Refinement): Define deret geometri and provide formulas.
+
+Deret geometri adalah penjumlahan suku-suku dari barisan geometri. Rumus suku ke-n adalah $U_n = a r^{n-1}$.`;
+
+      const output = stripPlainTextMonologue(input);
+      expect(output).toBe(
+        'Deret geometri adalah penjumlahan suku-suku dari barisan geometri. Rumus suku ke-n adalah $U_n = a r^{n-1}$.'
+      );
+      expect(output).not.toContain('Drafting the Content');
+      expect(output).not.toContain('Mental Refinement');
+    });
+
+    it('strips inline "Mental Refinement:" tags', () => {
+      const input = `Mental Refinement:
+Turunan fungsi $f(x) = x^2$ adalah $f'(x) = 2x$.`;
+
+      const output = stripPlainTextMonologue(input);
+      expect(output).toBe('Turunan fungsi $f(x) = x^2$ adalah $f\'(x) = 2x$.');
+      expect(output).not.toContain('Mental Refinement');
+    });
+
     it('preserves regular responses that start immediately with greetings or math without preamble', () => {
       const input = 'Halo! Rumus yang digunakan adalah $E = mc^2$.';
       const output = stripPlainTextMonologue(input);
@@ -223,6 +245,37 @@ $$`);
 
       expect(result).toBe('Mari kita periksa deret geometrinya dan rasio tetapnya.');
       expect(result).not.toContain('几何');
+    });
+
+    it('filters "Drafting the Content (Mental Refinement):" preamble in streaming chunks', async () => {
+      const chunks = [
+        'Drafting the Content (Mental Refinement): Define concept\n\n',
+        'Deret geometri adalah ',
+        'penjumlahan suku-suku barisan geometri.',
+      ];
+
+      const readable = new ReadableStream<string>({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(chunk);
+          }
+          controller.close();
+        },
+      });
+
+      const filteredStream = readable.pipeThrough(createReasoningFilterTransform('id'));
+      const reader = filteredStream.getReader();
+
+      let result = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) result += value;
+      }
+
+      expect(result).toBe('Deret geometri adalah penjumlahan suku-suku barisan geometri.');
+      expect(result).not.toContain('Drafting the Content');
+      expect(result).not.toContain('Mental Refinement');
     });
   });
 

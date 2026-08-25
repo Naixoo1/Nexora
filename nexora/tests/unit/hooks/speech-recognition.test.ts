@@ -160,6 +160,37 @@ describe('useSpeechRecognition Hook', () => {
       expect(result.current.transcript).toBe('');
     });
 
+    it('accumulates multiple final phrases persistently without dropping leading speech', async () => {
+      const { result } = renderHook(() => useSpeechRecognition());
+
+      await act(async () => {
+        await result.current.startListening('id-ID');
+      });
+
+      // First phrase finalized
+      act(() => {
+        mockInstance.onresult?.({
+          resultIndex: 0,
+          results: [Object.assign([{ transcript: 'Jelaskan tentang' }], { isFinal: true })],
+        });
+      });
+
+      expect(result.current.transcript).toBe('Jelaskan tentang');
+
+      // Second phrase finalized in subsequent onresult
+      act(() => {
+        mockInstance.onresult?.({
+          resultIndex: 1,
+          results: [
+            Object.assign([{ transcript: 'Jelaskan tentang' }], { isFinal: true }),
+            Object.assign([{ transcript: 'rumus deret geometri' }], { isFinal: true }),
+          ],
+        });
+      });
+
+      expect(result.current.transcript).toBe('Jelaskan tentang rumus deret geometri');
+    });
+
     it('stops listening cleanly and sets status to stopped when stopListening is invoked', async () => {
       const { result } = renderHook(() => useSpeechRecognition());
 
