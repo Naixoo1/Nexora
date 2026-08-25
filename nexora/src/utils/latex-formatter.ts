@@ -279,6 +279,14 @@ export function preprocessLatex(content: string): string {
     return `\n\n$$\n${cleanFormula}\n$$\n\n`;
   });
 
+  // 4b. Gracefully handle unclosed display math \[ at the end of streaming chunks
+  if (text.includes('\\[') && !text.includes('\\]')) {
+    text = text.replace(/\\\[([\s\S]*)$/, (_match, formula) => {
+      const cleanFormula = cleanMathFormula(formula);
+      return `\n\n$$\n${cleanFormula}\n$$\n\n`;
+    });
+  }
+
   // 5. Convert standalone bracket math [ ... ] to $$ ... $$ (exclude \left[ / \right], markdown links [title](url), and citations [[node:...]])
   text = text.replace(/(?<!\\left\s*)(?<!\[)\[(?!\s*\[)([^\[\]\n]+?)(?<!\\right\s*)\](?!\s*[\(\]])/g, (match, inner) => {
     const trimmed = inner.trim();
@@ -307,6 +315,14 @@ export function preprocessLatex(content: string): string {
     const cleanFormula = cleanMathFormula(formula);
     return `$${cleanFormula}$`;
   });
+
+  // 7b. Gracefully handle unclosed inline math \( at the end of streaming chunks
+  if (text.includes('\\(') && !text.includes('\\)')) {
+    text = text.replace(/\\\(([\s\S]*)$/, (_match, formula) => {
+      const cleanFormula = cleanMathFormula(formula);
+      return `$${cleanFormula}$`;
+    });
+  }
 
   // 8. Convert single parenthesized math ( ... ) to ($ ... $) where applicable (exclude inside LaTeX formula constructs)
   text = text.replace(/(?<![a-zA-Z0-9\\\$_{^])\(\s*([^()\n]+?)\s*\)(?![a-zA-Z0-9\\\$_{^])/g, (match, inner) => {
@@ -359,25 +375,29 @@ export function formatMathForVoice(text: string): string {
   s = s.replace(/```(?:nexora-node|node|json|typescript|javascript|python)?[\s\S]*?```/gi, '');
   s = s.replace(/`([^`]+)`/g, '$1');
 
-  // 2. Fractions: \frac{a}{b} -> a/b
+  // 2. Convert standard bracket math delimiters \[ ... \] and \( ... \) to their inner content
+  s = s.replace(/\\\[([\s\S]*?)\\\]/g, '$1');
+  s = s.replace(/\\\(([\s\S]*?)\\\)/g, '$1');
+
+  // 3. Fractions: \frac{a}{b} -> a/b
   while (/\\frac\{([^{}]+)\}\{([^{}]+)\}/.test(s)) {
     s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, (_match, num, den) => {
       return `${num.trim()} / ${den.trim()}`;
     });
   }
 
-  // 3. Roots: \sqrt[n]{x} -> akar pangkat n(x) or akar(x)
+  // 4. Roots: \sqrt[n]{x} -> akar pangkat n(x) or akar(x)
   s = s.replace(/\\sqrt\[([^\]]+)\]\{([^}]+)\}/g, 'akar pangkat $1($2)');
   s = s.replace(/\\sqrt\{([^}]+)\}/g, 'akar($1)');
   s = s.replace(/\\sqrt\s*([a-zA-Z0-9]+)/g, 'akar($1)');
 
-  // 4. Exponents & powers: x^{2} -> x^2
+  // 5. Exponents & powers: x^{2} -> x^2
   s = s.replace(/\^\{([^}]+)\}/g, '^$1');
 
-  // 5. Subscripts: S_{n} -> Sn, a_{1} -> a1, U_n -> Un
+  // 6. Subscripts: S_{n} -> Sn, a_{1} -> a1, U_n -> Un
   s = s.replace(/([a-zA-Z]+)_\{?([a-zA-Z0-9]+)\}?/g, '$1$2');
 
-  // 6. Multiplication and division operators
+  // 7. Multiplication and division operators
   s = s.replace(/\\cdot|\\times|\\ast/g, ' * ');
   s = s.replace(/\\div/g, ' / ');
   s = s.replace(/\\pm/g, ' ± ');
@@ -389,20 +409,20 @@ export function formatMathForVoice(text: string): string {
   s = s.replace(/\\to|\\rightarrow/g, ' -> ');
   s = s.replace(/\\infty/g, ' tak hingga ');
 
-  // 7. Delimiters and latex brackets
+  // 8. Delimiters and latex brackets
   s = s.replace(/\\left[\[\(\{]/g, '(').replace(/\\right[\]\)\}]/g, ')');
   s = s.replace(/\\text\{([^}]+)\}/g, '$1');
   s = s.replace(/\\mathrm\{([^}]+)\}/g, '$1');
   s = s.replace(/\\mathbf\{([^}]+)\}/g, '$1');
 
-  // 8. Strip dollar signs $ and $$ and \( \) \[ \]
+  // 9. Strip dollar signs $ and $$ and \( \) \[ \]
   s = s.replace(/\$+/g, '');
   s = s.replace(/\\\[|\\\]|\\\(|\\\)/g, '');
 
-  // 9. Strip remaining stray backslashes
+  // 10. Strip remaining stray backslashes and dangling delimiters
   s = s.replace(/\\/g, '');
 
-  // 10. Normalize multiple spaces
+  // 11. Normalize multiple spaces
   s = s.replace(/[ \t]+/g, ' ');
 
   return s.trim();

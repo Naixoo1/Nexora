@@ -23,6 +23,7 @@ import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { sanitizeReasoningContent } from '@/services/reasoning-sanitizer';
 import { formatMathForVoice } from '@/utils/latex-formatter';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { cn } from '@/lib/utils';
 
 export const AICallModal: React.FC = () => {
@@ -90,20 +91,25 @@ export const AICallModal: React.FC = () => {
     setMounted(true);
   }, []);
 
-  // Auto-scroll transcript container smoothly as speech is streamed
-  useEffect(() => {
-    if (transcriptContainerRef.current) {
-      transcriptContainerRef.current.scrollTo({
-        top: transcriptContainerRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, [aiResponseText, userTranscript, callStatus]);
-
   // Compute full current live speech (committed + interim)
   const currentLiveSpeech = (
     transcript ? `${transcript} ${interimTranscript}` : interimTranscript
   ).trim();
+
+  // Auto-scroll transcript container smoothly as speech is streamed
+  useEffect(() => {
+    if (transcriptContainerRef.current) {
+      const scrollTimer = setTimeout(() => {
+        if (transcriptContainerRef.current) {
+          transcriptContainerRef.current.scrollTo({
+            top: transcriptContainerRef.current.scrollHeight,
+            behavior: 'smooth',
+          });
+        }
+      }, 50);
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [aiResponseText, currentLiveSpeech, userTranscript, callStatus]);
 
   // Query Nexora AI with voice transcript
   const sendVoiceQuery = useCallback(
@@ -175,10 +181,12 @@ export const AICallModal: React.FC = () => {
           const { done, value } = await reader.read();
           if (done) break;
           fullResponse += decoder.decode(value, { stream: true });
-          setAiResponseText(formatMathForVoice(sanitizeReasoningContent(fullResponse)));
+          const sanitized = sanitizeReasoningContent(fullResponse);
+          setAiResponseText(sanitized);
         }
 
-        const cleaned = formatMathForVoice(sanitizeReasoningContent(fullResponse));
+        const cleaned = sanitizeReasoningContent(fullResponse);
+        setAiResponseText(cleaned);
         addMessageToHistory('assistant', cleaned);
         setCallStatus('SPEAKING');
 
@@ -505,10 +513,10 @@ export const AICallModal: React.FC = () => {
           </span>
         </div>
 
-        {/* Realtime Live Transcript Visual Box with Auto-Scroll & Deep Word-Break */}
+        {/* Realtime Live Transcript Visual Box with Auto-Scroll & Markdown/KaTeX Math Rendering */}
         <div
           ref={transcriptContainerRef}
-          className="mt-5 w-full min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#131926]/90 p-4.5 text-left shadow-2xl min-h-[100px] max-h-48 md:max-h-60 overflow-y-auto custom-scrollbar backdrop-blur-md transition-all [overflow-wrap:anywhere] break-words"
+          className="mt-5 w-full min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#131926]/90 p-4.5 text-left shadow-2xl min-h-[100px] max-h-52 md:max-h-64 overflow-y-auto custom-scrollbar backdrop-blur-md transition-all [overflow-wrap:anywhere] break-words"
         >
           {callStatus === 'SPEAKING' && aiResponseText ? (
             <div className="space-y-1.5 w-full min-w-0">
@@ -516,9 +524,9 @@ export const AICallModal: React.FC = () => {
                 <Volume2 className="h-3.5 w-3.5 animate-pulse text-emerald-400 shrink-0" />
                 <span>Nexora AI:</span>
               </strong>
-              <p className="text-sm md:text-base text-emerald-100/95 leading-relaxed font-sans whitespace-pre-wrap [overflow-wrap:anywhere] break-words break-all text-pretty selection:bg-emerald-500/30">
-                {aiResponseText}
-              </p>
+              <div className="text-sm md:text-base text-emerald-100/95 leading-relaxed font-sans [overflow-wrap:anywhere] break-words text-pretty selection:bg-emerald-500/30">
+                <MarkdownRenderer content={aiResponseText} />
+              </div>
             </div>
           ) : currentLiveSpeech ? (
             <div className="space-y-1.5 w-full min-w-0">

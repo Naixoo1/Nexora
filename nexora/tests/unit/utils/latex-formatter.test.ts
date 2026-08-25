@@ -262,6 +262,18 @@ nexora-node { "title": "Beda Barisan", "type": "reasoning_step", "latexFormula":
       expect(output).not.toContain('\\cdot');
     });
 
+    it('converts bracket delimiters \\[ ... \\] and \\( ... \\) to clean text', () => {
+      const input = 'Deret aritmetika dengan suku pertama \\(a\\) dan beda \\(d\\): \\[ U_n = a + (n-1)d \\]';
+      const output = formatMathForVoice(input);
+
+      expect(output).toContain('suku pertama a dan beda d:');
+      expect(output).toContain('Un = a + (n-1)d');
+      expect(output).not.toContain('\\[');
+      expect(output).not.toContain('\\]');
+      expect(output).not.toContain('\\(');
+      expect(output).not.toContain('\\)');
+    });
+
     it('strips nexora-node fenced code blocks from spoken voice text', () => {
       const input = `Deret geometri adalah barisan bilangan dengan rasio tetap.
 \`\`\`nexora-node
