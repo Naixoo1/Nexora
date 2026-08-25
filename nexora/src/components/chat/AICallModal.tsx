@@ -110,25 +110,48 @@ export const AICallModal: React.FC = () => {
       setAiResponseText('');
 
       try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: [
-              {
-                role: 'user',
-                content: queryText,
-              },
-            ],
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'x-user-locale': locale || 'id',
+          'x-grade-level': gradeLevel || 'SENIOR_HIGH',
+        };
+
+        if (customApiKey && customApiKey.trim()) {
+          headers['x-gemini-api-key'] = customApiKey.trim();
+        }
+
+        const payload = {
+          message: queryText,
+          mode: activeTutorMode || 'socratic',
+          context: {
             tutorMode: activeTutorMode || 'socratic',
             gradeLevel: gradeLevel || 'SENIOR_HIGH',
-            customApiKey: customApiKey || undefined,
             locale: locale || 'id',
-          }),
+          },
+        };
+
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
         });
 
-        if (!response.ok || !response.body) {
-          throw new Error('Failed to query Nexora AI');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[AICallModal] /api/chat error response:', response.status, errorText);
+          let errorMsg = `Server error (${response.status})`;
+          try {
+            const parsedError = JSON.parse(errorText);
+            if (parsedError.error) errorMsg = parsedError.error;
+            else if (parsedError.message) errorMsg = parsedError.message;
+          } catch {
+            if (errorText) errorMsg = errorText;
+          }
+          throw new Error(errorMsg);
+        }
+
+        if (!response.body) {
+          throw new Error('Response body is empty');
         }
 
         const reader = response.body.getReader();
@@ -149,13 +172,14 @@ export const AICallModal: React.FC = () => {
         // Read response aloud
         speak(cleaned, locale);
       } catch (err) {
-        console.error('AI Call error:', err);
+        console.error('[AICallModal] AI Call error:', err);
+        const errMessage = err instanceof Error ? err.message : String(err);
         const fallbackText =
           locale === 'en'
-            ? 'I could not connect to the reasoning server. Please try speaking again.'
+            ? `Connection issue (${errMessage}). Tap below to retry.`
             : locale === 'su'
-            ? 'Hapunten, aya gangguan dina sambungan AI. Mangga carioskeun deui.'
-            : 'Maaf, terjadi gangguan koneksi ke server AI. Silakan coba bicara kembali.';
+            ? `Aya gangguan sambungan (${errMessage}). Mangga pencet di handap kanggo nyobian deui.`
+            : `Terjadi gangguan koneksi (${errMessage}). Silakan tekan tombol untuk bicara kembali.`;
         setAiResponseText(fallbackText);
         setCallStatus('SPEAKING');
         speak(fallbackText, locale);

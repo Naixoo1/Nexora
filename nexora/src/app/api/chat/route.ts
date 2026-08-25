@@ -105,7 +105,17 @@ export async function POST(req: NextRequest): Promise<Response> {
       console.warn('[Chat API]: Session check unauthenticated, proceeding as Guest:', authErr);
     }
 
-    const body: unknown = await req.json();
+    const rawBody: unknown = await req.json();
+    let body = (rawBody && typeof rawBody === 'object' ? { ...rawBody } : {}) as Record<string, unknown>;
+
+    // Compatibility: extract message from messages array if sent in Vercel AI / chat format
+    if (!body?.message && Array.isArray(body?.messages) && body.messages.length > 0) {
+      const lastUserMsg = [...body.messages].reverse().find((m: { role?: string; content?: string }) => m.role === 'user');
+      if (lastUserMsg && typeof lastUserMsg.content === 'string') {
+        body.message = lastUserMsg.content;
+      }
+    }
+
     const parsed = SendChatMessageSchema.safeParse(body);
 
     if (!parsed.success) {
