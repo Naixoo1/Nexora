@@ -76,15 +76,17 @@ export const AICallModal: React.FC = () => {
   const {
     isPlaying: isAiSpeaking,
     speak,
+    queueSentence,
     stop: stopSpeaking,
   } = useTextToSpeech({
     onEnd: handleAiSpeechEnd,
   });
 
-  // Track silence / commit timer when user stops speaking
+  // Track silence / commit timer and abort controllers
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isQueryingRef = useRef<boolean>(false);
   const activePromptRef = useRef<string>('');
+  const abortControllerRef = useRef<AbortController | null>(null);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -121,7 +123,16 @@ export const AICallModal: React.FC = () => {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
       }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       stopListening();
+      stopSpeaking();
       setCallStatus('PROCESSING');
       addMessageToHistory('user', queryText);
       setUserTranscript(queryText);
@@ -153,6 +164,7 @@ export const AICallModal: React.FC = () => {
           method: 'POST',
           headers,
           body: JSON.stringify(payload),
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -176,6 +188,7 @@ export const AICallModal: React.FC = () => {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let fullResponse = '';
+        let processedIndex = 0;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -183,16 +196,35 @@ export const AICallModal: React.FC = () => {
           fullResponse += decoder.decode(value, { stream: true });
           const sanitized = sanitizeReasoningContent(fullResponse);
           setAiResponseText(sanitized);
+
+          // Sentence-level incremental TTS streaming
+          const unprocessed = sanitized.slice(processedIndex);
+          const sentenceMatch = unprocessed.match(/^([\s\S]+?[.?!](\s+|\n+|$))/);
+          if (sentenceMatch) {
+            const completeSentence = sentenceMatch[1].trim();
+            if (completeSentence.length > 0) {
+              setCallStatus('SPEAKING');
+              queueSentence(completeSentence, locale);
+              processedIndex += sentenceMatch[0].length;
+            }
+          }
         }
 
         const cleaned = sanitizeReasoningContent(fullResponse);
         setAiResponseText(cleaned);
         addMessageToHistory('assistant', cleaned);
-        setCallStatus('SPEAKING');
 
-        // Read response aloud
-        speak(cleaned, locale);
+        // Queue any remaining leftover text
+        const remainingText = cleaned.slice(processedIndex).trim();
+        if (remainingText.length > 0) {
+          setCallStatus('SPEAKING');
+          queueSentence(remainingText, locale);
+        }
       } catch (err) {
+        if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('aborted'))) {
+          // Clean abort when call is ended or re-queried
+          return;
+        }
         console.error('[AICallModal] AI Call error:', err);
         const errMessage = err instanceof Error ? err.message : String(err);
         const fallbackText =
@@ -206,10 +238,14 @@ export const AICallModal: React.FC = () => {
         speak(fallbackText, locale);
       } finally {
         isQueryingRef.current = false;
+        abortControllerRef.current = null;
       }
     },
     [
       stopListening,
+      stopSpeaking,
+      queueSentence,
+      speak,
       setCallStatus,
       addMessageToHistory,
       setUserTranscript,
@@ -218,11 +254,10 @@ export const AICallModal: React.FC = () => {
       gradeLevel,
       customApiKey,
       locale,
-      speak,
     ]
   );
 
-  // 2. Smart Silence Detection (1.2-second debounce timer)
+  // 2. Smart Silence Detection (Relaxed 2.2-second debounce timer)
   useEffect(() => {
     if (callStatus === 'LISTENING' && currentLiveSpeech) {
       setUserTranscript(currentLiveSpeech);
@@ -240,12 +275,12 @@ export const AICallModal: React.FC = () => {
           if (!isQueryingRef.current && activePromptRef.current.trim().length > 0) {
             sendVoiceQuery(activePromptRef.current.trim());
           }
-        }, 1200);
+        }, 2200);
       }
     }
   }, [currentLiveSpeech, callStatus, setUserTranscript, sendVoiceQuery]);
 
-  // Handle call start / stop lifecycle
+  // Handle call start / stop lifecycle & complete teardown
   useEffect(() => {
     if (isCallOpen) {
       setCallStatus('LISTENING');
@@ -254,10 +289,32 @@ export const AICallModal: React.FC = () => {
       setAiResponseText('');
       startListening(speechRecognitionLang);
     } else {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
       stopListening();
       stopSpeaking();
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      isQueryingRef.current = false;
     }
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      stopListening();
+      stopSpeaking();
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      isQueryingRef.current = false;
+    };
   }, [
     isCallOpen,
     setCallStatus,
@@ -288,6 +345,15 @@ export const AICallModal: React.FC = () => {
   };
 
   const handleEndCall = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    isQueryingRef.current = false;
     stopListening();
     stopSpeaking();
     endCall();

@@ -242,6 +242,8 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}) {
   const [isSupported, setIsSupported] = useState<boolean>(false);
 
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const sentenceQueueRef = useRef<{ raw: string; spoken: string; locale: string }[]>([]);
+  const isSpeakingQueueRef = useRef<boolean>(false);
   const optionsRef = useRef<UseTextToSpeechOptions>(options);
   optionsRef.current = options;
 
@@ -251,8 +253,88 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}) {
     }
   }, []);
 
+  const processNextInQueue = useCallback(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      return;
+    }
+
+    if (sentenceQueueRef.current.length === 0) {
+      isSpeakingQueueRef.current = false;
+      setIsPlaying(false);
+      setActiveText(null);
+      optionsRef.current.onEnd?.();
+      return;
+    }
+
+    isSpeakingQueueRef.current = true;
+    const item = sentenceQueueRef.current.shift();
+    if (!item || !item.spoken.trim()) {
+      processNextInQueue();
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(item.spoken);
+    utteranceRef.current = utterance;
+
+    const targetLocale = item.locale;
+    const voices = window.speechSynthesis.getVoices();
+    let matchedVoice: SpeechSynthesisVoice | undefined;
+
+    if (targetLocale.startsWith('en')) {
+      matchedVoice =
+        voices.find(
+          (v) =>
+            v.lang.startsWith('en') &&
+            (v.lang.includes('US') || v.name.includes('Natural') || v.name.includes('Google'))
+        ) || voices.find((v) => v.lang.startsWith('en'));
+      utterance.lang = 'en-US';
+    } else if (targetLocale.startsWith('su')) {
+      matchedVoice =
+        voices.find((v) => v.lang.startsWith('su')) ||
+        voices.find((v) => v.lang.startsWith('id'));
+      utterance.lang = matchedVoice?.lang || 'id-ID';
+    } else {
+      matchedVoice =
+        voices.find(
+          (v) =>
+            v.lang.startsWith('id') &&
+            (v.name.includes('Indonesian') || v.name.includes('Google'))
+        ) || voices.find((v) => v.lang.startsWith('id'));
+      utterance.lang = 'id-ID';
+    }
+
+    if (matchedVoice) {
+      utterance.voice = matchedVoice;
+    }
+
+    utterance.rate = optionsRef.current.rate ?? 1.0;
+    utterance.pitch = optionsRef.current.pitch ?? 1.0;
+    utterance.volume = optionsRef.current.volume ?? 1.0;
+
+    utterance.onstart = () => {
+      setIsPlaying(true);
+      setIsPaused(false);
+      setActiveText(item.raw);
+    };
+
+    utterance.onend = () => {
+      processNextInQueue();
+    };
+
+    utterance.onerror = (e) => {
+      if (e.error !== 'canceled' && e.error !== 'interrupted') {
+        optionsRef.current.onError?.(e);
+      }
+      processNextInQueue();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
   const stop = useCallback(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      sentenceQueueRef.current = [];
+      isSpeakingQueueRef.current = false;
       window.speechSynthesis.cancel();
       setIsPlaying(false);
       setIsPaused(false);
@@ -274,100 +356,44 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}) {
     }
   }, [isPaused]);
 
-  const speak = useCallback(
-    (text: string, overrideLocale?: AppLocale | string) => {
+  const queueSentence = useCallback(
+    (sentence: string, overrideLocale?: AppLocale | string) => {
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
         return;
       }
-
-      // Stop any ongoing speech
-      window.speechSynthesis.cancel();
-
-      if (!text || !text.trim()) {
-        setIsPlaying(false);
-        setActiveText(null);
-        return;
-      }
+      if (!sentence || !sentence.trim()) return;
 
       const targetLocale = (overrideLocale || currentLocale || 'id') as string;
-      const spokenText = cleanTextForSpeech(text, targetLocale);
+      const spokenText = cleanTextForSpeech(sentence, targetLocale);
+      if (!spokenText.trim()) return;
 
-      if (!spokenText.trim()) {
-        setIsPlaying(false);
-        setActiveText(null);
-        return;
+      sentenceQueueRef.current.push({
+        raw: sentence,
+        spoken: spokenText,
+        locale: targetLocale,
+      });
+
+      if (!isSpeakingQueueRef.current) {
+        processNextInQueue();
       }
-
-      const utterance = new SpeechSynthesisUtterance(spokenText);
-      utteranceRef.current = utterance;
-
-      // Select voice based on language
-      const voices = window.speechSynthesis.getVoices();
-      let matchedVoice: SpeechSynthesisVoice | undefined;
-
-      if (targetLocale.startsWith('en')) {
-        matchedVoice = voices.find(
-          (v) => v.lang.startsWith('en') && (v.lang.includes('US') || v.name.includes('Natural') || v.name.includes('Google'))
-        ) || voices.find((v) => v.lang.startsWith('en'));
-        utterance.lang = 'en-US';
-      } else if (targetLocale.startsWith('su')) {
-        // Sundanese: search for su-ID or fallback to Indonesian id-ID
-        matchedVoice = voices.find((v) => v.lang.startsWith('su')) ||
-          voices.find((v) => v.lang.startsWith('id'));
-        utterance.lang = matchedVoice?.lang || 'id-ID';
-      } else {
-        // Indonesian
-        matchedVoice = voices.find(
-          (v) => v.lang.startsWith('id') && (v.name.includes('Indonesian') || v.name.includes('Google'))
-        ) || voices.find((v) => v.lang.startsWith('id'));
-        utterance.lang = 'id-ID';
-      }
-
-      if (matchedVoice) {
-        utterance.voice = matchedVoice;
-      }
-
-      utterance.rate = optionsRef.current.rate ?? 1.0;
-      utterance.pitch = optionsRef.current.pitch ?? 1.0;
-      utterance.volume = optionsRef.current.volume ?? 1.0;
-
-      utterance.onstart = () => {
-        setIsPlaying(true);
-        setIsPaused(false);
-        setActiveText(text);
-      };
-
-      utterance.onend = () => {
-        setIsPlaying(false);
-        setIsPaused(false);
-        setActiveText(null);
-        optionsRef.current.onEnd?.();
-      };
-
-      utterance.onerror = (e) => {
-        setIsPlaying(false);
-        setIsPaused(false);
-        setActiveText(null);
-        optionsRef.current.onError?.(e);
-      };
-
-      utterance.onpause = () => {
-        setIsPaused(true);
-      };
-
-      utterance.onresume = () => {
-        setIsPaused(false);
-      };
-
-      window.speechSynthesis.speak(utterance);
     },
-    [currentLocale]
+    [currentLocale, processNextInQueue]
+  );
+
+  const speak = useCallback(
+    (text: string, overrideLocale?: AppLocale | string) => {
+      stop();
+      queueSentence(text, overrideLocale);
+    },
+    [stop, queueSentence]
   );
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        sentenceQueueRef.current = [];
+        isSpeakingQueueRef.current = false;
         window.speechSynthesis.cancel();
       }
     };
@@ -379,6 +405,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}) {
     isSupported,
     activeText,
     speak,
+    queueSentence,
     stop,
     pause,
     resume,

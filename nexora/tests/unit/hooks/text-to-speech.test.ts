@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { cleanTextForSpeech } from '@/hooks/useTextToSpeech';
+import { describe, it, expect, vi } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { cleanTextForSpeech, useTextToSpeech } from '@/hooks/useTextToSpeech';
 
 describe('Web Speech Synthesis Math Preprocessor (cleanTextForSpeech)', () => {
   describe('LaTeX Mathematical Formulas Conversion', () => {
@@ -99,6 +100,44 @@ Silakan tanyakan jika ada langkah yang belum jelas!
       expect(spoken).toContain('Langkah 1: Identifikasi variabel awal.');
       expect(spoken).toContain('n per 2');
       expect(spoken).toContain('Silakan tanyakan jika ada langkah yang belum jelas!');
+    });
+  });
+
+  describe('useTextToSpeech Hook Sentence Queue & Abort Cancellation', () => {
+    it('queues sentences and cleans speech when stopped', () => {
+      // Mock window.speechSynthesis
+      const cancelMock = vi.fn();
+      const speakMock = vi.fn();
+      const getVoicesMock = vi.fn(() => []);
+
+      (window as unknown as Record<string, unknown>).speechSynthesis = {
+        cancel: cancelMock,
+        speak: speakMock,
+        getVoices: getVoicesMock,
+        pause: vi.fn(),
+        resume: vi.fn(),
+      };
+      (window as unknown as Record<string, unknown>).SpeechSynthesisUtterance = function (text: string) {
+        return { text, lang: 'id-ID' };
+      };
+
+      const { result } = renderHook(() => useTextToSpeech());
+      expect(result.current.isSupported).toBe(true);
+
+      act(() => {
+        result.current.queueSentence('Kalimat pertama.');
+        result.current.queueSentence('Kalimat kedua.');
+      });
+
+      expect(speakMock).toHaveBeenCalled();
+
+      act(() => {
+        result.current.stop();
+      });
+
+      expect(cancelMock).toHaveBeenCalled();
+      expect(result.current.isPlaying).toBe(false);
+      expect(result.current.activeText).toBeNull();
     });
   });
 });
