@@ -22,6 +22,7 @@ import { useChatStore } from '@/stores/useChatStore';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { sanitizeReasoningContent } from '@/services/reasoning-sanitizer';
+import { formatMathForVoice } from '@/utils/latex-formatter';
 import { cn } from '@/lib/utils';
 
 export const AICallModal: React.FC = () => {
@@ -174,10 +175,10 @@ export const AICallModal: React.FC = () => {
           const { done, value } = await reader.read();
           if (done) break;
           fullResponse += decoder.decode(value, { stream: true });
-          setAiResponseText(sanitizeReasoningContent(fullResponse));
+          setAiResponseText(formatMathForVoice(sanitizeReasoningContent(fullResponse)));
         }
 
-        const cleaned = sanitizeReasoningContent(fullResponse);
+        const cleaned = formatMathForVoice(sanitizeReasoningContent(fullResponse));
         addMessageToHistory('assistant', cleaned);
         setCallStatus('SPEAKING');
 
@@ -504,41 +505,43 @@ export const AICallModal: React.FC = () => {
           </span>
         </div>
 
-        {/* Realtime Live Transcript Visual Box with Auto-Scroll */}
+        {/* Realtime Live Transcript Visual Box with Auto-Scroll & Deep Word-Break */}
         <div
           ref={transcriptContainerRef}
-          className="mt-5 w-full rounded-2xl border border-white/10 bg-[#131926]/90 p-4.5 text-left shadow-2xl min-h-[100px] max-h-48 md:max-h-60 overflow-y-auto custom-scrollbar backdrop-blur-md transition-all"
+          className="mt-5 w-full min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#131926]/90 p-4.5 text-left shadow-2xl min-h-[100px] max-h-48 md:max-h-60 overflow-y-auto custom-scrollbar backdrop-blur-md transition-all [overflow-wrap:anywhere] break-words"
         >
           {callStatus === 'SPEAKING' && aiResponseText ? (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 w-full min-w-0">
               <strong className="text-emerald-400 flex items-center gap-1.5 text-[11px] uppercase font-mono tracking-wider">
-                <Volume2 className="h-3.5 w-3.5 animate-pulse text-emerald-400" />
-                Nexora AI:
+                <Volume2 className="h-3.5 w-3.5 animate-pulse text-emerald-400 shrink-0" />
+                <span>Nexora AI:</span>
               </strong>
-              <p className="text-sm md:text-base text-emerald-100/95 leading-relaxed font-sans whitespace-pre-wrap break-words selection:bg-emerald-500/30">
+              <p className="text-sm md:text-base text-emerald-100/95 leading-relaxed font-sans whitespace-pre-wrap [overflow-wrap:anywhere] break-words break-all text-pretty selection:bg-emerald-500/30">
                 {aiResponseText}
               </p>
             </div>
           ) : currentLiveSpeech ? (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 w-full min-w-0">
               <strong className="text-cyan-400 flex items-center gap-1.5 text-[11px] uppercase font-mono tracking-wider">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
-                {locale === 'en'
-                  ? 'Transcribing Live:'
-                  : locale === 'su'
-                  ? 'Nuju Dirékam:'
-                  : 'Mendengarkan Langsung:'}
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping shrink-0" />
+                <span>
+                  {locale === 'en'
+                    ? 'Transcribing Live:'
+                    : locale === 'su'
+                    ? 'Nuju Dirékam:'
+                    : 'Mendengarkan Langsung:'}
+                </span>
               </strong>
-              <p className="text-sm md:text-base text-cyan-100 leading-relaxed font-sans whitespace-pre-wrap break-words italic">
+              <p className="text-sm md:text-base text-cyan-100 leading-relaxed font-sans whitespace-pre-wrap [overflow-wrap:anywhere] break-words break-all text-pretty italic">
                 &ldquo;{currentLiveSpeech}&rdquo;
               </p>
             </div>
           ) : userTranscript ? (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 w-full min-w-0">
               <strong className="text-slate-400 block text-[11px] uppercase font-mono tracking-wider">
                 You:
               </strong>
-              <p className="text-sm md:text-base text-slate-200 leading-relaxed font-sans whitespace-pre-wrap break-words">
+              <p className="text-sm md:text-base text-slate-200 leading-relaxed font-sans whitespace-pre-wrap [overflow-wrap:anywhere] break-words break-all text-pretty">
                 {userTranscript}
               </p>
             </div>

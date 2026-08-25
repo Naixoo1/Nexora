@@ -4,6 +4,7 @@ import {
   normalizeMathBackslashes,
   isMathExpression,
   cleanMathFormula,
+  formatMathForVoice,
 } from '@/utils/latex-formatter';
 import { cleanMarkdownText, stripCanvasNodeBlocks } from '@/components/chat/MarkdownRenderer';
 
@@ -237,4 +238,47 @@ nexora-node { "title": "Beda Barisan", "type": "reasoning_step", "latexFormula":
       expect(output).toContain('Langkah berikutnya:');
     });
   });
+
+  describe('formatMathForVoice conversion', () => {
+    it('converts LaTeX fractions and roots to plain spoken text', () => {
+      const input = 'Rumus jumlah suku ke-n adalah $S_n = \\frac{n}{2}(2a + (n-1)b)$ dan panjang sisi $c = \\sqrt{a^2 + b^2}$.';
+      const output = formatMathForVoice(input);
+
+      expect(output).toContain('Sn = n / 2(2a + (n-1)b)');
+      expect(output).toContain('akar(a^2 + b^2)');
+      expect(output).not.toContain('\\frac');
+      expect(output).not.toContain('\\sqrt');
+      expect(output).not.toContain('$');
+    });
+
+    it('converts operators like \\times, \\cdot, \\leq, \\neq to plain symbols', () => {
+      const input = 'Nilai $a \\times b \\cdot c \\leq 100$ dan $x \\neq 0$.';
+      const output = formatMathForVoice(input);
+
+      expect(output).toContain('*');
+      expect(output).toContain('<=');
+      expect(output).toContain('!=');
+      expect(output).not.toContain('\\times');
+      expect(output).not.toContain('\\cdot');
+    });
+
+    it('strips nexora-node fenced code blocks from spoken voice text', () => {
+      const input = `Deret geometri adalah barisan bilangan dengan rasio tetap.
+\`\`\`nexora-node
+{
+  "title": "Deret Geometri",
+  "type": "formula_block",
+  "latexFormula": "U_n = a * r^(n-1)"
+}
+\`\`\`
+Semoga jelas!`;
+      const output = formatMathForVoice(input);
+
+      expect(output).toContain('Deret geometri adalah barisan bilangan dengan rasio tetap.');
+      expect(output).toContain('Semoga jelas!');
+      expect(output).not.toContain('nexora-node');
+      expect(output).not.toContain('formula_block');
+    });
+  });
 });
+

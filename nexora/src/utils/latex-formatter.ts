@@ -342,3 +342,68 @@ export function preprocessLatex(content: string): string {
 
   return text;
 }
+
+/**
+ * Converts raw LaTeX mathematical formulas and syntax into clean, natural plain text
+ * suitable for spoken conversation and subtitle display in AI Call Mode.
+ * e.g., "\frac{n}{2}(2a + (n-1)b)" -> "n/2 * (2a + (n-1)b)"
+ *       "$S_n = \frac{n}{2} [2a + (n-1)b]$" -> "Sn = n/2 * (2a + (n-1)b)"
+ *       "\sqrt{x^2 + y^2}" -> "akar(x^2 + y^2)"
+ */
+export function formatMathForVoice(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+
+  let s = text;
+
+  // 1. Remove code fences and raw nexora-node blocks
+  s = s.replace(/```(?:nexora-node|node|json|typescript|javascript|python)?[\s\S]*?```/gi, '');
+  s = s.replace(/`([^`]+)`/g, '$1');
+
+  // 2. Fractions: \frac{a}{b} -> a/b
+  while (/\\frac\{([^{}]+)\}\{([^{}]+)\}/.test(s)) {
+    s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, (_match, num, den) => {
+      return `${num.trim()} / ${den.trim()}`;
+    });
+  }
+
+  // 3. Roots: \sqrt[n]{x} -> akar pangkat n(x) or akar(x)
+  s = s.replace(/\\sqrt\[([^\]]+)\]\{([^}]+)\}/g, 'akar pangkat $1($2)');
+  s = s.replace(/\\sqrt\{([^}]+)\}/g, 'akar($1)');
+  s = s.replace(/\\sqrt\s*([a-zA-Z0-9]+)/g, 'akar($1)');
+
+  // 4. Exponents & powers: x^{2} -> x^2
+  s = s.replace(/\^\{([^}]+)\}/g, '^$1');
+
+  // 5. Subscripts: S_{n} -> Sn, a_{1} -> a1, U_n -> Un
+  s = s.replace(/([a-zA-Z]+)_\{?([a-zA-Z0-9]+)\}?/g, '$1$2');
+
+  // 6. Multiplication and division operators
+  s = s.replace(/\\cdot|\\times|\\ast/g, ' * ');
+  s = s.replace(/\\div/g, ' / ');
+  s = s.replace(/\\pm/g, ' ± ');
+  s = s.replace(/\\leq|\\le/g, ' <= ');
+  s = s.replace(/\\geq|\\ge/g, ' >= ');
+  s = s.replace(/\\neq|\\ne/g, ' != ');
+  s = s.replace(/\\approx/g, ' ≈ ');
+  s = s.replace(/\\equiv/g, ' ≡ ');
+  s = s.replace(/\\to|\\rightarrow/g, ' -> ');
+  s = s.replace(/\\infty/g, ' tak hingga ');
+
+  // 7. Delimiters and latex brackets
+  s = s.replace(/\\left[\[\(\{]/g, '(').replace(/\\right[\]\)\}]/g, ')');
+  s = s.replace(/\\text\{([^}]+)\}/g, '$1');
+  s = s.replace(/\\mathrm\{([^}]+)\}/g, '$1');
+  s = s.replace(/\\mathbf\{([^}]+)\}/g, '$1');
+
+  // 8. Strip dollar signs $ and $$ and \( \) \[ \]
+  s = s.replace(/\$+/g, '');
+  s = s.replace(/\\\[|\\\]|\\\(|\\\)/g, '');
+
+  // 9. Strip remaining stray backslashes
+  s = s.replace(/\\/g, '');
+
+  // 10. Normalize multiple spaces
+  s = s.replace(/[ \t]+/g, ' ');
+
+  return s.trim();
+}
