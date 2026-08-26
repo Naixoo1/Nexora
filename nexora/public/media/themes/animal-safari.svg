@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="savannaSky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="100%" stop-color="#FFEDD5"/>
+    </linearGradient>
+    <linearGradient id="groundSavanna" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="lionBody" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="lionMane" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#B45309"/>
+      <stop offset="100%" stop-color="#78350F"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="240" rx="20" fill="url(#savannaSky)"/>
+
+  <!-- Warm Sun -->
+  <circle cx="200" cy="80" r="45" fill="#FDE047" opacity="0.6"/>
+
+  <!-- Savanna Horizon & Tree -->
+  <path d="M0 160 Q200 140 400 160 L400 240 L0 240 Z" fill="url(#groundSavanna)"/>
+
+  <!-- Savanna Acacia Tree Silhouette -->
+  <g transform="translate(40, 70)">
+    <path d="M40 100 Q45 50 30 20 Q50 35 60 15 Q65 40 85 18" fill="none" stroke="#78350F" stroke-width="5" stroke-linecap="round"/>
+    <ellipse cx="25" cy="18" rx="25" ry="10" fill="#15803D"/>
+    <ellipse cx="60" cy="12" rx="30" ry="12" fill="#15803D"/>
+    <ellipse cx="90" cy="18" rx="22" ry="9" fill="#15803D"/>
+  </g>
+
+  <!-- Cute Happy Lion King Mascot -->
+  <g transform="translate(180, 90)">
+    <!-- Mane -->
+    <circle cx="45" cy="55" r="42" fill="url(#lionMane)" stroke="#451A03" stroke-width="3"/>
+    <!-- Head -->
+    <circle cx="45" cy="55" r="28" fill="url(#lionBody)" stroke="#B45309" stroke-width="2.5"/>
+    <!-- Ears -->
+    <circle cx="24" cy="35" r="8" fill="url(#lionBody)" stroke="#B45309" stroke-width="2"/>
+    <circle cx="24" cy="35" r="4" fill="#FDE68A"/>
+    <circle cx="66" cy="35" r="8" fill="url(#lionBody)" stroke="#B45309" stroke-width="2"/>
+    <circle cx="66" cy="35" r="4" fill="#FDE68A"/>
+    <!-- Eyes -->
+    <circle cx="36" cy="50" r="4" fill="#0F172A"/>
+    <circle cx="54" cy="50" r="4" fill="#0F172A"/>
+    <circle cx="35" cy="48" r="1.5" fill="#FFFFFF"/>
+    <circle cx="53" cy="48" r="1.5" fill="#FFFFFF"/>
+    <!-- Nose & Muzzle -->
+    <polygon points="45,58 40,54 50,54" fill="#991B1B"/>
+    <path d="M45 58 L45 64 Q41 68 37 64" fill="none" stroke="#0F172A" stroke-width="2" stroke-linecap="round"/>
+    <path d="M45 64 Q49 68 53 64" fill="none" stroke="#0F172A" stroke-width="2" stroke-linecap="round"/>
+    <!-- Cheeks -->
+    <circle cx="28" cy="56" r="3.5" fill="#FCA5A5"/>
+    <circle cx="62" cy="56" r="3.5" fill="#FCA5A5"/>
+  </g>
+
+  <!-- Cute Friendly Giraffe Peek -->
+  <g transform="translate(300, 60)">
+    <path d="M30 110 L30 30 Q35 15 50 15 L55 35 L55 110 Z" fill="#FBBF24" stroke="#B45309" stroke-width="2.5"/>
+    <!-- Spots -->
+    <circle cx="42" cy="45" r="6" fill="#B45309"/>
+    <circle cx="44" cy="70" r="8" fill="#B45309"/>
+    <circle cx="40" cy="95" r="7" fill="#B45309"/>
+    <!-- Head & Horns -->
+    <line x1="38" y1="15" x2="36" y2="4" stroke="#B45309" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="36" cy="3" r="3" fill="#78350F"/>
+    <line x1="48" y1="15" x2="50" y2="4" stroke="#B45309" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="50" cy="3" r="3" fill="#78350F"/>
+    <!-- Eyes -->
+    <circle cx="40" cy="22" r="3" fill="#000000"/>
+    <circle cx="48" cy="22" r="3" fill="#000000"/>
+  </g>
+</svg>

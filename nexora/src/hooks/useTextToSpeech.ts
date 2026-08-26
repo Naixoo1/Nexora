@@ -230,6 +230,7 @@ export interface UseTextToSpeechOptions {
   rate?: number;
   pitch?: number;
   volume?: number;
+  gradeLevel?: 'PRIMARY' | 'JUNIOR_HIGH' | 'SENIOR_HIGH';
   onEnd?: () => void;
   onError?: (err: unknown) => void;
 }
@@ -307,8 +308,12 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}) {
       utterance.voice = matchedVoice;
     }
 
-    utterance.rate = optionsRef.current.rate ?? 1.0;
-    utterance.pitch = optionsRef.current.pitch ?? 1.0;
+    const isPrimary = optionsRef.current.gradeLevel === 'PRIMARY';
+    const defaultRate = isPrimary ? 0.95 : 1.0;
+    const defaultPitch = isPrimary ? 1.25 : 1.0;
+
+    utterance.rate = optionsRef.current.rate ?? defaultRate;
+    utterance.pitch = optionsRef.current.pitch ?? defaultPitch;
     utterance.volume = optionsRef.current.volume ?? 1.0;
 
     utterance.onstart = () => {

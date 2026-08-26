@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="100%" height="100%" fill="none">
+  <defs>
+    <radialGradient id="hintGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FDE047" stop-opacity="0.8"/>
+      <stop offset="60%" stop-color="#EAB308" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#EAB308" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bulbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A"/>
+      <stop offset="50%" stop-color="#FACC15"/>
+      <stop offset="100%" stop-color="#EAB308"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Ambient Glow -->
+  <circle cx="160" cy="150" r="140" fill="url(#hintGlow)" />
+
+  <!-- Idea Rays -->
+  <line x1="160" y1="20" x2="160" y2="45" stroke="#FBBF24" stroke-width="5" stroke-linecap="round"/>
+  <line x1="70" y1="60" x2="90" y2="80" stroke="#FBBF24" stroke-width="5" stroke-linecap="round"/>
+  <line x1="250" y1="60" x2="230" y2="80" stroke="#FBBF24" stroke-width="5" stroke-linecap="round"/>
+  <line x1="30" y1="140" x2="60" y2="140" stroke="#FBBF24" stroke-width="5" stroke-linecap="round"/>
+  <line x1="290" y1="140" x2="260" y2="140" stroke="#FBBF24" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Lightbulb Glass Body -->
+  <path d="M110 140 C110 100 130 80 160 80 C190 80 210 100 210 140 C210 165 195 185 185 200 L135 200 C125 185 110 165 110 140 Z" fill="url(#bulbGrad)" stroke="#CA8A04" stroke-width="4"/>
+
+  <!-- Cute Eyes -->
+  <ellipse cx="145" cy="135" rx="7" ry="10" fill="#1E293B"/>
+  <circle cx="143" cy="132" r="3" fill="#FFFFFF"/>
+  <ellipse cx="175" cy="135" rx="7" ry="10" fill="#1E293B"/>
+  <circle cx="173" cy="132" r="3" fill="#FFFFFF"/>
+
+  <!-- Cute Friendly Smile -->
+  <path d="M148 152 Q160 164 172 152" fill="none" stroke="#1E293B" stroke-width="3.5" stroke-linecap="round"/>
+
+  <!-- Rosy Cheeks -->
+  <circle cx="132" cy="147" r="7" fill="#F472B6" opacity="0.8"/>
+  <circle cx="188" cy="147" r="7" fill="#F472B6" opacity="0.8"/>
+
+  <!-- Lightbulb Screw Base -->
+  <rect x="135" y="200" width="50" height="10" rx="3" fill="#94A3B8" stroke="#475569" stroke-width="2"/>
+  <rect x="138" y="212" width="44" height="9" rx="3" fill="#94A3B8" stroke="#475569" stroke-width="2"/>
+  <path d="M142 223 C142 235 178 235 178 223 Z" fill="#475569"/>
+
+  <!-- Sparkles -->
+  <polygon points="90,195 93,201 100,202 95,207 97,214 90,210 83,214 85,207 80,202 87,201" fill="#FFFFFF" />
+  <polygon points="230,195 233,201 240,202 235,207 237,214 230,210 223,214 225,207 220,202 227,201" fill="#FFFFFF" />
+</svg>

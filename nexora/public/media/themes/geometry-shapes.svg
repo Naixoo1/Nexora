@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="bgGradGeo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EEF2FF"/>
+      <stop offset="100%" stop-color="#C7D2FE"/>
+    </linearGradient>
+    <linearGradient id="triGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F43F5E"/>
+      <stop offset="100%" stop-color="#BE123C"/>
+    </linearGradient>
+    <linearGradient id="sqGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0369A1"/>
+    </linearGradient>
+    <linearGradient id="circGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="240" rx="20" fill="url(#bgGradGeo)"/>
+
+  <!-- Friendly Triangle (3 Corners) -->
+  <g transform="translate(60, 60)">
+    <polygon points="50,15 15,110 85,110" fill="url(#triGrad)" stroke="#881337" stroke-width="4" stroke-linejoin="round"/>
+    <!-- Face -->
+    <circle cx="43" cy="70" r="4" fill="#FFFFFF"/>
+    <circle cx="57" cy="70" r="4" fill="#FFFFFF"/>
+    <circle cx="43" cy="70" r="2" fill="#000000"/>
+    <circle cx="57" cy="70" r="2" fill="#000000"/>
+    <path d="M46 80 Q50 86 54 80" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+    <!-- Corner Badges -->
+    <circle cx="50" cy="15" r="7" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/>
+    <circle cx="15" cy="110" r="7" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/>
+    <circle cx="85" cy="110" r="7" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/>
+    <text x="50" y="130" text-anchor="middle" fill="#881337" font-weight="bold" font-size="12">3 Sudut</text>
+  </g>
+
+  <!-- Friendly Square (4 Equal Sides & Corners) -->
+  <g transform="translate(160, 60)">
+    <rect x="15" y="25" width="80" height="80" rx="10" fill="url(#sqGrad)" stroke="#075985" stroke-width="4"/>
+    <!-- Face -->
+    <circle cx="45" cy="60" r="5" fill="#FFFFFF"/>
+    <circle cx="65" cy="60" r="5" fill="#FFFFFF"/>
+    <circle cx="45" cy="60" r="2.5" fill="#000000"/>
+    <circle cx="65" cy="60" r="2.5" fill="#000000"/>
+    <path d="M48 74 Q55 82 62 74" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Corner Badges -->
+    <circle cx="15" cy="25" r="7" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/>
+    <circle cx="95" cy="25" r="7" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/>
+    <circle cx="15" cy="105" r="7" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/>
+    <circle cx="95" cy="105" r="7" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/>
+    <text x="55" y="130" text-anchor="middle" fill="#075985" font-weight="bold" font-size="12">4 Sudut</text>
+  </g>
+
+  <!-- Friendly Circle (Round & Rolling) -->
+  <g transform="translate(270, 60)">
+    <circle cx="50" cy="65" r="42" fill="url(#circGrad)" stroke="#B45309" stroke-width="4"/>
+    <!-- Face -->
+    <circle cx="40" cy="60" r="5" fill="#FFFFFF"/>
+    <circle cx="60" cy="60" r="5" fill="#FFFFFF"/>
+    <circle cx="40" cy="60" r="2.5" fill="#000000"/>
+    <circle cx="60" cy="60" r="2.5" fill="#000000"/>
+    <path d="M44 74 Q50 82 56 74" fill="none" stroke="#78350F" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="32" cy="68" r="4" fill="#FCA5A5"/>
+    <circle cx="68" cy="68" r="4" fill="#FCA5A5"/>
+    <text x="50" y="130" text-anchor="middle" fill="#B45309" font-weight="bold" font-size="12">1 Sisi Lengkung</text>
+  </g>
+</svg>

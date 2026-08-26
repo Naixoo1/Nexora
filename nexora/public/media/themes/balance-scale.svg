@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="bgScale" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF3C7"/>
+      <stop offset="100%" stop-color="#FDE68A"/>
+    </linearGradient>
+    <linearGradient id="metalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#94A3B8"/>
+      <stop offset="50%" stop-color="#64748B"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+    <linearGradient id="goldBar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="pinkWeight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#DB2777"/>
+    </linearGradient>
+    <linearGradient id="blueWeight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="240" rx="20" fill="url(#bgScale)"/>
+
+  <!-- Scale Stand Base -->
+  <path d="M170 210 L200 130 L230 210 Z" fill="url(#metalGrad)" stroke="#1E293B" stroke-width="3"/>
+  <rect x="150" y="205" width="100" height="15" rx="5" fill="#1E293B"/>
+
+  <!-- Central Pivot Point -->
+  <circle cx="200" cy="115" r="14" fill="url(#goldBar)" stroke="#B45309" stroke-width="3"/>
+  <circle cx="200" cy="115" r="5" fill="#FFFFFF"/>
+
+  <!-- Horizontal Beam (Balanced) -->
+  <rect x="60" y="110" width="280" height="10" rx="5" fill="url(#goldBar)" stroke="#B45309" stroke-width="2.5"/>
+
+  <!-- Left Hanging Strings & Pan -->
+  <line x1="85" y1="120" x2="60" y2="175" stroke="#78350F" stroke-width="2.5"/>
+  <line x1="85" y1="120" x2="110" y2="175" stroke="#78350F" stroke-width="2.5"/>
+  <path d="M50 175 C50 195 120 195 120 175 Z" fill="url(#metalGrad)" stroke="#1E293B" stroke-width="2.5"/>
+
+  <!-- Left Weights (2 x 5 kg Blocks) -->
+  <rect x="65" y="150" width="22" height="24" rx="4" fill="url(#blueWeight)" stroke="#1D4ED8" stroke-width="2"/>
+  <text x="76" y="166" text-anchor="middle" fill="#FFFFFF" font-weight="bold" font-size="9">5kg</text>
+  <rect x="89" y="150" width="22" height="24" rx="4" fill="url(#blueWeight)" stroke="#1D4ED8" stroke-width="2"/>
+  <text x="100" y="166" text-anchor="middle" fill="#FFFFFF" font-weight="bold" font-size="9">5kg</text>
+
+  <!-- Right Hanging Strings & Pan -->
+  <line x1="315" y1="120" x2="290" y2="175" stroke="#78350F" stroke-width="2.5"/>
+  <line x1="315" y1="120" x2="340" y2="175" stroke="#78350F" stroke-width="2.5"/>
+  <path d="M280 175 C280 195 350 195 350 175 Z" fill="url(#metalGrad)" stroke="#1E293B" stroke-width="2.5"/>
+
+  <!-- Right Weight (1 x 10 kg Block) -->
+  <rect x="298" y="142" width="34" height="32" rx="5" fill="url(#pinkWeight)" stroke="#BE185D" stroke-width="2"/>
+  <text x="315" y="162" text-anchor="middle" fill="#FFFFFF" font-weight="bold" font-size="11">10kg</text>
+
+  <!-- Equal Balanced Symbol Badge -->
+  <circle cx="200" cy="50" r="22" fill="#10B981" stroke="#047857" stroke-width="3"/>
+  <text x="200" y="58" text-anchor="middle" fill="#FFFFFF" font-weight="bold" font-size="24">=</text>
+</svg>

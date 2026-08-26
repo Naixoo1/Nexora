@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="100%" height="100%" fill="none">
+  <defs>
+    <radialGradient id="winGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FCD34D" stop-opacity="0.8"/>
+      <stop offset="60%" stop-color="#F59E0B" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="trophyGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A"/>
+      <stop offset="50%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="starShine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FDE047"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Ambient Glow -->
+  <circle cx="160" cy="160" r="140" fill="url(#winGlow)" />
+
+  <!-- Confetti Elements -->
+  <circle cx="60" cy="80" r="8" fill="#EC4899" />
+  <rect x="240" y="70" width="12" height="12" rx="3" fill="#3B82F6" transform="rotate(25 240 70)" />
+  <circle cx="260" cy="190" r="9" fill="#10B981" />
+  <rect x="50" y="210" width="14" height="8" rx="2" fill="#8B5CF6" transform="rotate(-30 50 210)" />
+  <polygon points="160,30 166,44 180,45 169,55 173,69 160,61 147,69 151,55 140,45 154,44" fill="url(#starShine)" />
+
+  <!-- Trophy Cup Body -->
+  <path d="M100 95 C100 160 135 185 160 185 C185 185 220 160 220 95 Z" fill="url(#trophyGold)" stroke="#B45309" stroke-width="4" />
+  
+  <!-- Trophy Handles -->
+  <path d="M100 110 C70 110 70 150 105 155" fill="none" stroke="url(#trophyGold)" stroke-width="8" stroke-linecap="round" />
+  <path d="M220 110 C250 110 250 150 215 155" fill="none" stroke="url(#trophyGold)" stroke-width="8" stroke-linecap="round" />
+
+  <!-- Trophy Stem & Base -->
+  <path d="M148 185 L145 220 L175 220 L172 185 Z" fill="#D97706" stroke="#B45309" stroke-width="3" />
+  <rect x="120" y="220" width="80" height="25" rx="6" fill="#1F2937" stroke="#4B5563" stroke-width="3" />
+  <rect x="135" y="226" width="50" height="13" rx="3" fill="#FBBF24" />
+
+  <!-- Star on Cup -->
+  <polygon points="160,120 164,132 176,133 167,141 170,153 160,146 150,153 153,141 144,133 156,132" fill="#FFFFFF" />
+
+  <!-- Sparkles -->
+  <polygon points="80,120 83,127 90,128 85,133 87,140 80,136 73,140 75,133 70,128 77,127" fill="#FDE047" />
+  <polygon points="240,110 242,116 248,117 244,121 245,127 240,124 235,127 236,121 232,117 238,116" fill="#FDE047" />
+</svg>

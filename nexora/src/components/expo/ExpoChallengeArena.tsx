@@ -31,6 +31,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
+import { PrimaryExpoArena } from '@/components/expo/PrimaryExpoArena';
 import type { ExpoGradeTier } from '@/types/expo';
 import { cn } from '@/lib/utils';
 
@@ -122,6 +123,15 @@ export const ExpoChallengeArena: React.FC = () => {
 
   const timeRatio = maxTimeForRound > 0 ? timeRemaining / maxTimeForRound : 0;
   const isTimeCritical = timeRemaining <= 15;
+
+  // Dedicated Gamified Arena for Primary School (SD)
+  if (gamePhase !== 'WELCOME' && selectedGrade === 'PRIMARY') {
+    return (
+      <div className="min-h-screen bg-[#0B0F17] text-white selection:bg-cyan-500/30 selection:text-white flex flex-col justify-between">
+        <PrimaryExpoArena onBackToMenu={resetGame} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0B0F17] text-white selection:bg-cyan-500/30 selection:text-white flex flex-col justify-between">
