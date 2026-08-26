@@ -93,6 +93,44 @@ Turunan fungsi $f(x) = x^2$ adalah $f'(x) = 2x$.`;
       expect(output).not.toContain('Mental Refinement');
     });
 
+    it('strips conversational planning monologue prefixes like "Let\'s do:", "Or better:", "Actually, let\'s make it Socratic"', () => {
+      const input = `Let's do: Solve for x in log_2(x^2 - 5x + 6) = 2. Or better, a problem that involves factoring and checking for extraneous solutions. Actually, let's make it a bit more interesting and Socratic. I'll present the problem, then ask what the first step is.
+
+Selesaikan persamaan logaritma berikut untuk nilai $x$:
+$$
+\\log_2(x^2 - 5x + 6) = 2
+$$
+Apa langkah pertama yang perlu kita lakukan?`;
+
+      const output = stripPlainTextMonologue(input);
+      expect(output).toBe(`Selesaikan persamaan logaritma berikut untuk nilai $x$:
+$$
+\\log_2(x^2 - 5x + 6) = 2
+$$
+Apa langkah pertama yang perlu kita lakukan?`);
+      expect(output).not.toContain("Let's do");
+      expect(output).not.toContain('Or better');
+      expect(output).not.toContain('Actually');
+      expect(output).not.toContain("I'll present");
+    });
+
+    it('strips "The user just said...", "I will provide...", and "Planning response" scratchpads', () => {
+      const input = `The user just said they want a math challenge. I will provide an Olympiad problem on number theory.
+Planning response:
+1. State the problem clearly
+2. Give a probing hint
+
+Berikut adalah soal tantangan teori bilangan untukmu:
+Tentukan semua bilangan bulat positif $n$ sehingga $n^2 + 1$ habis dibagi $n + 1$.`;
+
+      const output = stripPlainTextMonologue(input);
+      expect(output).toBe(`Berikut adalah soal tantangan teori bilangan untukmu:
+Tentukan semua bilangan bulat positif $n$ sehingga $n^2 + 1$ habis dibagi $n + 1$.`);
+      expect(output).not.toContain('The user just said');
+      expect(output).not.toContain('I will provide');
+      expect(output).not.toContain('Planning response');
+    });
+
     it('preserves regular responses that start immediately with greetings or math without preamble', () => {
       const input = 'Halo! Rumus yang digunakan adalah $E = mc^2$.';
       const output = stripPlainTextMonologue(input);
@@ -277,6 +315,37 @@ $$`);
       expect(result).not.toContain('Drafting the Content');
       expect(result).not.toContain('Mental Refinement');
     });
+
+    it('filters conversational planning scratchpad ("Let\'s do: ...") in streaming chunks', async () => {
+      const chunks = [
+        "Let's do: A problem about logarithms. Actually, let's make it Socratic.\n\n",
+        'Selesaikan persamaan ',
+        'berikut untuk $x$.',
+      ];
+
+      const readable = new ReadableStream<string>({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(chunk);
+          }
+          controller.close();
+        },
+      });
+
+      const filteredStream = readable.pipeThrough(createReasoningFilterTransform('id'));
+      const reader = filteredStream.getReader();
+
+      let result = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) result += value;
+      }
+
+      expect(result).toBe('Selesaikan persamaan berikut untuk $x$.');
+      expect(result).not.toContain("Let's do");
+      expect(result).not.toContain('Actually');
+    });
   });
 
   describe('cleanScriptBleed (Multilingual Token Hallucination Sanitizer)', () => {
@@ -314,6 +383,16 @@ $$`);
       expect(output).not.toContain('这');
       expect(output).not.toContain('吧');
       expect(output).toContain('$x^2 - 4 = 0$');
+    });
+  });
+
+  describe('normalizePseudoCodeMath & sanitizeReasoningContent integration', () => {
+    it('normalizes raw pseudo-code log_2(x^2 - 5x + 6) into KaTeX $\\log_{2}(x^2 - 5x + 6)$', () => {
+      const input = 'Selesaikan persamaan log_2(x^2 - 5x + 6) = 2.';
+      const output = sanitizeReasoningContent(input);
+
+      expect(output).toContain('$\\log_{2}(x^2 - 5x + 6)$');
+      expect(output).not.toContain('log_2(');
     });
   });
 });

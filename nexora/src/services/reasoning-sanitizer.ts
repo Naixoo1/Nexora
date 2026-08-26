@@ -1,8 +1,9 @@
 /**
  * Reasoning Sanitizer & Stream Filter.
  * Strips internal chain-of-thought tokens, `<think>...</think>` tags, plain-text monologue preambles,
- * leaked safety tokens/metadata, and reasoning deltas to ensure that internal model reasoning
- * or evaluation artifacts are never leaked to the client.
+ * conversational scratchpads, pseudo-code math notations, leaked safety tokens/metadata,
+ * and reasoning deltas to ensure that internal model reasoning or evaluation artifacts
+ * are never leaked to the client.
  */
 
 /**
@@ -32,18 +33,44 @@ export function stripSafetyMetadata(text: string): string {
 }
 
 /**
- * Strips leading plain-text chain-of-thought and monologue preambles
- * like "Here's a thinking process:", "1. Analyze User Input:", "Let's check the rules:".
+ * Normalizes raw pseudo-code math expressions into standard KaTeX LaTeX.
+ * e.g. `log_2(x^2 - 5x + 6)` -> `$\log_2(x^2 - 5x + 6)$`
+ *      `log_b(a)` -> `$\log_{b}(a)$`
+ */
+export function normalizePseudoCodeMath(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+
+  let output = text;
+
+  // Replace standalone raw log_b(...) or log_2(...) outside LaTeX $ delimiters
+  output = output.replace(
+    /(?<!\$|\\)\blog_([0-9a-zA-Z]+)\(([^)]+)\)(?!\$)/g,
+    '$\\log_{$1}($2)$'
+  );
+
+  // Replace standalone raw sqrt(...) outside LaTeX delimiters
+  output = output.replace(
+    /(?<!\$|\\)\bsqrt\(([^)]+)\)(?!\$)/g,
+    '$\\sqrt{$1}$'
+  );
+
+  return output;
+}
+
+/**
+ * Strips leading plain-text chain-of-thought, monologue preambles, and conversational scratchpads
+ * like "Let's do: ...", "Or better, a problem that...", "Actually, let's make it a bit more interesting and Socratic...",
+ * "I'll present the problem, then ask...", "1. Analyze User Input:", "Let's check the rules:".
  */
 export function stripPlainTextMonologue(text: string): string {
   if (!text || typeof text !== 'string') return '';
 
   let cleaned = text.trim();
 
-  // 1. Direct inline/prefix stripping for "Drafting the Content (Mental Refinement):", "Mental Refinement:", etc.
+  // 1. Direct inline/prefix stripping for explicit tags
   cleaned = cleaned
     .replace(
-      /^(?:#{1,4}[^\S\r\n]*)?(?:\*{0,2})(?:Drafting the Content\s*(?:\([^)]*\))?|Mental Refinement|Drafting response|Internal Monologue|Thinking Process|Analyzing the request|Let's think)(?:\*{0,2}):?[^\S\r\n]*[^\n]*(?:\r?\n+|$)/i,
+      /^(?:#{1,4}[^\S\r\n]*)?(?:\*{0,2})(?:Drafting the Content\s*(?:\([^)]*\))?|Mental Refinement|Drafting response|Internal Monologue|Thinking Process|Analyzing the request|Let's think|Planning response)(?:\*{0,2}):?[^\S\r\n]*[^\n]*(?:\r?\n+|$)/i,
       ''
     )
     .trim();
@@ -53,9 +80,18 @@ export function stripPlainTextMonologue(text: string): string {
     .replace(/(?:\*{0,2})(?:Drafting the Content\s*(?:\([^)]*\))?|Mental Refinement)(?:\*{0,2}):?[^\S\r\n]*/gi, '')
     .trim();
 
+  // 2. Planning monologue and scratchpad pattern
+  // Matches LLMs brainstorming what problem to give before the actual question/answer
+  const planningPrefixPattern =
+    /^(?:(?:Let'?s\s+(?:do|create|give|provide|make|present|craft|think|design|come up with|start with|check|analyze|draft|break down)|Or better|Actually,?\s+let'?s|I\s+(?:will|shall|can|need to|should|am going to|plan to)|I'?ll\s+(?:present|give|ask|provide|guide|create|start|show|introduce)|The user\s+(?:just|is|wants|asked|said|provided)|Planning\s+(?:response|a problem|the next step|the solution)|Response Strategy|Let'?s see|To make it (?:more )?Socratic)[\s\S]*?)(?=(?:\r?\n)+(?:Berikut|Tentu|Halo|Sampurasun|Hello|Hai|Selamat|Selesaikan|Soal|Pertanyaan|Mari|Silakan|Tentukan|Berapakah|Berapa|Diketahui|Carilah|Hitunglah|Simak|Perhatikan|Catatan|#|\$\$|\$[a-zA-Z0-9]|[A-Z][a-z]+(?:\s+[a-z]+){2,}:?|$))/i;
+
+  if (planningPrefixPattern.test(cleaned)) {
+    cleaned = cleaned.replace(planningPrefixPattern, '').trim();
+  }
+
   // Monologue Header & CoT Indicators
   const monologueHeaderPattern =
-    /^(#{1,4}\s*)?(\*{0,2})(Here'?s (a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (check the rules|analyze|draft a response|break down|think)|Drafting the Content|Mental Refinement|Analyzing the request|Identify Persona|We need to respond in|Guidelines to follow)(\*{0,2}):?/i;
+    /^(#{1,4}\s*)?(\*{0,2})(Here'?s (a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (do|check the rules|analyze|draft a response|break down|think|create|give|present|make|craft)|Or better|Actually,?\s+let'?s|I (will|shall|am going to|plan to)|I'?ll (present|give|ask|provide|guide|create)|The user (just|is|wants|asked|said)|Planning (response|a problem)|Drafting the Content|Mental Refinement|Analyzing the request|Identify Persona|We need to respond in|Guidelines to follow)(\*{0,2}):?/i;
 
   const numberedCotPattern =
     /^(\*{0,2})(\d+\.|\*|-)\s*(\*{0,2})(Analyze|Understand|Identify|Check|Determine|Formulate|Draft|Translate|Plan|Rules?|Persona|Response Strategy|User Intent|Target Audience|Mental Refinement|Drafting)\b/i;
@@ -70,7 +106,7 @@ export function stripPlainTextMonologue(text: string): string {
       const isMonologueParagraph =
         monologueHeaderPattern.test(p) ||
         numberedCotPattern.test(p) ||
-        /^(The user is asking|I should respond in|The prompt asks for|My role is|Make sure to|Don't forget to|Output strictly|Drafting the Content|Mental Refinement)\b/i.test(
+        /^(The user is asking|I should respond in|The prompt asks for|My role is|Make sure to|Don't forget to|Output strictly|Drafting the Content|Mental Refinement|Let'?s do|Or better|Actually,?\s+let'?s|I'?ll present|I will provide|To make it (?:more )?Socratic)\b/i.test(
           p
         ) ||
         /^(Let'?s draft|Drafting response|Now formulating|Final response):?$/i.test(p);
@@ -88,7 +124,7 @@ export function stripPlainTextMonologue(text: string): string {
       // If paragraphs didn't cleanly split, use regex lookahead for real content start
       cleaned = cleaned
         .replace(
-          /^((#{1,4}\s*)?(\*{0,2})(Here'?s (a |my )?thinking process|Thinking Process|Let'?s check the rules|Let'?s analyze|Drafting the Content|Mental Refinement|\d+\.\s*(\*{0,2})(Analyze|Identify|Check|Determine))[\s\S]*?)(?=\n\n(Halo|Sampurasun|Hello|Hai|Selamat|Dear|[A-Z][a-z]+|\$\$|#{1,3}\s+[A-Z]|\$[a-zA-Z0-9]))/i,
+          /^((#{1,4}\s*)?(\*{0,2})(Here'?s (a |my )?thinking process|Thinking Process|Let'?s (check the rules|analyze|do|think|create)|Or better|Actually,?\s+let'?s|I (will|shall|plan to)|I'?ll (present|give)|Drafting the Content|Mental Refinement|\d+\.\s*(\*{0,2})(Analyze|Identify|Check|Determine))[\s\S]*?)(?=\n+(Halo|Sampurasun|Hello|Hai|Selamat|Dear|Berikut|Tentu|Selesaikan|Soal|Mari|Silakan|Tentukan|[A-Z][a-z]+|\$\$|#{1,3}\s+[A-Z]|\$[a-zA-Z0-9]))/i,
           ''
         )
         .trim();
@@ -163,7 +199,8 @@ export function cleanScriptBleed(text: string, locale: string = 'id'): string {
 
 /**
  * Strips `<think>...</think>` blocks, reasoning tags, plain-text monologue,
- * multilingual script bleeds, and leaked safety tokens from a completed string.
+ * conversational scratchpads, pseudo-code math notation, multilingual script bleeds,
+ * and leaked safety tokens from a completed string.
  */
 export function sanitizeReasoningContent(text: string, locale: string = 'id'): string {
   if (!text || typeof text !== 'string') return '';
@@ -183,8 +220,11 @@ export function sanitizeReasoningContent(text: string, locale: string = 'id'): s
     .replace(/<\/think>/gi, '')
     .trim();
 
-  // 6. Strip plain-text monologue blocks
+  // 6. Strip plain-text monologue & conversational scratchpad blocks
   result = stripPlainTextMonologue(result);
+
+  // 7. Normalize raw pseudo-code math expressions (e.g. log_2(...) -> $\log_2(...)$)
+  result = normalizePseudoCodeMath(result);
 
   return result.trim();
 }
@@ -199,7 +239,7 @@ export function createReasoningFilterTransform(locale: string = 'id'): Transform
   let buffer = '';
 
   const monologueOrSafetyCheck =
-    /^(?:#{1,4}\s*)?(?:\*{0,2})(?:Here'?s (?:a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (?:check the rules|analyze|draft|think)|1\.\s*(?:\*{0,2})Analyze|Drafting the Content|Mental Refinement|Drafting response|Analyzing the request|(?:user\s*)?safety(?:_rating)?\s*:\s*\w+|\[\s*(?:user\s*)?safety(?:_rating)?\s*:\s*[^\]]+\]|(?:Input|Content|Prompt|User|Context)\s*Safety\s*:\s*\w+|Safety\s*Assessment\s*:\s*\w+)/i;
+    /^(?:#{1,4}\s*)?(?:\*{0,2})(?:Here'?s (?:a |my )?thinking process|Thinking Process|Internal Monologue|Chain-of-Thought|Let'?s (?:do|check the rules|analyze|draft|think|create|give|present|make|craft)|Or better|Actually,?\s+let'?s|I (?:will|shall|am going to|plan to)|I'?ll (?:present|give|ask|provide|guide|create)|The user (?:just|is|wants|asked|said)|Planning (?:response|a problem)|1\.\s*(?:\*{0,2})Analyze|Drafting the Content|Mental Refinement|Drafting response|Analyzing the request|(?:user\s*)?safety(?:_rating)?\s*:\s*\w+|\[\s*(?:user\s*)?safety(?:_rating)?\s*:\s*[^\]]+\]|(?:Input|Content|Prompt|User|Context)\s*Safety\s*:\s*\w+|Safety\s*Assessment\s*:\s*\w+)/i;
 
   return new TransformStream<string, string>({
     transform(chunk, controller) {
@@ -215,7 +255,6 @@ export function createReasoningFilterTransform(locale: string = 'id'): Transform
           const splitIdx = doubleNewlineIdx !== -1 ? doubleNewlineIdx : singleNewlineIdx;
 
           if (splitIdx !== -1) {
-            const potentialArtifact = buffer.slice(0, splitIdx);
             const remaining = buffer.slice(splitIdx + (doubleNewlineIdx !== -1 ? 2 : 1));
 
             // Check if remaining still looks like monologue or safety
@@ -225,7 +264,7 @@ export function createReasoningFilterTransform(locale: string = 'id'): Transform
             }
           }
           return;
-        } else if (buffer.length > 40 || buffer.includes('\n')) {
+        } else if (buffer.length > 50 || buffer.includes('\n')) {
           // No preamble artifact detected at beginning
           isCheckingPreamble = false;
         } else {
