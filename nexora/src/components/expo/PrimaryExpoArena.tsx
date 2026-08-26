@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Sparkles,
@@ -37,8 +37,11 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
   const [score, setScore] = useState<number>(0);
   const [streak, setStreak] = useState<number>(0);
   const [activeOverlay, setActiveOverlay] = useState<ReactionOverlayType>(null);
-  const [isCompleted, setIsCompleted] = useState<boolean>(false);
+  const [showCompletionCelebration, setShowCompletionCelebration] = useState<boolean>(false);
+  const [showCertificate, setShowCertificate] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+
+  const celebrationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Text to speech calibrated specifically for Primary / SD kids (friendly pitch 1.25, clear rate 0.95)
   const { isPlaying, speak, stop } = useTextToSpeech({
@@ -56,6 +59,29 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
     },
     [isMuted, speak]
   );
+
+  // Auto-transition from celebration intermission to certificate after 3.5s
+  useEffect(() => {
+    if (showCompletionCelebration) {
+      celebrationTimerRef.current = setTimeout(() => {
+        setShowCompletionCelebration(false);
+        setShowCertificate(true);
+      }, 3500);
+    }
+    return () => {
+      if (celebrationTimerRef.current) {
+        clearTimeout(celebrationTimerRef.current);
+      }
+    };
+  }, [showCompletionCelebration]);
+
+  const handleSkipToCertificate = () => {
+    if (celebrationTimerRef.current) {
+      clearTimeout(celebrationTimerRef.current);
+    }
+    setShowCompletionCelebration(false);
+    setShowCertificate(true);
+  };
 
   const handleSelectOption = (option: PrimaryQuestionOption) => {
     if (option.isCorrect) {
@@ -81,17 +107,22 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
     if (currentIndex + 1 < PRIMARY_EXPO_QUESTIONS.length) {
       setCurrentIndex((prev) => prev + 1);
     } else {
-      setIsCompleted(true);
-      handleSpeakText('Selamat! Kamu berhasil menyelesaikan semua tantangan dengan luar biasa!');
+      // Transition to Celebration Intermission stage before certificate
+      setShowCompletionCelebration(true);
+      handleSpeakText('Horeee! Kamu berhasil menyelesaikan semua tantangan! Menyiapkan sertifikat juara cilik Nexora...');
     }
   };
 
   const handleRestart = () => {
+    if (celebrationTimerRef.current) {
+      clearTimeout(celebrationTimerRef.current);
+    }
     setCurrentIndex(0);
     setScore(0);
     setStreak(0);
     setActiveOverlay(null);
-    setIsCompleted(false);
+    setShowCompletionCelebration(false);
+    setShowCertificate(false);
     stop();
   };
 
@@ -119,8 +150,55 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
     },
   ];
 
-  // ── 1. GAME COMPLETED SUMMARY SCREEN ───────────────────────
-  if (isCompleted) {
+  // ── 1. SESSION COMPLETION INTERMISSION (END.GIF CELEBRATION) ─────
+  if (showCompletionCelebration) {
+    return (
+      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-500">
+        <div className="relative rounded-3xl border-2 border-amber-400/50 bg-gradient-to-b from-amber-500/20 via-slate-900/95 to-[#0B0F17] p-8 sm:p-12 shadow-[0_0_50px_rgba(251,191,36,0.25)] backdrop-blur-2xl max-w-2xl w-full">
+          {/* Animated Celebration GIF */}
+          <div className="mx-auto flex h-48 w-48 sm:h-56 sm:w-56 items-center justify-center rounded-3xl bg-gradient-to-tr from-amber-400/20 via-yellow-300/20 to-cyan-400/20 p-3 shadow-2xl border border-amber-400/30">
+            <img
+              src="/media/reactions/end.gif"
+              onError={(e) => {
+                e.currentTarget.src = '/media/reactions/win.svg';
+              }}
+              alt="End Celebration"
+              className="h-full w-full object-contain transform transition-transform duration-500 hover:scale-105"
+            />
+          </div>
+
+          <h2 className="mt-6 text-2xl sm:text-4xl font-black text-amber-300 tracking-tight leading-tight">
+            🎉 Horeee! Kamu Berhasil Menyelesaikan Semua Tantangan!
+          </h2>
+
+          <div className="mt-4 flex items-center justify-center gap-2 text-sm sm:text-base font-bold text-cyan-300 animate-pulse">
+            <Sparkles className="h-5 w-5 text-cyan-400" />
+            <span>Menyiapkan Sertifikat Juara Cilik Nexora...</span>
+          </div>
+
+          {/* Animated Progress Bar */}
+          <div className="mt-6 mx-auto w-full max-w-xs h-2 bg-slate-800 rounded-full overflow-hidden border border-white/10">
+            <div className="h-full bg-gradient-to-r from-amber-400 to-cyan-400 rounded-full animate-[pulse_1.5s_ease-in-out_infinite] w-full" />
+          </div>
+
+          {/* Instant Skip Button */}
+          <div className="mt-8 flex justify-center">
+            <button
+              type="button"
+              onClick={handleSkipToCertificate}
+              className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 px-6 py-3 text-sm sm:text-base font-extrabold text-slate-950 shadow-lg shadow-yellow-500/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              <Award className="h-5 w-5" />
+              <span>Lihat Sertifikat Sekarang 🏅</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 2. FINAL SESSION COMPLETION CERTIFICATE SCREEN ─────────────
+  if (showCertificate) {
     const totalPossibleScore = PRIMARY_EXPO_QUESTIONS.reduce((acc, q) => acc + q.points, 0);
     const starCount = Math.min(5, Math.max(3, Math.round((score / totalPossibleScore) * 5)));
 

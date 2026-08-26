@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 import {
   PRIMARY_EXPO_QUESTIONS,
@@ -110,6 +110,62 @@ describe('Primary School (SD) Gamified Expo Arena', () => {
 
       expect(screen.getByText('Petunjuk Ajaib 💡')).toBeDefined();
       expect(screen.getByText(/Bagi 24 apel ke dalam 3 bagian/i)).toBeDefined();
+    });
+
+    it('transitions to celebration intermission with end.gif and instant skip button upon completion', () => {
+      render(<PrimaryExpoArena />);
+
+      // Answer all questions correctly to reach the end
+      for (let i = 0; i < PRIMARY_EXPO_QUESTIONS.length; i++) {
+        const currentQ = PRIMARY_EXPO_QUESTIONS[i];
+        const correctOpt = currentQ.options.find((opt) => opt.isCorrect)!;
+
+        const correctBtn = screen.getByText(correctOpt.label).closest('button')!;
+        fireEvent.click(correctBtn);
+
+        const nextBtn = screen.getByText('Lanjut ke Soal Berikutnya');
+        fireEvent.click(nextBtn);
+      }
+
+      // Should be on the celebration intermission stage
+      expect(screen.getByText(/🎉 Horeee! Kamu Berhasil Menyelesaikan Semua Tantangan!/i)).toBeDefined();
+      expect(screen.getByText(/Menyiapkan Sertifikat Juara Cilik Nexora.../i)).toBeDefined();
+      expect(screen.getByAltText('End Celebration')).toBeDefined();
+
+      // Click "Lihat Sertifikat Sekarang 🏅"
+      const skipBtn = screen.getByText(/Lihat Sertifikat Sekarang 🏅/i);
+      fireEvent.click(skipBtn);
+
+      // Certificate screen should now be visible
+      expect(screen.getByText('Juara Cilik Hebat! 🎉')).toBeDefined();
+      expect(screen.getByText('Total Skor')).toBeDefined();
+    });
+
+    it('automatically transitions from celebration intermission to certificate after 3.5 seconds', () => {
+      vi.useFakeTimers();
+      render(<PrimaryExpoArena />);
+
+      // Answer all questions correctly to reach the end
+      for (let i = 0; i < PRIMARY_EXPO_QUESTIONS.length; i++) {
+        const currentQ = PRIMARY_EXPO_QUESTIONS[i];
+        const correctOpt = currentQ.options.find((opt) => opt.isCorrect)!;
+
+        const correctBtn = screen.getByText(correctOpt.label).closest('button')!;
+        fireEvent.click(correctBtn);
+
+        const nextBtn = screen.getByText('Lanjut ke Soal Berikutnya');
+        fireEvent.click(nextBtn);
+      }
+
+      expect(screen.getByText(/🎉 Horeee! Kamu Berhasil Menyelesaikan Semua Tantangan!/i)).toBeDefined();
+
+      // Advance timers by 3500ms wrapped in act
+      act(() => {
+        vi.advanceTimersByTime(3500);
+      });
+
+      expect(screen.getByText('Juara Cilik Hebat! 🎉')).toBeDefined();
+      vi.useRealTimers();
     });
   });
 });
