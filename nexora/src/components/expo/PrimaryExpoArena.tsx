@@ -17,6 +17,7 @@ import {
   Flame,
   Award,
   ArrowLeft,
+  Network,
 } from 'lucide-react';
 import {
   PRIMARY_EXPO_QUESTIONS,
@@ -35,6 +36,11 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [score, setScore] = useState<number>(0);
   const [streak, setStreak] = useState<number>(0);
+  const [maxStreak, setMaxStreak] = useState<number>(0);
+  const [totalAttempts, setTotalAttempts] = useState<number>(0);
+  const [totalTimeSpentSeconds, setTotalTimeSpentSeconds] = useState<number>(0);
+  const startTimeRef = useRef<number>(Date.now());
+
   const [activeMemeReaction, setActiveMemeReaction] = useState<ExpoReactionType | null>(null);
   const [showRetryModal, setShowRetryModal] = useState<boolean>(false);
   const [showHintModal, setShowHintModal] = useState<boolean>(false);
@@ -59,9 +65,14 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
   );
 
   const handleSelectOption = (option: PrimaryQuestionOption) => {
+    setTotalAttempts((prev) => prev + 1);
     if (option.isCorrect) {
       setScore((prev) => prev + currentQuestion.points);
-      setStreak((prev) => prev + 1);
+      setStreak((prev) => {
+        const nextStreak = prev + 1;
+        setMaxStreak((currMax) => Math.max(currMax, nextStreak));
+        return nextStreak;
+      });
       setActiveMemeReaction('win');
       handleSpeakText('Hebat! Jawaban kamu benar sekali!');
     } else {
@@ -88,6 +99,8 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
     } else if (prevReaction === 'hint') {
       setShowHintModal(true);
     } else if (prevReaction === 'end') {
+      const totalElapsed = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000));
+      setTotalTimeSpentSeconds(totalElapsed);
       setShowCertificate(true);
     }
   };
@@ -98,9 +111,13 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
   };
 
   const handleRestart = () => {
+    startTimeRef.current = Date.now();
     setCurrentIndex(0);
     setScore(0);
     setStreak(0);
+    setMaxStreak(0);
+    setTotalAttempts(0);
+    setTotalTimeSpentSeconds(0);
     setActiveMemeReaction(null);
     setShowRetryModal(false);
     setShowHintModal(false);
@@ -136,36 +153,58 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
   if (showCertificate) {
     const totalPossibleScore = PRIMARY_EXPO_QUESTIONS.reduce((acc, q) => acc + q.points, 0);
     const starCount = Math.min(5, Math.max(3, Math.round((score / totalPossibleScore) * 5)));
+    const accuracyPercentage = totalAttempts > 0 ? Math.round((PRIMARY_EXPO_QUESTIONS.length / totalAttempts) * 100) : 100;
+    const completedDateString = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-300">
-        <div className="relative rounded-3xl border border-amber-500/40 bg-gradient-to-b from-amber-500/10 via-slate-900/90 to-[#0B0F17] p-8 sm:p-12 shadow-2xl backdrop-blur-xl max-w-2xl w-full">
-          {/* Reaction Win Badge */}
-          <div className="mx-auto -mt-20 flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-tr from-amber-400 to-yellow-200 p-2 shadow-2xl shadow-yellow-500/30">
-            <img
-              src="/media/reactions/win.gif"
-              onError={(e) => {
-                e.currentTarget.src = '/media/reactions/win.svg';
-              }}
-              alt="Celebration Winner"
-              className="h-full w-full object-contain"
-            />
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center px-4 py-8 sm:px-6 animate-in fade-in zoom-in-95 duration-300">
+        {/* Certificate Card Container */}
+        <div className="relative w-full overflow-hidden rounded-3xl border-2 border-cyan-500/40 bg-gradient-to-b from-[#131926] to-[#0B0F17] p-8 shadow-2xl backdrop-blur-xl">
+          {/* Background Glow Accents */}
+          <div className="pointer-events-none absolute -top-24 -left-24 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 -right-24 h-64 w-64 rounded-full bg-indigo-500/15 blur-3xl" />
+
+          {/* Certificate Header */}
+          <div className="text-center space-y-2">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-400 to-cyan-400 text-black shadow-lg">
+              <Trophy className="h-7 w-7" />
+            </div>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-400 block">
+              Nexora AI Learning Platform
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
+              Sertifikat Pemecah Masalah Cilik AI
+            </h2>
+            <p className="text-xs text-slate-300">
+              Diberikan atas keberhasilan menyelesaikan Tantangan Petualangan Logika Tingkat{' '}
+              <strong className="text-cyan-400">PRIMARY (SD)</strong>
+            </p>
           </div>
 
-          <h2 className="mt-6 text-3xl sm:text-4xl font-extrabold text-amber-300 tracking-tight">
-            Juara Cilik Hebat! 🎉
-          </h2>
-          <p className="mt-2 text-sm sm:text-base text-slate-300">
-            Kamu telah menyelesaikan semua petualangan logika matematika dengan luar biasa!
-          </p>
+          {/* Achievement Rank Banner */}
+          <div className="mt-6 flex items-center justify-center gap-4 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400 text-black font-black shadow-md">
+              <Award className="h-6 w-6" />
+            </div>
+            <div className="text-left">
+              <h3 className="text-sm font-bold text-white">Juara Cilik AI Solver</h3>
+              <p className="text-xs text-cyan-300">Akurasi Gemilang & Penalaran Kreatif</p>
+            </div>
+          </div>
 
-          {/* Stars display */}
-          <div className="my-6 flex items-center justify-center gap-2">
+          {/* 5-Star Row */}
+          <div className="my-4 flex items-center justify-center gap-2">
             {[...Array(5)].map((_, i) => (
               <Star
                 key={i}
                 className={cn(
-                  'h-8 w-8 transition-transform duration-300',
+                  'h-7 w-7 transition-transform duration-300',
                   i < starCount
                     ? 'fill-amber-400 text-amber-400 scale-110 drop-shadow-[0_0_10px_rgba(251,191,36,0.8)]'
                     : 'text-slate-600'
@@ -174,41 +213,73 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
             ))}
           </div>
 
-          {/* Score Box */}
-          <div className="grid grid-cols-2 gap-4 my-6">
-            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-              <span className="text-xs text-amber-300/80 font-bold uppercase tracking-wider">Total Skor</span>
-              <p className="text-3xl font-black text-amber-300 mt-1">{score} 🌟</p>
+          {/* 4-Metric Performance Grid */}
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-white/5 bg-[#0B0F17]/90 p-3 text-center">
+              <span className="text-[10px] text-slate-400 block">Total Skor</span>
+              <span className="text-base font-extrabold text-cyan-400 font-mono">
+                {score} 🌟
+              </span>
             </div>
-            <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4">
-              <span className="text-xs text-cyan-300/80 font-bold uppercase tracking-wider">Tantangan Selesai</span>
-              <p className="text-3xl font-black text-cyan-300 mt-1">
-                {PRIMARY_EXPO_QUESTIONS.length}/{PRIMARY_EXPO_QUESTIONS.length} 🎯
-              </p>
+
+            <div className="rounded-2xl border border-white/5 bg-[#0B0F17]/90 p-3 text-center">
+              <span className="text-[10px] text-slate-400 block">Akurasi</span>
+              <span className="text-base font-extrabold text-emerald-400 font-mono">
+                {accuracyPercentage}%
+              </span>
+            </div>
+
+            <div className="rounded-2xl border border-white/5 bg-[#0B0F17]/90 p-3 text-center">
+              <span className="text-[10px] text-slate-400 block">Best Streak</span>
+              <span className="text-base font-extrabold text-amber-400 font-mono">
+                {maxStreak} 🔥
+              </span>
+            </div>
+
+            <div className="rounded-2xl border border-white/5 bg-[#0B0F17]/90 p-3 text-center">
+              <span className="text-[10px] text-slate-400 block">Total Waktu</span>
+              <span className="text-base font-extrabold text-indigo-400 font-mono">
+                {totalTimeSpentSeconds}s ⏱️
+              </span>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
+          {/* Certificate Footer Stamp */}
+          <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4 text-[10px] text-slate-500 font-mono">
+            <span>Verified: Nexora AI Arena Engine</span>
+            <span>{completedDateString}</span>
+          </div>
+        </div>
+
+        {/* Post-Game Action Buttons */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={handleRestart}
+            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 px-5 py-2.5 text-xs font-extrabold text-slate-950 shadow-lg shadow-yellow-500/20 hover:scale-105 active:scale-95 transition-all"
+          >
+            <RotateCcw className="h-4 w-4" />
+            <span>Main Petualangan Lagi</span>
+          </button>
+
+          <Link
+            href="/canvas"
+            className="flex items-center gap-2 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-2.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20 transition-colors"
+          >
+            <Network className="h-4 w-4" />
+            <span>Buka STEM Logic Canvas</span>
+          </Link>
+
+          {onBackToMenu && (
             <button
               type="button"
-              onClick={handleRestart}
-              className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 px-6 py-3.5 text-base font-extrabold text-slate-950 shadow-lg shadow-yellow-500/20 hover:scale-105 active:scale-95 transition-all"
+              onClick={onBackToMenu}
+              className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
             >
-              <RotateCcw className="h-5 w-5" />
-              <span>Main Petualangan Lagi</span>
+              <ArrowLeft className="h-4 w-4" />
+              <span>Pilih Jenjang Lain</span>
             </button>
-            {onBackToMenu && (
-              <button
-                type="button"
-                onClick={onBackToMenu}
-                className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-6 py-3.5 text-base font-bold text-white hover:bg-white/20 active:scale-95 transition-all"
-              >
-                <ArrowLeft className="h-5 w-5" />
-                <span>Pilih Jenjang Lain</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
     );

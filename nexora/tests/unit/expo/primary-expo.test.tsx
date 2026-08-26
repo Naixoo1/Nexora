@@ -152,12 +152,17 @@ describe('Primary School (SD) Gamified Expo Arena', () => {
       expect(screen.getByText('HOREEE! TAMAT! 🏆')).toBeDefined();
       expect(screen.getByText('Semua tantangan selesai dengan gemilang!')).toBeDefined();
 
-      // Dismiss END meme
+      // Dismiss END meme to reveal certificate
       fireEvent.click(screen.getByRole('dialog'));
 
-      // Certificate screen should now be visible
-      expect(screen.getByText('Juara Cilik Hebat! 🎉')).toBeDefined();
+      // Certificate screen should now be visible with standardized layout
+      expect(screen.getByText('Sertifikat Pemecah Masalah Cilik AI')).toBeDefined();
+      expect(screen.getByText('Juara Cilik AI Solver')).toBeDefined();
       expect(screen.getByText('Total Skor')).toBeDefined();
+      expect(screen.getByText('Akurasi')).toBeDefined();
+      expect(screen.getByText('Best Streak')).toBeDefined();
+      expect(screen.getByText('Total Waktu')).toBeDefined();
+      expect(screen.getByText('Main Petualangan Lagi')).toBeDefined();
     });
   });
 });
