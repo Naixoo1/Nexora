@@ -105,6 +105,7 @@ export interface CanvasContextSnapshot {
 
 import type { GradeLevel, SubjectCategory } from './planner';
 import type { AppLocale } from '@/stores/useLanguageStore';
+import type { UserMemoryPayload } from './memory';
 
 export interface ChatContextPayload {
   tutorMode: AcademicTutorMode;
@@ -115,6 +116,7 @@ export interface ChatContextPayload {
   taskContext?: TaskContextSnapshot;
   canvasContext?: CanvasContextSnapshot;
   customInstructions?: string;
+  userMemory?: UserMemoryPayload;
 }
 
 // ── Citations & Source Attribution ───────────────────────

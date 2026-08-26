@@ -16,15 +16,17 @@ export interface CallModeState {
   userTranscript: string;
   aiResponseText: string;
   conversationHistory: CallMessage[];
+  activeSessionId: string | null;
   
   // Actions
-  startCall: () => void;
+  startCall: (sessionId?: string) => void;
   endCall: () => void;
   setCallStatus: (status: CallStatus) => void;
   toggleMute: () => void;
   setIsMuted: (isMuted: boolean) => void;
   setUserTranscript: (transcript: string) => void;
   setAiResponseText: (text: string) => void;
+  setActiveSessionId: (sessionId: string | null) => void;
   addMessageToHistory: (role: 'user' | 'assistant', text: string) => void;
   clearCallHistory: () => void;
 }
@@ -36,14 +38,16 @@ export const useCallModeStore = create<CallModeState>((set, get) => ({
   userTranscript: '',
   aiResponseText: '',
   conversationHistory: [],
+  activeSessionId: null,
 
-  startCall: () => {
+  startCall: (sessionId?: string) => {
     set({
       isCallOpen: true,
       callStatus: 'LISTENING',
       userTranscript: '',
       aiResponseText: '',
       isMuted: false,
+      activeSessionId: sessionId || null,
     });
   },
 
@@ -53,6 +57,7 @@ export const useCallModeStore = create<CallModeState>((set, get) => ({
       callStatus: 'IDLE',
       userTranscript: '',
       aiResponseText: '',
+      activeSessionId: null,
     });
   },
 
@@ -74,6 +79,10 @@ export const useCallModeStore = create<CallModeState>((set, get) => ({
 
   setAiResponseText: (text: string) => {
     set({ aiResponseText: text });
+  },
+
+  setActiveSessionId: (sessionId: string | null) => {
+    set({ activeSessionId: sessionId });
   },
 
   addMessageToHistory: (role: 'user' | 'assistant', text: string) => {

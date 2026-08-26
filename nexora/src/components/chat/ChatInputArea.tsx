@@ -14,8 +14,10 @@ import {
   FileCode,
   LogIn,
   Languages,
+  PhoneCall,
 } from 'lucide-react';
 import { useChatStore } from '@/stores/useChatStore';
+import { useCallModeStore } from '@/stores/useCallModeStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSpeechToText, cleanAndDeduplicateSpeech, sanitizeSpeechText } from '@/hooks/useSpeechToText';
 import { authClient } from '@/lib/auth-client';
@@ -609,6 +611,22 @@ export const ChatInputArea: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* In-Chat Call Mode Trigger (with full session sync) */}
+        <button
+          type="button"
+          onClick={() => {
+            const currentSession = useChatStore.getState().currentSession;
+            useCallModeStore.getState().startCall(currentSession?.id);
+          }}
+          disabled={isSending}
+          className={cn(
+            'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 transition-all hover:bg-cyan-500/20 hover:border-cyan-400/50 shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed'
+          )}
+          title="Mulai Panggilan Suara AI (Call Mode)"
+        >
+          <PhoneCall className="h-4 w-4 text-cyan-400 animate-pulse" />
+        </button>
 
         {/* Send Button */}
         <button

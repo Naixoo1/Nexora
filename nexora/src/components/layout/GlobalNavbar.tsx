@@ -9,10 +9,12 @@ import {
   HelpCircle,
   Trophy,
   Phone,
+  Brain,
 } from 'lucide-react';
 import { NexoraLogo } from '../brand/NexoraLogo';
 import { LanguageSelector } from './LanguageSelector';
 import { AICallModal } from '../chat/AICallModal';
+import { UserProfileModal } from '../profile/UserProfileModal';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useCallModeStore } from '@/stores/useCallModeStore';
 import { authClient } from '@/lib/auth-client';
@@ -24,6 +26,7 @@ export const GlobalNavbar: React.FC = () => {
   const { startCall } = useCallModeStore();
   const { data: session, isPending } = authClient.useSession();
   const [isOrientationCompleted, setIsOrientationCompleted] = useState<boolean>(false);
+  const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
 
   const isTasks = pathname === '/tasks';
   const isCanvas = pathname.startsWith('/canvas');
@@ -150,7 +153,7 @@ export const GlobalNavbar: React.FC = () => {
             {/* AI Call Mode Trigger */}
             <button
               type="button"
-              onClick={startCall}
+              onClick={() => startCall()}
               className="flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-cyan-300 transition-all hover:bg-cyan-500/20 hover:border-cyan-400/50 shadow-sm active:scale-95"
               title={t('nav.call')}
             >
@@ -187,23 +190,34 @@ export const GlobalNavbar: React.FC = () => {
                 <div className="hidden md:block h-3.5 w-16 rounded-md bg-white/10 animate-pulse" />
               </div>
             ) : session?.user ? (
-              <div className="flex items-center gap-3 animate-in fade-in duration-150">
-                {session.user.image ? (
-                  <img
-                    src={session.user.image}
-                    alt={session.user.name || 'Avatar'}
-                    className="w-8 h-8 rounded-full border border-slate-700 object-cover"
-                  />
-                ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-bold text-cyan-300 border border-cyan-500/30">
-                    {session.user.name?.charAt(0) || 'U'}
-                  </div>
-                )}
-                <span className="text-xs text-slate-300 hidden md:inline font-medium">{session.user.name}</span>
+              <div className="flex items-center gap-2 sm:gap-3 animate-in fade-in duration-150">
+                <button
+                  type="button"
+                  onClick={() => setIsProfileOpen(true)}
+                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#131926] px-2.5 py-1 text-slate-300 hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 transition-all active:scale-95 text-left"
+                  title="Profil & Memori Belajar AI"
+                >
+                  {session.user.image ? (
+                    <img
+                      src={session.user.image}
+                      alt={session.user.name || 'Avatar'}
+                      className="w-6 h-6 rounded-full border border-cyan-500/30 object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/20 text-[11px] font-bold text-cyan-300 border border-cyan-500/30">
+                      {session.user.name?.charAt(0) || 'U'}
+                    </div>
+                  )}
+                  <span className="text-xs font-semibold hidden md:inline max-w-[120px] truncate">
+                    {session.user.name}
+                  </span>
+                  <Brain className="h-3.5 w-3.5 text-cyan-400 opacity-80" />
+                </button>
+
                 <button
                   type="button"
                   onClick={() => authClient.signOut()}
-                  className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors active:scale-95"
+                  className="px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors active:scale-95"
                 >
                   {t('nav.signOut')}
                 </button>
@@ -241,6 +255,12 @@ export const GlobalNavbar: React.FC = () => {
 
       {/* Global AI Call Overlay Modal */}
       <AICallModal />
+
+      {/* User Profile & AI Memory Customization Modal */}
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+      />
     </>
   );
 };

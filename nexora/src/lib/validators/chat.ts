@@ -92,6 +92,15 @@ export const SubjectCategorySchema = z.enum([
   'GENERAL_PROJECT',
 ]);
 
+export const UserMemoryPayloadSchema = z.object({
+  academicStrengths: z.array(z.string()).optional(),
+  academicWeaknesses: z.array(z.string()).optional(),
+  learningStyle: z.string().optional(),
+  academicGoal: z.string().optional(),
+  extractedTopics: z.array(z.string()).optional(),
+  rawNotes: z.string().nullable().optional(),
+});
+
 export const ChatContextPayloadSchema = z.object({
   tutorMode: AcademicTutorModeSchema.default('socratic'),
   gradeLevel: GradeLevelSchema.optional(),
@@ -101,6 +110,7 @@ export const ChatContextPayloadSchema = z.object({
   taskContext: TaskContextSnapshotSchema.optional(),
   canvasContext: CanvasContextSnapshotSchema.optional(),
   customInstructions: z.string().max(2000).optional(),
+  userMemory: UserMemoryPayloadSchema.optional(),
 });
 
 // ── Multimodal Attachment Validation ─────────────────────

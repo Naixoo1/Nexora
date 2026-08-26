@@ -375,5 +375,27 @@ ${context.customInstructions}
 `;
   }
 
+  // Inject Persistent Student Learning Memory Profile
+  if (context?.userMemory) {
+    const mem = context.userMemory;
+    const strengths =
+      mem.academicStrengths && mem.academicStrengths.length > 0
+        ? mem.academicStrengths.join(', ')
+        : 'None explicitly recorded yet';
+    const weaknesses =
+      mem.academicWeaknesses && mem.academicWeaknesses.length > 0
+        ? mem.academicWeaknesses.join(', ')
+        : 'None explicitly recorded yet';
+
+    prompt += `\n---
+### PERSISTENT STUDENT LEARNING MEMORY & ADAPTIVE PROFILE:
+- Identified Academic Strengths: ${strengths}
+- Identified Growth Areas / Weaknesses: ${weaknesses}
+- Preferred Learning Style: ${mem.learningStyle || 'Visual analogies, step-by-step Socratic guidance'}
+- Target Academic Goal: ${mem.academicGoal || 'Persiapan Ujian & Penguasaan Konsep Mandiri'}
+*ADAPTIVE TEACHING RULE:* Seamlessly adapt your explanation pace, analogies, and questions to support their growth areas and preferred learning style without explicitly mentioning "Based on your memory profile".
+`;
+  }
+
   return prompt;
 }

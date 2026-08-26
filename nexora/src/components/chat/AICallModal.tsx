@@ -24,6 +24,7 @@ import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { sanitizeReasoningContent } from '@/services/reasoning-sanitizer';
 import { formatMathForVoice } from '@/utils/latex-formatter';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import type { ChatMessage } from '@/types/chat';
 import { cn } from '@/lib/utils';
 
 export const AICallModal: React.FC = () => {
@@ -138,11 +139,30 @@ export const AICallModal: React.FC = () => {
       setUserTranscript(queryText);
       setAiResponseText('');
 
+      const chatStoreState = useChatStore.getState();
+      const currentActiveSession = chatStoreState.currentSession;
+      const targetSessionId =
+        useCallModeStore.getState().activeSessionId || currentActiveSession?.id;
+
+      // Sync user turn to active chat session timeline
+      const userChatMessage: ChatMessage = {
+        id: `msg-voice-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sessionId: targetSessionId || 'default-session',
+        userId: 'current-user',
+        role: 'user',
+        content: queryText,
+        createdAt: new Date().toISOString(),
+      };
+      useChatStore.setState((s) => ({
+        messages: [...s.messages, userChatMessage],
+      }));
+
       try {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
           'x-user-locale': locale || 'id',
           'x-grade-level': gradeLevel || 'SENIOR_HIGH',
+          'x-call-mode': 'true',
         };
 
         if (customApiKey && customApiKey.trim()) {
@@ -150,6 +170,7 @@ export const AICallModal: React.FC = () => {
         }
 
         const payload = {
+          sessionId: targetSessionId || undefined,
           message: queryText,
           mode: activeTutorMode || 'socratic',
           context: {
@@ -157,6 +178,8 @@ export const AICallModal: React.FC = () => {
             gradeLevel: gradeLevel || 'SENIOR_HIGH',
             locale: locale || 'id',
             isCallMode: true,
+            taskContext: chatStoreState.taskContext,
+            canvasContext: chatStoreState.canvasContext,
           },
         };
 
@@ -213,6 +236,19 @@ export const AICallModal: React.FC = () => {
         const cleaned = sanitizeReasoningContent(fullResponse);
         setAiResponseText(cleaned);
         addMessageToHistory('assistant', cleaned);
+
+        // Sync AI assistant voice turn to active chat session timeline
+        const aiChatMessage: ChatMessage = {
+          id: `msg-voice-ai-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          sessionId: targetSessionId || 'default-session',
+          userId: 'nexora-ai',
+          role: 'assistant',
+          content: cleaned,
+          createdAt: new Date().toISOString(),
+        };
+        useChatStore.setState((s) => ({
+          messages: [...s.messages, aiChatMessage],
+        }));
 
         // Queue any remaining leftover text
         const remainingText = cleaned.slice(processedIndex).trim();
@@ -356,6 +392,23 @@ export const AICallModal: React.FC = () => {
     isQueryingRef.current = false;
     stopListening();
     stopSpeaking();
+
+    // Trigger non-blocking cognitive memory extraction in the background
+    const activeSessionId = useCallModeStore.getState().activeSessionId;
+    const currentMessages = useChatStore.getState().messages;
+    if (currentMessages && currentMessages.length > 0) {
+      fetch('/api/memory/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: activeSessionId,
+          messages: currentMessages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+        }),
+      }).catch((err) => {
+        console.warn('[AICallModal] Background memory extraction failed:', err);
+      });
+    }
+
     endCall();
   };
 

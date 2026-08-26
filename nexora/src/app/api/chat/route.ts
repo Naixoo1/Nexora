@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { SendChatMessageSchema } from '@/lib/validators/chat';
 import { buildSystemPrompt } from '@/services/chat-prompt';
 import { getOrCreateChatSession, saveChatMessage, getChatSessionWithMessages } from '@/services/chat';
+import { getUserMemory } from '@/services/memory';
 import {
   getApiKeyPool,
   getModelCascade,
@@ -35,6 +36,7 @@ import { validationErrorResponse } from '@/lib/api-response';
 import { classifyStudyContext } from '@/services/study-planner-classifier';
 import type { ChatAttachment } from '@/types/chat';
 import type { GradeLevel, SubjectCategory } from '@/types/planner';
+import type { UserMemoryPayload } from '@/types/memory';
 
 /**
  * Strip the data URI prefix from a base64 string if present.
@@ -141,6 +143,24 @@ export async function POST(req: NextRequest): Promise<Response> {
       context?.isCallMode || req.headers.get('x-call-mode') === 'true'
     );
 
+    let userMemoryProfile: UserMemoryPayload | undefined = undefined;
+    if (userId) {
+      try {
+        const mem = await getUserMemory(userId);
+        if (mem) {
+          userMemoryProfile = {
+            academicStrengths: mem.academicStrengths,
+            academicWeaknesses: mem.academicWeaknesses,
+            learningStyle: mem.learningStyle,
+            academicGoal: mem.academicGoal,
+            extractedTopics: mem.extractedTopics,
+          };
+        }
+      } catch (memErr) {
+        console.warn('[Chat API]: Could not fetch user memory profile:', memErr);
+      }
+    }
+
     const resolvedContext = {
       ...(context || { tutorMode: 'socratic' as const }),
       tutorMode: mode || context?.tutorMode || 'socratic',
@@ -148,6 +168,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       subjectContext: context?.subjectContext || headerSubject || classified.subjectCategory,
       locale: context?.locale || headerLocale || 'id',
       isCallMode,
+      userMemory: context?.userMemory || userMemoryProfile,
     };
 
     // 2. Resolve Multi-Key Pool (supports client-provided BYOK x-gemini-api-key)
