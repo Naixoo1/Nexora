@@ -81,41 +81,62 @@ describe('Primary School (SD) Gamified Expo Arena', () => {
       expect(screen.getByText('9 Buah Apel')).toBeDefined();
     });
 
-    it('shows WIN overlay when clicking the correct answer (8 Buah Apel)', () => {
+    it('shows WIN meme pop-up when clicking the correct answer (8 Buah Apel) and advances on dismiss', () => {
       render(<PrimaryExpoArena />);
 
       const correctButton = screen.getByText('8 Buah Apel').closest('button')!;
       fireEvent.click(correctButton);
 
-      expect(screen.getByText('Hebat! Kamu Benar! 🎉')).toBeDefined();
-      expect(screen.getByText('+100 Bintang 🌟')).toBeDefined();
-      expect(screen.getByText('Lanjut ke Soal Berikutnya')).toBeDefined();
+      // Quizizz WIN meme overlay should appear
+      expect(screen.getByText('BENAR! 🎉')).toBeDefined();
+      expect(screen.getByText('Luar biasa, poin bertambah!')).toBeDefined();
+
+      // Clicking anywhere dismisses the meme and advances to question 2
+      fireEvent.click(screen.getByRole('dialog'));
+
+      // Question 2 is Taman Bangun Datar Ajaib
+      expect(screen.getByText('Taman Bangun Datar Ajaib')).toBeDefined();
     });
 
-    it('shows LOSE / Retry overlay when clicking an incorrect answer', () => {
+    it('shows LOSE meme pop-up when clicking an incorrect answer and displays retry modal on dismiss', () => {
       render(<PrimaryExpoArena />);
 
       const wrongButton = screen.getByText('6 Buah Apel').closest('button')!;
       fireEvent.click(wrongButton);
 
+      // Quizizz LOSE meme overlay should appear
+      expect(screen.getByText('YAH, SALAH! 😅')).toBeDefined();
+      expect(screen.getByText('Jangan menyerah, kamu pasti bisa!')).toBeDefined();
+
+      // Dismiss meme
+      fireEvent.click(screen.getByRole('dialog'));
+
+      // Retry modal should now be shown
       expect(screen.getByText('Ayo coba lagi! Kamu pasti bisa! 💪')).toBeDefined();
-      expect(screen.getByText('Coba Lagi Sekarang')).toBeDefined();
+      expect(screen.getByText('Coba Jawab Lagi')).toBeDefined();
     });
 
-    it('opens Hint modal when clicking hint trigger button', () => {
+    it('shows HINT meme pop-up and displays hint modal on dismiss', () => {
       render(<PrimaryExpoArena />);
 
       const hintButton = screen.getByText(/Butuh Bantuan\? Buka Petunjuk Ajaib/i);
       fireEvent.click(hintButton);
 
+      // HINT meme overlay should appear
+      expect(screen.getByText('PETUNJUK DATANG! 💡')).toBeDefined();
+
+      // Dismiss meme
+      fireEvent.click(screen.getByRole('dialog'));
+
+      // Detailed hint modal should now be shown
       expect(screen.getByText('Petunjuk Ajaib 💡')).toBeDefined();
       expect(screen.getByText(/Bagi 24 apel ke dalam 3 bagian/i)).toBeDefined();
     });
 
-    it('transitions to celebration intermission with end.gif and instant skip button upon completion', () => {
+    it('transitions through all questions to END celebration meme overlay and certificate', () => {
       render(<PrimaryExpoArena />);
 
-      // Answer all questions correctly to reach the end
+      // Answer all 5 questions correctly
       for (let i = 0; i < PRIMARY_EXPO_QUESTIONS.length; i++) {
         const currentQ = PRIMARY_EXPO_QUESTIONS[i];
         const correctOpt = currentQ.options.find((opt) => opt.isCorrect)!;
@@ -123,49 +144,20 @@ describe('Primary School (SD) Gamified Expo Arena', () => {
         const correctBtn = screen.getByText(correctOpt.label).closest('button')!;
         fireEvent.click(correctBtn);
 
-        const nextBtn = screen.getByText('Lanjut ke Soal Berikutnya');
-        fireEvent.click(nextBtn);
+        // Dismiss WIN meme
+        fireEvent.click(screen.getByRole('dialog'));
       }
 
-      // Should be on the celebration intermission stage
-      expect(screen.getByText(/🎉 Horeee! Kamu Berhasil Menyelesaikan Semua Tantangan!/i)).toBeDefined();
-      expect(screen.getByText(/Menyiapkan Sertifikat Juara Cilik Nexora.../i)).toBeDefined();
-      expect(screen.getByAltText('End Celebration')).toBeDefined();
+      // Final END meme pop-up should be visible
+      expect(screen.getByText('HOREEE! TAMAT! 🏆')).toBeDefined();
+      expect(screen.getByText('Semua tantangan selesai dengan gemilang!')).toBeDefined();
 
-      // Click "Lihat Sertifikat Sekarang 🏅"
-      const skipBtn = screen.getByText(/Lihat Sertifikat Sekarang 🏅/i);
-      fireEvent.click(skipBtn);
+      // Dismiss END meme
+      fireEvent.click(screen.getByRole('dialog'));
 
       // Certificate screen should now be visible
       expect(screen.getByText('Juara Cilik Hebat! 🎉')).toBeDefined();
       expect(screen.getByText('Total Skor')).toBeDefined();
-    });
-
-    it('automatically transitions from celebration intermission to certificate after 3.5 seconds', () => {
-      vi.useFakeTimers();
-      render(<PrimaryExpoArena />);
-
-      // Answer all questions correctly to reach the end
-      for (let i = 0; i < PRIMARY_EXPO_QUESTIONS.length; i++) {
-        const currentQ = PRIMARY_EXPO_QUESTIONS[i];
-        const correctOpt = currentQ.options.find((opt) => opt.isCorrect)!;
-
-        const correctBtn = screen.getByText(correctOpt.label).closest('button')!;
-        fireEvent.click(correctBtn);
-
-        const nextBtn = screen.getByText('Lanjut ke Soal Berikutnya');
-        fireEvent.click(nextBtn);
-      }
-
-      expect(screen.getByText(/🎉 Horeee! Kamu Berhasil Menyelesaikan Semua Tantangan!/i)).toBeDefined();
-
-      // Advance timers by 3500ms wrapped in act
-      act(() => {
-        vi.advanceTimersByTime(3500);
-      });
-
-      expect(screen.getByText('Juara Cilik Hebat! 🎉')).toBeDefined();
-      vi.useRealTimers();
     });
   });
 });

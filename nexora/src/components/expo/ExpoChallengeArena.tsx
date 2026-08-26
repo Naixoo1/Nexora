@@ -26,12 +26,13 @@ import {
   Network,
   Share2,
 } from 'lucide-react';
-import { useExpoGameStore } from '@/stores/useExpoGameStore';
+import { useExpoGameStore, evaluateAnswerMatch } from '@/stores/useExpoGameStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { PrimaryExpoArena } from '@/components/expo/PrimaryExpoArena';
+import { ExpoReactionOverlay, type ExpoReactionType } from '@/components/expo/ExpoReactionOverlay';
 import type { ExpoGradeTier } from '@/types/expo';
 import { cn } from '@/lib/utils';
 
@@ -80,7 +81,36 @@ export const ExpoChallengeArena: React.FC = () => {
     resetTranscript,
   } = useSpeechRecognition();
 
+  const [activeMemeReaction, setActiveMemeReaction] = useState<ExpoReactionType | null>(null);
   const [hasCopiedCert, setHasCopiedCert] = useState<boolean>(false);
+
+  const handleSubmitWithMeme = (customAnswer?: string) => {
+    if (!currentQuestion) return;
+    const finalAnswer = (customAnswer || selectedOption || textAnswerInput || '').trim();
+    const isCorrect = evaluateAnswerMatch(
+      finalAnswer,
+      currentQuestion.correctAnswer,
+      currentQuestion.acceptableAnswers
+    );
+    submitAnswer(customAnswer);
+    setActiveMemeReaction(isCorrect ? 'win' : 'lose');
+  };
+
+  const handleNextQuestionWithMeme = () => {
+    if (currentIndex + 1 >= questions.length) {
+      setActiveMemeReaction('end');
+    } else {
+      nextQuestion();
+    }
+  };
+
+  const handleMemeDismiss = () => {
+    const prev = activeMemeReaction;
+    setActiveMemeReaction(null);
+    if (prev === 'end') {
+      nextQuestion(); // Transitions to SUMMARY certification phase
+    }
+  };
 
   // Interval timer for active rounds
   useEffect(() => {
@@ -447,7 +477,7 @@ export const ExpoChallengeArena: React.FC = () => {
               {/* Submit Button */}
               <button
                 type="button"
-                onClick={() => submitAnswer()}
+                onClick={() => handleSubmitWithMeme()}
                 disabled={!selectedOption && !textAnswerInput.trim()}
                 className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-cyan-500 px-5 py-3 text-xs font-bold text-white shadow-lg transition-all hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -518,7 +548,7 @@ export const ExpoChallengeArena: React.FC = () => {
             <div className="flex items-center justify-end pt-2">
               <button
                 type="button"
-                onClick={nextQuestion}
+                onClick={handleNextQuestionWithMeme}
                 className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-cyan-500 px-6 py-3 text-xs font-bold text-white shadow-xl transition-all hover:scale-105"
               >
                 <span>{currentIndex + 1 >= questions.length ? 'Lihat Hasil & Sertifikat' : 'Soal Berikutnya'}</span>
@@ -549,23 +579,25 @@ export const ExpoChallengeArena: React.FC = () => {
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
                 Sertifikat Pemecah Masalah AI
               </h2>
-              <p className="text-xs text-slate-400">
-                Diberikan atas keberhasilan menyelesaikan Tantangan Logika & Penalaran Tingkat{' '}
-                <strong className="text-white">{gameSummary.gradeTier}</strong>
+              <p className="text-xs text-slate-300">
+                Diberikan atas keberhasilan menyelesaikan Tantangan Penalaran Interaktif Tingkat{' '}
+                <strong className="text-cyan-400">{selectedGrade}</strong>
               </p>
             </div>
 
-            {/* Badge Award Banner */}
-            <div className="my-6 flex items-center justify-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-center">
-              <Crown className="h-5 w-5 text-amber-400 shrink-0" />
-              <div>
-                <span className="text-xs font-bold text-amber-300 block">{gameSummary.badgeAwarded.title}</span>
-                <span className="text-[10px] text-amber-200/80">{gameSummary.badgeAwarded.subtitle}</span>
+            {/* Badge Highlight Card */}
+            <div className="mt-6 flex items-center justify-center gap-4 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400 text-black font-black shadow-md">
+                <Award className="h-6 w-6" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-sm font-bold text-white">{gameSummary.badgeAwarded.title}</h3>
+                <p className="text-xs text-cyan-300">{gameSummary.badgeAwarded.subtitle}</p>
               </div>
             </div>
 
             {/* Statistics Matrix */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="rounded-2xl border border-white/5 bg-[#0B0F17]/90 p-3 text-center">
                 <span className="text-[10px] text-slate-400 block">Total Skor</span>
                 <span className="text-base font-extrabold text-cyan-400 font-mono">
@@ -630,6 +662,14 @@ export const ExpoChallengeArena: React.FC = () => {
             </Link>
           </div>
         </div>
+      )}
+
+      {/* ── FULL SCREEN MEME POP-UP OVERLAY (ACROSS JHS / SHS) ─────── */}
+      {activeMemeReaction && (
+        <ExpoReactionOverlay
+          type={activeMemeReaction}
+          onDismiss={handleMemeDismiss}
+        />
       )}
 
       {/* Global Arena Footer */}

@@ -24,24 +24,22 @@ import {
   type PrimaryQuestionOption,
 } from '@/data/primary-expo-questions';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
+import { ExpoReactionOverlay, type ExpoReactionType } from './ExpoReactionOverlay';
 import { cn } from '@/lib/utils';
 
 export interface PrimaryExpoArenaProps {
   onBackToMenu?: () => void;
 }
 
-type ReactionOverlayType = 'WIN' | 'LOSE' | 'HINT' | null;
-
 export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [score, setScore] = useState<number>(0);
   const [streak, setStreak] = useState<number>(0);
-  const [activeOverlay, setActiveOverlay] = useState<ReactionOverlayType>(null);
-  const [showCompletionCelebration, setShowCompletionCelebration] = useState<boolean>(false);
+  const [activeMemeReaction, setActiveMemeReaction] = useState<ExpoReactionType | null>(null);
+  const [showRetryModal, setShowRetryModal] = useState<boolean>(false);
+  const [showHintModal, setShowHintModal] = useState<boolean>(false);
   const [showCertificate, setShowCertificate] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
-
-  const celebrationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Text to speech calibrated specifically for Primary / SD kids (friendly pitch 1.25, clear rate 0.95)
   const { isPlaying, speak, stop } = useTextToSpeech({
@@ -60,68 +58,52 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
     [isMuted, speak]
   );
 
-  // Auto-transition from celebration intermission to certificate after 3.5s
-  useEffect(() => {
-    if (showCompletionCelebration) {
-      celebrationTimerRef.current = setTimeout(() => {
-        setShowCompletionCelebration(false);
-        setShowCertificate(true);
-      }, 3500);
-    }
-    return () => {
-      if (celebrationTimerRef.current) {
-        clearTimeout(celebrationTimerRef.current);
-      }
-    };
-  }, [showCompletionCelebration]);
-
-  const handleSkipToCertificate = () => {
-    if (celebrationTimerRef.current) {
-      clearTimeout(celebrationTimerRef.current);
-    }
-    setShowCompletionCelebration(false);
-    setShowCertificate(true);
-  };
-
   const handleSelectOption = (option: PrimaryQuestionOption) => {
     if (option.isCorrect) {
       setScore((prev) => prev + currentQuestion.points);
       setStreak((prev) => prev + 1);
-      setActiveOverlay('WIN');
+      setActiveMemeReaction('win');
       handleSpeakText('Hebat! Jawaban kamu benar sekali!');
     } else {
       setStreak(0);
-      setActiveOverlay('LOSE');
+      setActiveMemeReaction('lose');
       handleSpeakText('Ayo coba lagi! Kamu pasti bisa!');
     }
   };
 
+  const handleMemeDismiss = () => {
+    const prevReaction = activeMemeReaction;
+    setActiveMemeReaction(null);
+
+    if (prevReaction === 'win') {
+      if (currentIndex + 1 < PRIMARY_EXPO_QUESTIONS.length) {
+        setCurrentIndex((prev) => prev + 1);
+      } else {
+        // Trigger final completion celebration overlay
+        setActiveMemeReaction('end');
+        handleSpeakText('Horeee! Kamu berhasil menyelesaikan semua tantangan dengan gemilang!');
+      }
+    } else if (prevReaction === 'lose') {
+      setShowRetryModal(true);
+    } else if (prevReaction === 'hint') {
+      setShowHintModal(true);
+    } else if (prevReaction === 'end') {
+      setShowCertificate(true);
+    }
+  };
+
   const handleOpenHint = () => {
-    setActiveOverlay('HINT');
+    setActiveMemeReaction('hint');
     handleSpeakText(currentQuestion.hint);
   };
 
-  const handleNextQuestion = () => {
-    setActiveOverlay(null);
-    stop();
-    if (currentIndex + 1 < PRIMARY_EXPO_QUESTIONS.length) {
-      setCurrentIndex((prev) => prev + 1);
-    } else {
-      // Transition to Celebration Intermission stage before certificate
-      setShowCompletionCelebration(true);
-      handleSpeakText('Horeee! Kamu berhasil menyelesaikan semua tantangan! Menyiapkan sertifikat juara cilik Nexora...');
-    }
-  };
-
   const handleRestart = () => {
-    if (celebrationTimerRef.current) {
-      clearTimeout(celebrationTimerRef.current);
-    }
     setCurrentIndex(0);
     setScore(0);
     setStreak(0);
-    setActiveOverlay(null);
-    setShowCompletionCelebration(false);
+    setActiveMemeReaction(null);
+    setShowRetryModal(false);
+    setShowHintModal(false);
     setShowCertificate(false);
     stop();
   };
@@ -150,54 +132,7 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
     },
   ];
 
-  // ── 1. SESSION COMPLETION INTERMISSION (END.GIF CELEBRATION) ─────
-  if (showCompletionCelebration) {
-    return (
-      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-500">
-        <div className="relative rounded-3xl border-2 border-amber-400/50 bg-gradient-to-b from-amber-500/20 via-slate-900/95 to-[#0B0F17] p-8 sm:p-12 shadow-[0_0_50px_rgba(251,191,36,0.25)] backdrop-blur-2xl max-w-2xl w-full">
-          {/* Animated Celebration GIF */}
-          <div className="mx-auto flex h-48 w-48 sm:h-56 sm:w-56 items-center justify-center rounded-3xl bg-gradient-to-tr from-amber-400/20 via-yellow-300/20 to-cyan-400/20 p-3 shadow-2xl border border-amber-400/30">
-            <img
-              src="/media/reactions/end.gif"
-              onError={(e) => {
-                e.currentTarget.src = '/media/reactions/win.svg';
-              }}
-              alt="End Celebration"
-              className="h-full w-full object-contain transform transition-transform duration-500 hover:scale-105"
-            />
-          </div>
-
-          <h2 className="mt-6 text-2xl sm:text-4xl font-black text-amber-300 tracking-tight leading-tight">
-            🎉 Horeee! Kamu Berhasil Menyelesaikan Semua Tantangan!
-          </h2>
-
-          <div className="mt-4 flex items-center justify-center gap-2 text-sm sm:text-base font-bold text-cyan-300 animate-pulse">
-            <Sparkles className="h-5 w-5 text-cyan-400" />
-            <span>Menyiapkan Sertifikat Juara Cilik Nexora...</span>
-          </div>
-
-          {/* Animated Progress Bar */}
-          <div className="mt-6 mx-auto w-full max-w-xs h-2 bg-slate-800 rounded-full overflow-hidden border border-white/10">
-            <div className="h-full bg-gradient-to-r from-amber-400 to-cyan-400 rounded-full animate-[pulse_1.5s_ease-in-out_infinite] w-full" />
-          </div>
-
-          {/* Instant Skip Button */}
-          <div className="mt-8 flex justify-center">
-            <button
-              type="button"
-              onClick={handleSkipToCertificate}
-              className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 px-6 py-3 text-sm sm:text-base font-extrabold text-slate-950 shadow-lg shadow-yellow-500/20 hover:scale-105 active:scale-95 transition-all"
-            >
-              <Award className="h-5 w-5" />
-              <span>Lihat Sertifikat Sekarang 🏅</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── 2. FINAL SESSION COMPLETION CERTIFICATE SCREEN ─────────────
+  // ── 1. FINAL SESSION COMPLETION CERTIFICATE SCREEN ─────────────
   if (showCertificate) {
     const totalPossibleScore = PRIMARY_EXPO_QUESTIONS.reduce((acc, q) => acc + q.points, 0);
     const starCount = Math.min(5, Math.max(3, Math.round((score / totalPossibleScore) * 5)));
@@ -337,24 +272,24 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
       </div>
 
       {/* ── MAIN INTERACTIVE QUESTION CARD ───────────────────────── */}
-      <div className="my-auto flex flex-col items-center justify-center gap-6 py-2">
-        {/* Themed Visual Storyboard Header */}
-        <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl border-2 border-white/10 bg-slate-900/60 p-2 shadow-2xl backdrop-blur-md">
-          <div className="relative aspect-[16/8] sm:aspect-[16/7] w-full overflow-hidden rounded-2xl bg-[#0F172A] flex items-center justify-center">
+      <div className="my-auto flex flex-col items-center justify-center gap-5 py-2">
+        {/* Themed Visual Storyboard Header (Vibrant & Prominent) */}
+        <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl border-2 border-cyan-400/30 bg-gradient-to-b from-sky-500/20 via-slate-900/70 to-[#0B0F17] p-3 sm:p-4 shadow-[0_0_35px_rgba(56,189,248,0.15)] backdrop-blur-xl">
+          <div className="relative aspect-[16/8] sm:aspect-[16/7] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-sky-100 to-sky-50 flex items-center justify-center p-2 shadow-inner">
             <img
               src={currentQuestion.animationAsset}
               alt={currentQuestion.title}
               className="h-full w-full object-contain transform transition-transform duration-500 hover:scale-105"
             />
             {/* Theme Badge */}
-            <div className="absolute top-3 left-3 rounded-full border border-white/20 bg-slate-950/70 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-white backdrop-blur-md flex items-center gap-1.5">
+            <div className="absolute top-3 left-3 rounded-full border border-white/40 bg-slate-950/80 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-white backdrop-blur-md flex items-center gap-1.5 shadow-md">
               <span>{currentQuestion.theme === 'counting' ? '🍎 Berhitung' : currentQuestion.theme === 'geometry' ? '📐 Geometri' : currentQuestion.theme === 'balance' ? '⚖️ Timbangan' : currentQuestion.theme === 'space' ? '🚀 Antariksa' : '🦁 Satwa'}</span>
             </div>
           </div>
         </div>
 
         {/* Story Text Box with Cheerful Speaker Button */}
-        <div className="w-full max-w-2xl rounded-3xl border-2 border-white/15 bg-gradient-to-b from-slate-900/90 to-[#0B0F17] p-5 sm:p-6 shadow-xl backdrop-blur-md flex items-start gap-4">
+        <div className="w-full max-w-2xl rounded-3xl border-2 border-white/20 bg-gradient-to-b from-slate-900/95 to-[#0B0F17] p-5 sm:p-6 shadow-xl backdrop-blur-md flex items-start gap-4">
           <button
             type="button"
             onClick={() => handleSpeakText(currentQuestion.storyPrompt)}
@@ -413,7 +348,7 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
         </div>
 
         {/* Bottom Hint Trigger Button */}
-        <div className="flex items-center justify-center pt-2">
+        <div className="flex items-center justify-center pt-1">
           <button
             type="button"
             onClick={handleOpenHint}
@@ -425,123 +360,76 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
         </div>
       </div>
 
-      {/* ── REACTION OVERLAY MODALS (WIN / LOSE / HINT) ─────────────── */}
-      {activeOverlay && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
-          {/* WIN OVERLAY MODAL */}
-          {activeOverlay === 'WIN' && (
-            <div className="relative w-full max-w-lg rounded-3xl border-2 border-emerald-500/60 bg-gradient-to-b from-emerald-950/90 via-slate-900/95 to-[#0B0F17] p-6 sm:p-8 text-center shadow-2xl shadow-emerald-500/20 animate-in zoom-in-95 duration-300">
-              <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-400/40 p-2 shadow-xl shadow-emerald-500/30">
-                <img
-                  src="/media/reactions/win.gif"
-                  onError={(e) => {
-                    e.currentTarget.src = '/media/reactions/win.svg';
-                  }}
-                  alt="Win Reaction"
-                  className="h-full w-full object-contain"
-                />
-              </div>
+      {/* ── FULL SCREEN MEME POP-UP OVERLAY ────────────────────────── */}
+      {activeMemeReaction && (
+        <ExpoReactionOverlay
+          type={activeMemeReaction}
+          onDismiss={handleMemeDismiss}
+        />
+      )}
 
-              <h3 className="mt-5 text-2xl sm:text-3xl font-extrabold text-emerald-300 tracking-tight">
-                Hebat! Kamu Benar! 🎉
-              </h3>
-              <p className="mt-1 font-bold text-amber-300 text-base">+{currentQuestion.points} Bintang 🌟</p>
+      {/* ── RETRY MODAL DIALOG (SHOWN AFTER LOSE MEME DISMISSES) ────── */}
+      {showRetryModal && (
+        <div className="fixed inset-0 z-[99990] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-3xl border-2 border-indigo-500/60 bg-gradient-to-b from-indigo-950/90 via-slate-900/95 to-[#0B0F17] p-6 sm:p-8 text-center shadow-2xl shadow-indigo-500/20 animate-in zoom-in-95 duration-300">
+            <h3 className="text-2xl sm:text-3xl font-extrabold text-indigo-200 tracking-tight">
+              Ayo coba lagi! Kamu pasti bisa! 💪
+            </h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Jangan berkecil hati ya. Tarik napas, pelajari ceritanya lagi atau buka petunjuk ajaib di bawah!
+            </p>
 
-              {/* Explanation Card */}
-              <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-left text-sm text-emerald-100 leading-relaxed">
-                <p className="font-semibold">{currentQuestion.explanation}</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleNextQuestion}
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 py-3.5 text-base font-extrabold text-slate-950 shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all"
-              >
-                <span>Lanjut ke Soal Berikutnya</span>
-                <ArrowRight className="h-5 w-5" />
-              </button>
-            </div>
-          )}
-
-          {/* LOSE / RETRY OVERLAY MODAL */}
-          {activeOverlay === 'LOSE' && (
-            <div className="relative w-full max-w-lg rounded-3xl border-2 border-indigo-500/60 bg-gradient-to-b from-indigo-950/90 via-slate-900/95 to-[#0B0F17] p-6 sm:p-8 text-center shadow-2xl shadow-indigo-500/20 animate-in zoom-in-95 duration-300">
-              <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-indigo-500/20 border border-indigo-400/40 p-2 shadow-xl shadow-indigo-500/30">
-                <img
-                  src="/media/reactions/lose.gif"
-                  onError={(e) => {
-                    e.currentTarget.src = '/media/reactions/lose.svg';
-                  }}
-                  alt="Encouraging Retry Reaction"
-                  className="h-full w-full object-contain"
-                />
-              </div>
-
-              <h3 className="mt-5 text-2xl sm:text-3xl font-extrabold text-indigo-200 tracking-tight">
-                Ayo coba lagi! Kamu pasti bisa! 💪
-              </h3>
-              <p className="mt-2 text-sm text-slate-300">
-                Jangan berkecil hati ya. Tarik napas, pelajari soalnya lagi atau buka petunjuk ajaib di bawah!
-              </p>
-
-              <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveOverlay(null);
-                    stop();
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-cyan-500 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  <span>Coba Lagi Sekarang</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenHint}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 py-3.5 text-sm font-bold text-amber-300 hover:bg-amber-500/20 active:scale-95 transition-all"
-                >
-                  <Lightbulb className="h-4 w-4" />
-                  <span>Buka Petunjuk 💡</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* HINT OVERLAY MODAL */}
-          {activeOverlay === 'HINT' && (
-            <div className="relative w-full max-w-lg rounded-3xl border-2 border-amber-500/60 bg-gradient-to-b from-amber-950/90 via-slate-900/95 to-[#0B0F17] p-6 sm:p-8 text-center shadow-2xl shadow-amber-500/20 animate-in zoom-in-95 duration-300">
-              <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-amber-500/20 border border-amber-400/40 p-2 shadow-xl shadow-amber-500/30">
-                <img
-                  src="/media/reactions/hint.gif"
-                  onError={(e) => {
-                    e.currentTarget.src = '/media/reactions/hint.svg';
-                  }}
-                  alt="Hint Reaction"
-                  className="h-full w-full object-contain"
-                />
-              </div>
-
-              <h3 className="mt-5 text-2xl sm:text-3xl font-extrabold text-amber-300 tracking-tight">
-                Petunjuk Ajaib 💡
-              </h3>
-
-              <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-left text-sm sm:text-base text-amber-100 leading-relaxed font-medium">
-                <p>{currentQuestion.hint}</p>
-              </div>
-
+            <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
               <button
                 type="button"
                 onClick={() => {
-                  setActiveOverlay(null);
+                  setShowRetryModal(false);
                   stop();
                 }}
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 py-3.5 text-base font-extrabold text-slate-950 shadow-lg shadow-yellow-500/30 hover:scale-105 active:scale-95 transition-all"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-cyan-500 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all"
               >
-                <span>Aku Paham! Kembali ke Soal 🚀</span>
+                <RotateCcw className="h-4 w-4" />
+                <span>Coba Jawab Lagi</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRetryModal(false);
+                  handleOpenHint();
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 py-3.5 text-sm font-bold text-amber-300 hover:bg-amber-500/20 active:scale-95 transition-all"
+              >
+                <Lightbulb className="h-4 w-4" />
+                <span>Buka Petunjuk 💡</span>
               </button>
             </div>
-          )}
+          </div>
+        </div>
+      )}
+
+      {/* ── HINT MODAL DIALOG (SHOWN AFTER HINT MEME DISMISSES) ────── */}
+      {showHintModal && (
+        <div className="fixed inset-0 z-[99990] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-3xl border-2 border-amber-500/60 bg-gradient-to-b from-amber-950/90 via-slate-900/95 to-[#0B0F17] p-6 sm:p-8 text-center shadow-2xl shadow-amber-500/20 animate-in zoom-in-95 duration-300">
+            <h3 className="text-2xl sm:text-3xl font-extrabold text-amber-300 tracking-tight">
+              Petunjuk Ajaib 💡
+            </h3>
+
+            <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-left text-sm sm:text-base text-amber-100 leading-relaxed font-medium">
+              <p>{currentQuestion.hint}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowHintModal(false);
+                stop();
+              }}
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 py-3.5 text-base font-extrabold text-slate-950 shadow-lg shadow-yellow-500/30 hover:scale-105 active:scale-95 transition-all"
+            >
+              <span>Aku Paham! Kembali ke Soal 🚀</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
