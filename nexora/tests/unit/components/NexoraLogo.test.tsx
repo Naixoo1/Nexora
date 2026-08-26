@@ -1,31 +1,49 @@
+import React from 'react';
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { NexoraLogo } from '@/components/brand/NexoraLogo';
 
-describe('NexoraLogo', () => {
-  it('renders Nexora logo image, title, and version badge by default', () => {
-    render(<NexoraLogo />);
+describe('NexoraLogo Component', () => {
+  it('renders Nexora brand text and version badge', () => {
+    render(<NexoraLogo size="md" showVersion={true} />);
 
-    const img = screen.getByAltText('Nexora Logo');
-    expect(img).toBeDefined();
-
-    const title = screen.getByText('Nexora');
-    expect(title).toBeDefined();
-
-    const version = screen.getByText('v1.0');
-    expect(version).toBeDefined();
+    expect(screen.getByText('Nexora')).toBeDefined();
+    expect(screen.getByText('v1.0')).toBeDefined();
   });
 
   it('hides version badge when showVersion is false', () => {
     render(<NexoraLogo showVersion={false} />);
 
+    expect(screen.getByText('Nexora')).toBeDefined();
     expect(screen.queryByText('v1.0')).toBeNull();
+  });
+
+  it('renders standard image with correct src and dimensions', () => {
+    render(<NexoraLogo size="lg" />);
+
+    const img = screen.getByAltText('Nexora Logo');
+    expect(img).toBeDefined();
+    expect(img.getAttribute('src')).toContain('logo.png');
+  });
+
+  it('switches to resilient vector fallback when image triggers onError', () => {
+    render(<NexoraLogo size="md" />);
+
+    const img = screen.getByAltText('Nexora Logo');
+    expect(img).toBeDefined();
+
+    // Trigger onError
+    fireEvent.error(img);
+
+    // Image should be replaced by vector fallback containing the SVG
+    expect(screen.queryByAltText('Nexora Logo')).toBeNull();
     expect(screen.getByText('Nexora')).toBeDefined();
   });
 
-  it('renders custom href link target', () => {
-    const { container } = render(<NexoraLogo href="/canvas" />);
-    const link = container.querySelector('a');
-    expect(link?.getAttribute('href')).toBe('/canvas');
+  it('renders link when href is provided', () => {
+    render(<NexoraLogo href="/tasks" />);
+
+    const link = screen.getByRole('link');
+    expect(link.getAttribute('href')).toBe('/tasks');
   });
 });

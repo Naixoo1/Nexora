@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="nexoraBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="50%" stop-color="#0EA5E9" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+    <linearGradient id="nexoraGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#A855F7" stop-opacity="0.8" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Circular Base Badge -->
+  <rect width="120" height="120" rx="60" fill="url(#nexoraBg)" />
+  <circle cx="60" cy="60" r="56" fill="none" stroke="rgba(255, 255, 255, 0.25)" stroke-width="2" />
+
+  <!-- Stylized Nexora 'N' Geometry -->
+  <path
+    d="M36 84 V36 L64 68 V36 H74 V84 L46 52 V84 Z"
+    fill="#FFFFFF"
+    filter="url(#glow)"
+  />
+
+  <!-- Top-Right AI Sparkle Star -->
+  <path
+    d="M84 26 Q84 34 76 34 Q84 34 84 42 Q84 34 92 34 Q84 34 84 26 Z"
+    fill="#FDF08A"
+  />
+</svg>
