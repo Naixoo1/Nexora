@@ -82,11 +82,6 @@ export default function CanvasListPage() {
 
   const handleCreateCanvas = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session?.user) {
-      setError('Please sign in with Google to create and save canvases to your account.');
-      return;
-    }
-
     if (!title.trim()) return;
 
     setIsSubmitting(true);
@@ -144,7 +139,10 @@ export default function CanvasListPage() {
       const json = await response.json();
 
       if (!response.ok || !json.success) {
-        throw new Error(json.message || 'Failed to create canvas');
+        const detailMsg = json.errors
+          ? Object.values(json.errors as Record<string, string[]>).flat().join(', ')
+          : (json.message || 'Failed to create canvas');
+        throw new Error(detailMsg);
       }
 
       setIsCreateModalOpen(false);

@@ -36,6 +36,13 @@
       "when": 1787223262541,
       "tag": "0004_mysterious_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787834701678,
+      "tag": "0005_lowly_deathstrike",
+      "breakpoints": true
     }
   ]
 }

@@ -14,6 +14,41 @@ import type {
 } from '@/types/canvas';
 import type { CreateCanvas, UpdateCanvas, SaveGraph, CanvasListQuery } from '@/lib/validators/canvas';
 
+import { user } from '@/db/schema/auth';
+
+/**
+ * Ensures that the given userId exists in the user table to satisfy foreign key constraints.
+ */
+export async function ensureUserExists(
+  userId: string,
+  name = 'Student',
+  email?: string
+): Promise<string> {
+  const resolvedId = userId || 'guest-user';
+  try {
+    const [existing] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, resolvedId))
+      .limit(1);
+
+    if (!existing) {
+      await db
+        .insert(user)
+        .values({
+          id: resolvedId,
+          name: name || 'Student',
+          email: email || `${resolvedId}@nexora.local`,
+          emailVerified: false,
+        })
+        .onConflictDoNothing();
+    }
+  } catch (err) {
+    console.warn('[Canvas Service]: Notice ensuring user exists in DB:', err);
+  }
+  return resolvedId;
+}
+
 /**
  * List canvases belonging to an authenticated user with pagination and filters.
  */
@@ -21,6 +56,7 @@ export async function listUserCanvases(
   userId: string,
   query: CanvasListQuery
 ): Promise<{ items: CanvasSummary[]; total: number; page: number; limit: number; totalPages: number }> {
+  await ensureUserExists(userId);
   const conditions = [eq(canvases.userId, userId)];
 
   if (query.category) {
@@ -181,81 +217,109 @@ export async function createCanvas(
   userId: string,
   payload: CreateCanvas
 ): Promise<CanvasGraph> {
-  return await db.transaction(async (tx) => {
-    const [newCanvas] = await tx
-      .insert(canvases)
-      .values({
-        userId,
-        taskId: payload.taskId ?? null,
-        title: payload.title,
-        description: payload.description ?? null,
-        category: payload.category ?? null,
-        viewport: { x: 0, y: 0, zoom: 1 },
-        globalVars: payload.initialProblem?.variables ?? [],
-      })
-      .returning();
+  const safeUserId = await ensureUserExists(userId);
 
-    const nodes: StemCanvasNode[] = [];
-    const edges: StemCanvasEdge[] = [];
+  try {
+    return await db.transaction(async (tx) => {
+      // Normalize raw variables if provided
+      const rawVars = payload.initialProblem?.variables || [];
+      const sanitizedVariables: CanvasVariable[] = rawVars.map((v, i) => ({
+        id: v.id || `var-${Date.now()}-${i}`,
+        name: v.name || `x_${i + 1}`,
+        symbol: v.symbol || `x_${i + 1}`,
+        label: v.label || `Variable ${i + 1}`,
+        value: typeof v.value === 'number' ? v.value : 0,
+        defaultValue: typeof v.defaultValue === 'number' ? v.defaultValue : 0,
+        min: typeof v.min === 'number' ? v.min : 0,
+        max: typeof v.max === 'number' ? v.max : 100,
+        step: typeof v.step === 'number' && v.step > 0 ? v.step : 1,
+        unit: v.unit || undefined,
+        description: v.description || undefined,
+        isIndependent: v.isIndependent ?? true,
+      }));
 
-    if (payload.initialProblem) {
-      const rootNodeId = 'root-problem-1';
-      const [rootNode] = await tx
-        .insert(canvasNodes)
+      const [newCanvas] = await tx
+        .insert(canvases)
         .values({
-          id: rootNodeId,
-          canvasId: newCanvas.id,
-          nodeType: 'problem_root',
-          positionX: 0,
-          positionY: 0,
-          title: payload.title,
-          content: payload.initialProblem.statement,
-          latexFormula: payload.initialProblem.latexFormula ?? null,
-          validationStatus: 'valid',
-          variables: payload.initialProblem.variables ?? [],
-          data: {
-            statement: payload.initialProblem.statement,
-            domain: payload.initialProblem.domain,
-            targetGoal: payload.initialProblem.targetGoal ?? '',
-            givenVariables: payload.initialProblem.variables ?? [],
-          },
+          userId: safeUserId,
+          taskId: payload.taskId || null,
+          title: payload.title.trim() || 'Untitled STEM Canvas',
+          description: payload.description ? payload.description.trim() : null,
+          category: payload.category ? payload.category.trim() : null,
+          viewport: { x: 0, y: 0, zoom: 1 },
+          globalVars: sanitizedVariables,
         })
         .returning();
 
-      nodes.push({
-        id: rootNode.id,
-        type: 'problem_root',
-        position: { x: rootNode.positionX, y: rootNode.positionY },
-        data: {
-          title: rootNode.title,
-          nodeType: 'problem_root',
-          validationStatus: 'valid',
-          isCollapsed: false,
-          content: rootNode.content ?? undefined,
-          latexFormula: rootNode.latexFormula ?? undefined,
-          variables: (rootNode.variables as CanvasVariable[]) ?? [],
-          customData: rootNode.data as Record<string, unknown>,
-        },
-      });
-    }
+      const nodes: StemCanvasNode[] = [];
+      const edges: StemCanvasEdge[] = [];
 
-    return {
-      id: newCanvas.id,
-      userId: newCanvas.userId,
-      taskId: newCanvas.taskId,
-      title: newCanvas.title,
-      description: newCanvas.description,
-      category: newCanvas.category,
-      viewport: newCanvas.viewport as { x: number; y: number; zoom: number },
-      nodes,
-      edges,
-      globalVariables: (newCanvas.globalVars as CanvasVariable[]) ?? [],
-      isPublic: newCanvas.isPublic,
-      metadata: newCanvas.metadata as Record<string, unknown>,
-      createdAt: newCanvas.createdAt,
-      updatedAt: newCanvas.updatedAt,
-    };
-  });
+      const rawStatement = payload.initialProblem?.statement?.trim();
+      if (rawStatement && rawStatement !== '-') {
+        const rootNodeId = `root-problem-${Date.now()}`;
+        const rawFormula = payload.initialProblem?.latexFormula?.trim();
+        const safeFormula = rawFormula && rawFormula !== '-' ? rawFormula : null;
+
+        const [rootNode] = await tx
+          .insert(canvasNodes)
+          .values({
+            id: rootNodeId,
+            canvasId: newCanvas.id,
+            nodeType: 'problem_root',
+            positionX: 0,
+            positionY: 0,
+            title: payload.title.trim() || 'Problem Statement',
+            content: rawStatement,
+            latexFormula: safeFormula,
+            validationStatus: 'valid',
+            variables: sanitizedVariables,
+            data: {
+              statement: rawStatement,
+              domain: payload.initialProblem?.domain || 'Mathematics',
+              targetGoal: payload.initialProblem?.targetGoal || '',
+              givenVariables: sanitizedVariables,
+            },
+          })
+          .returning();
+
+        nodes.push({
+          id: rootNode.id,
+          type: 'problem_root',
+          position: { x: rootNode.positionX, y: rootNode.positionY },
+          data: {
+            title: rootNode.title,
+            nodeType: 'problem_root',
+            validationStatus: 'valid',
+            isCollapsed: false,
+            content: rootNode.content ?? undefined,
+            latexFormula: rootNode.latexFormula ?? undefined,
+            variables: (rootNode.variables as CanvasVariable[]) ?? [],
+            customData: rootNode.data as Record<string, unknown>,
+          },
+        });
+      }
+
+      return {
+        id: newCanvas.id,
+        userId: newCanvas.userId,
+        taskId: newCanvas.taskId,
+        title: newCanvas.title,
+        description: newCanvas.description,
+        category: newCanvas.category,
+        viewport: newCanvas.viewport as { x: number; y: number; zoom: number },
+        nodes,
+        edges,
+        globalVariables: (newCanvas.globalVars as CanvasVariable[]) ?? [],
+        isPublic: newCanvas.isPublic,
+        metadata: newCanvas.metadata as Record<string, unknown>,
+        createdAt: newCanvas.createdAt,
+        updatedAt: newCanvas.updatedAt,
+      };
+    });
+  } catch (dbErr) {
+    console.error('[createCanvas Transaction Error]:', dbErr);
+    throw dbErr;
+  }
 }
 
 /**

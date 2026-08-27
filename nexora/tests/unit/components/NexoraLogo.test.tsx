@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { NexoraLogo } from '@/components/brand/NexoraLogo';
 
 describe('NexoraLogo Component', () => {
@@ -18,25 +18,12 @@ describe('NexoraLogo Component', () => {
     expect(screen.queryByText('v1.0')).toBeNull();
   });
 
-  it('renders standard image with correct src and dimensions', () => {
+  it('renders self-contained pure SVG brand emblem without external image dependencies', () => {
     render(<NexoraLogo size="lg" />);
 
-    const img = screen.getByAltText('Nexora Logo');
-    expect(img).toBeDefined();
-    expect(img.getAttribute('src')).toContain('logo.png');
-  });
-
-  it('switches to resilient vector fallback when image triggers onError', () => {
-    render(<NexoraLogo size="md" />);
-
-    const img = screen.getByAltText('Nexora Logo');
-    expect(img).toBeDefined();
-
-    // Trigger onError
-    fireEvent.error(img);
-
-    // Image should be replaced by vector fallback containing the SVG
-    expect(screen.queryByAltText('Nexora Logo')).toBeNull();
+    const svgLogo = screen.getByLabelText('Nexora Logo');
+    expect(svgLogo).toBeDefined();
+    expect(svgLogo.tagName.toLowerCase()).toBe('svg');
     expect(screen.getByText('Nexora')).toBeDefined();
   });
 
@@ -45,5 +32,12 @@ describe('NexoraLogo Component', () => {
 
     const link = screen.getByRole('link');
     expect(link.getAttribute('href')).toBe('/tasks');
+  });
+
+  it('renders non-link container when href is null', () => {
+    render(<NexoraLogo href={null} />);
+
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText('Nexora')).toBeDefined();
   });
 });

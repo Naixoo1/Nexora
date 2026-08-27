@@ -26,15 +26,15 @@ export const NodeValidationStatusSchema = z.enum([
 ]);
 
 export const CanvasVariableSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().default(() => `var-${Date.now()}`),
   name: z.string().min(1).max(50),
   symbol: z.string().min(1).max(100),
   label: z.string().min(1).max(100),
-  value: z.number(),
-  defaultValue: z.number(),
-  min: z.number(),
-  max: z.number(),
-  step: z.number().positive(),
+  value: z.number().default(0),
+  defaultValue: z.number().default(0),
+  min: z.number().default(0),
+  max: z.number().default(100),
+  step: z.number().positive().default(1),
   unit: z.string().max(20).optional(),
   description: z.string().max(500).optional(),
   isIndependent: z.boolean().default(true),
@@ -96,8 +96,8 @@ export const CreateCanvasSchema = z.object({
   category: z.string().max(50).optional(),
   initialProblem: z
     .object({
-      statement: z.string().min(1),
-      domain: z.string().default('Mathematics'),
+      statement: z.string().optional(),
+      domain: z.string().optional().default('Mathematics'),
       targetGoal: z.string().optional(),
       latexFormula: z.string().optional(),
       variables: z.array(CanvasVariableSchema).optional(),

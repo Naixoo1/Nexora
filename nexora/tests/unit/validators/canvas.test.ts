@@ -320,6 +320,32 @@ describe('Canvas Validators', () => {
       }
     });
 
+    it('should validate CreateCanvasSchema with optional fields omitted or valid', () => {
+      // Arrange
+      const payload = {
+        title: 'Kalkulus Lanjut',
+        description: 'Pembahasan integral lipat',
+        category: 'Kalkulus',
+        initialProblem: {
+          statement: 'Hitung volume benda putar',
+          domain: 'Mathematics',
+          latexFormula: 'V = \\pi \\int_a^b [f(x)]^2 dx',
+        },
+      };
+
+      // Act
+      const result = CreateCanvasSchema.safeParse(payload);
+
+      // Assert
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.title).toBe('Kalkulus Lanjut');
+        expect(result.data.description).toBe('Pembahasan integral lipat');
+        expect(result.data.initialProblem?.statement).toBe('Hitung volume benda putar');
+        expect(result.data.initialProblem?.latexFormula).toBe('V = \\pi \\int_a^b [f(x)]^2 dx');
+      }
+    });
+
     it('should fail CreateCanvasSchema when title is empty', () => {
       // Arrange
       const payload = {

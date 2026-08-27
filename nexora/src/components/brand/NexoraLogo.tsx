@@ -1,9 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface NexoraLogoProps {
@@ -11,7 +9,6 @@ export interface NexoraLogoProps {
   showVersion?: boolean;
   size?: 'sm' | 'md' | 'lg';
   href?: string | null;
-  src?: string;
 }
 
 export const NexoraLogo: React.FC<NexoraLogoProps> = ({
@@ -19,57 +16,58 @@ export const NexoraLogo: React.FC<NexoraLogoProps> = ({
   showVersion = true,
   size = 'md',
   href = '/',
-  src = '/logo.png',
 }) => {
-  const [hasError, setHasError] = useState(false);
-
   const dimensions = {
-    sm: { sizeClass: 'w-6 h-6', px: 24, text: 'text-sm', badge: 'text-[9px] px-1 py-0.2', iconSize: 12 },
-    md: { sizeClass: 'w-8 h-8', px: 32, text: 'text-base', badge: 'text-[10px] px-1.5 py-0.5', iconSize: 16 },
-    lg: { sizeClass: 'w-10 h-10', px: 40, text: 'text-xl', badge: 'text-xs px-2 py-0.5', iconSize: 20 },
+    sm: { sizeClass: 'w-6 h-6', text: 'text-sm', badge: 'text-[9px] px-1 py-0.2' },
+    md: { sizeClass: 'w-8 h-8', text: 'text-base', badge: 'text-[10px] px-1.5 py-0.5' },
+    lg: { sizeClass: 'w-10 h-10', text: 'text-xl', badge: 'text-xs px-2 py-0.5' },
   }[size];
 
   const content = (
     <>
-      {/* Brand Logo Container */}
+      {/* Pure Self-Contained Inline SVG Brand Emblem */}
       <div
         className={cn(
-          'relative rounded-full overflow-hidden border border-cyan-500/30 shadow-sm shadow-cyan-500/20 shrink-0 transition-transform duration-200 group-hover:scale-105 bg-gradient-to-br from-indigo-600 via-sky-500 to-cyan-400',
+          'relative rounded-full overflow-hidden border border-cyan-500/30 shadow-sm shadow-cyan-500/20 shrink-0 transition-transform duration-200 group-hover:scale-105 select-none',
           dimensions.sizeClass
         )}
       >
-        {!hasError ? (
-          <Image
-            alt="Nexora Logo"
-            className="w-full h-full object-cover"
-            width={dimensions.px}
-            height={dimensions.px}
-            priority
-            unoptimized
-            src={src}
-            onError={() => setHasError(true)}
+        <svg
+          viewBox="0 0 100 100"
+          className="w-full h-full"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-label="Nexora Logo"
+        >
+          <defs>
+            <linearGradient id="nexoraBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#4F46E5" />
+              <stop offset="50%" stopColor="#0EA5E9" />
+              <stop offset="100%" stopColor="#06B6D4" />
+            </linearGradient>
+            <filter id="nexoraGlowFilter" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          {/* Circular Base Gradient Badge */}
+          <rect width="100" height="100" rx="50" fill="url(#nexoraBgGrad)" />
+          <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="2" />
+
+          {/* Stylized Nexora 'N' Geometry */}
+          <path
+            d="M30 70 V30 L55 57 V30 H64 V70 L39 43 V70 Z"
+            fill="#FFFFFF"
+            filter="url(#nexoraGlowFilter)"
           />
-        ) : (
-          /* Resilient Inline SVG / Vector Fallback */
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-600 via-sky-500 to-cyan-400 text-white font-extrabold shadow-inner select-none">
-            <svg
-              viewBox="0 0 100 100"
-              className="w-full h-full p-1"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <circle cx="50" cy="50" r="46" stroke="rgba(255,255,255,0.3)" strokeWidth="3" />
-              <path
-                d="M30 70 V30 L55 57 V30 H65 V70 L40 43 V70 Z"
-                fill="#FFFFFF"
-              />
-              <path
-                d="M72 24 Q72 30 66 30 Q72 30 72 36 Q72 30 78 30 Q72 30 72 24 Z"
-                fill="#FDE047"
-              />
-            </svg>
-          </div>
-        )}
+
+          {/* Top-Right AI Sparkle Star */}
+          <path
+            d="M72 23 Q72 29 66 29 Q72 29 72 35 Q72 29 78 29 Q72 29 72 23 Z"
+            fill="#FDE047"
+          />
+        </svg>
       </div>
 
       {/* Brand Text & Version Badge */}
