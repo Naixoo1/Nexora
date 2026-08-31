@@ -131,6 +131,18 @@ Tentukan semua bilangan bulat positif $n$ sehingga $n^2 + 1$ habis dibagi $n + 1
       expect(output).not.toContain('Planning response');
     });
 
+    it('strips "Okay, the user is asking..." and conversational reflection scratchpads', () => {
+      const input = `Okay, the user is asking about the square root of 169. Looking at the history, they are practicing roots. I should guide them directly.
+
+Akar kuadrat dari 169 adalah $\\sqrt{169} = 13$ karena $13 \\times 13 = 169$.`;
+
+      const output = stripPlainTextMonologue(input);
+      expect(output).toBe('Akar kuadrat dari 169 adalah $\\sqrt{169} = 13$ karena $13 \\times 13 = 169$.');
+      expect(output).not.toContain('Okay, the user is asking');
+      expect(output).not.toContain('Looking at the history');
+      expect(output).not.toContain('I should guide them');
+    });
+
     it('preserves regular responses that start immediately with greetings or math without preamble', () => {
       const input = 'Halo! Rumus yang digunakan adalah $E = mc^2$.';
       const output = stripPlainTextMonologue(input);

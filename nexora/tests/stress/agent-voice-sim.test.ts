@@ -150,7 +150,12 @@ describe('Automated AI Agent Voice & Anti-CoT Stress-Test Suite', () => {
         expectedClean: 'Persamaan garis singgungnya adalah $y = 2x - 1$.',
       },
       {
-        name: 'CoT Leak 10: Unclosed <think> stream truncation',
+        name: 'CoT Leak 10: Okay, the user is asking scratchpad',
+        raw: 'Okay, the user is asking about the square root of 169. Looking at the history, they are practicing roots.\n\nThe square root of 169 is 13.',
+        expectedClean: 'The square root of 169 is 13.',
+      },
+      {
+        name: 'CoT Leak 11: Unclosed <think> stream truncation',
         raw: '<think>Let me verify the answer... The derivative of x^2 is 2x.',
         expectedClean: '',
       },

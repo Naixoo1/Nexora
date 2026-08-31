@@ -251,12 +251,14 @@ describe('chat-prompt service (buildSystemPrompt)', () => {
       const promptDefault = buildSystemPrompt();
       expect(promptDefault).toContain('LANGUAGE MIRRORING: Always respond in the exact language the user used to ask the question');
       expect(promptDefault).toContain('TARGET RESPONSE LANGUAGE: BAHASA INDONESIA');
+      expect(promptDefault).toContain('DIRECT RESPONSE ONLY: Output ONLY the final student-facing response');
       expect(promptDefault).toContain('STT PHONETIC RESILIENCE: User input may be generated via speech-to-text');
       expect(promptDefault).toContain('PHONETIC CONTEXT RECONSTRUCTION: Spoken voice inputs may contain STT transcription inaccuracies');
 
       const promptEn = buildSystemPrompt({ tutorMode: 'socratic', locale: 'en' });
       expect(promptEn).toContain('LANGUAGE MIRRORING: Always respond in the exact language the user used to ask the question');
       expect(promptEn).toContain('TARGET RESPONSE LANGUAGE: ENGLISH (UK/US)');
+      expect(promptEn).toContain('DIRECT RESPONSE ONLY: Output ONLY the final student-facing response');
       expect(promptEn).toContain('STT PHONETIC RESILIENCE: User input may be generated via speech-to-text');
       expect(promptEn).toContain('PHONETIC CONTEXT RECONSTRUCTION: Spoken voice inputs may contain STT transcription inaccuracies');
     });

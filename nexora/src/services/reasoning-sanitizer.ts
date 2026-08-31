@@ -69,10 +69,18 @@ export function stripPlainTextMonologue(text: string): string {
 
   // Direct preamble stripping matching user specification
   const directPreambleRegex =
-    /^(?:Here'?s a thinking process|Thinking Process|Drafting the Content|Mental Refinement|Let'?s (?:think|analyze|draft|do)|User safety:)[\s\S]*?(?=\n\n|\n[A-Z]|\$\$|#|$)/i;
+    /^(?:Here'?s a thinking process|Thinking Process|Drafting the Content|Mental Refinement|Let'?s (?:think|analyze|draft|do)|User safety:|Okay,?\s+the user is asking|Looking at the history|I should guide them|Hmm,?\s+looking at|Actually\s+the last user message|Important:\s+must not give direct answer)[\s\S]*?(?=\n\n|\n[A-Z]|\$\$|#|$)/i;
 
   if (directPreambleRegex.test(cleaned)) {
     cleaned = cleaned.replace(directPreambleRegex, '').trim();
+  }
+
+  // Conversational scratchpad & reflection monologue pattern
+  const conversationalScratchpadRegex =
+    /^(?:Okay,?\s+the user is asking|Looking at the history|I should guide them|Hmm,?\s+looking at|Actually\s+the last user message|Important:\s+must not give direct answer|Let me analyze|First,?\s+let me understand)[\s\S]*?(?=\n\n|\$\$|#|\n[A-Z]|$)/i;
+
+  if (conversationalScratchpadRegex.test(cleaned)) {
+    cleaned = cleaned.replace(conversationalScratchpadRegex, '').trim();
   }
 
   // 1. Direct inline/prefix stripping for explicit tags
@@ -247,7 +255,7 @@ export function createReasoningFilterTransform(locale: string = 'id'): Transform
   let buffer = '';
 
   const monologueOrSafetyCheck =
-    /^(?:#{1,4}\s*)?(?:\*{0,2})(?:Here'?s (?:a |my )?thinking process|Thinking Process|Drafting the Content|Mental Refinement|Drafting response|Internal Monologue|Chain-of-Thought|Let'?s (?:think|analyze|draft|do|check|create|give|present|make|craft)|Or better|Actually,?\s+let'?s|I (?:will|shall|am going to|plan to)|I'?ll (?:present|give|ask|provide|guide|create)|The user (?:just|is|wants|asked|said)|Planning (?:response|a problem)|1\.\s*(?:\*{0,2})Analyze|Analyzing the request|User safety:|(?:user\s*)?safety(?:_rating)?\s*:\s*\w+|\[\s*(?:user\s*)?safety(?:_rating)?\s*:\s*[^\]]+\]|(?:Input|Content|Prompt|User|Context)\s*Safety\s*:\s*\w+|Safety\s*Assessment\s*:\s*\w+)/i;
+    /^(?:#{1,4}\s*)?(?:\*{0,2})(?:Here'?s (?:a |my )?thinking process|Thinking Process|Drafting the Content|Mental Refinement|Drafting response|Internal Monologue|Chain-of-Thought|Let'?s (?:think|analyze|draft|do|check|create|give|present|make|craft)|Or better|Actually,?\s+let'?s|I (?:will|shall|am going to|plan to)|I'?ll (?:present|give|ask|provide|guide|create)|The user (?:just|is|wants|asked|said)|Planning (?:response|a problem)|1\.\s*(?:\*{0,2})Analyze|Analyzing the request|User safety:|Okay,?\s+the user is asking|Looking at the history|I should guide them|Hmm,?\s+looking at|Actually\s+the last user message|Important:\s+must not give direct answer|(?:user\s*)?safety(?:_rating)?\s*:\s*\w+|\[\s*(?:user\s*)?safety(?:_rating)?\s*:\s*[^\]]+\]|(?:Input|Content|Prompt|User|Context)\s*Safety\s*:\s*\w+|Safety\s*Assessment\s*:\s*\w+)/i;
 
   return new TransformStream<string, string>({
     transform(chunk, controller) {
