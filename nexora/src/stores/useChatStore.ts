@@ -1060,11 +1060,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
 
     try {
+      const activeSession = get().currentSession?.id;
+      const validSessionId =
+        activeSession && !activeSession.startsWith('guest-') ? activeSession : undefined;
+
       const payload = {
-        sessionId: get().currentSession?.id,
+        sessionId: validSessionId,
         taskId: taskCtx?.taskId,
         canvasId: canvasCtx?.canvasId,
         message: userMessageContent,
+        messages: initialMessages.map((m) => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content,
+        })),
         attachments: currentAttachments.length > 0 ? currentAttachments : undefined,
         context: {
           tutorMode: activeMode,

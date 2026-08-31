@@ -190,6 +190,11 @@ export const ChatAttachmentSchema = z
   });
 
 // ── Request Schemas ──────────────────────────────────────
+export const HistoryMessageItemSchema = z.object({
+  role: z.enum(['user', 'assistant', 'system', 'model']),
+  content: z.string(),
+});
+
 export const SendChatMessageSchema = z.object({
   sessionId: z.string().uuid().optional(),
   taskId: z.string().uuid().optional(),
@@ -198,6 +203,7 @@ export const SendChatMessageSchema = z.object({
   mode: AcademicTutorModeSchema.optional(),
   context: ChatContextPayloadSchema.optional(),
   attachments: z.array(ChatAttachmentSchema).max(5).optional(),
+  messages: z.array(HistoryMessageItemSchema).optional(),
 });
 
 export const CreateChatSessionSchema = z.object({

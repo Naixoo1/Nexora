@@ -190,9 +190,16 @@ export const AICallModal: React.FC = () => {
           headers['x-gemini-api-key'] = customApiKey.trim();
         }
 
+        const validSessionId =
+          targetSessionId && !targetSessionId.startsWith('guest-') ? targetSessionId : undefined;
+
         const payload = {
-          sessionId: targetSessionId || undefined,
+          sessionId: validSessionId,
           message: queryText,
+          messages: [...chatStoreState.messages, userChatMessage].map((m) => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: m.content,
+          })),
           mode: activeTutorMode || 'socratic',
           context: {
             tutorMode: activeTutorMode || 'socratic',

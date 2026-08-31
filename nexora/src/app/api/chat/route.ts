@@ -92,6 +92,62 @@ function buildGeminiContentParts(
   return parts;
 }
 
+export interface GeminiContentTurn {
+  role: 'user' | 'model';
+  parts: Part[];
+}
+
+/**
+ * Builds the complete multi-turn conversation contents array for Google GenAI SDK.
+ * Formats user turns as { role: 'user', parts: [...] } and assistant turns as { role: 'model', parts: [...] }.
+ */
+export function buildGeminiMultiTurnContents(
+  history: { role: string; content: string }[],
+  currentMessage: string,
+  currentAttachments?: ChatAttachment[]
+): GeminiContentTurn[] {
+  const contents: GeminiContentTurn[] = [];
+
+  // 1. Convert past history to alternating Gemini turns
+  for (const item of history) {
+    if (!item.content || !item.content.trim()) continue;
+    const role: 'user' | 'model' =
+      item.role === 'assistant' || item.role === 'model' ? 'model' : 'user';
+
+    // If consecutive same role, combine parts to maintain clean turn structure
+    if (contents.length > 0 && contents[contents.length - 1].role === role) {
+      contents[contents.length - 1].parts.push({ text: item.content.trim() });
+    } else {
+      contents.push({
+        role,
+        parts: [{ text: item.content.trim() }],
+      });
+    }
+  }
+
+  // Ensure first turn starts with 'user'
+  if (contents.length > 0 && contents[0].role === 'model') {
+    contents.unshift({
+      role: 'user',
+      parts: [{ text: 'Halo' }],
+    });
+  }
+
+  // 2. Current turn parts with multimodal attachments
+  const currentParts = buildGeminiContentParts(currentMessage, currentAttachments);
+
+  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+    contents[contents.length - 1].parts.push(...currentParts);
+  } else {
+    contents.push({
+      role: 'user',
+      parts: currentParts,
+    });
+  }
+
+  return contents;
+}
+
 export async function POST(req: NextRequest): Promise<Response> {
   try {
     // 1. Attempt to get session from Better-Auth (support Guest mode if unauthenticated)
@@ -126,7 +182,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       );
     }
 
-    const { sessionId, taskId, canvasId, message, mode, context, attachments } = parsed.data;
+    const { sessionId, taskId, canvasId, message, messages, mode, context, attachments } = parsed.data;
 
     // Resolve grade, subject, and language locale context via payload, headers, or automatic classifier
     const headerGrade = (req.headers.get('x-grade-level') as GradeLevel) || undefined;
@@ -186,9 +242,28 @@ export async function POST(req: NextRequest): Promise<Response> {
       );
     }
 
-    // 3. If authenticated user, fetch history, prune, and persist new user message to database
+    // 3. Resolve Previous Conversation History & Persist New Message
     let chatSessionId = sessionId || `guest-${Date.now()}`;
     let previousHistory: { role: string; content: string }[] = [];
+
+    // Prioritize rich history passed directly from client payload
+    if (Array.isArray(messages) && messages.length > 0) {
+      previousHistory = messages
+        .filter((m) => m && m.content && typeof m.content === 'string' && m.content.trim().length > 0)
+        .map((m) => ({
+          role: m.role === 'model' || m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content.trim(),
+        }));
+
+      // If the last message in history array is identical to the current user message, remove it from prior history
+      if (
+        previousHistory.length > 0 &&
+        previousHistory[previousHistory.length - 1].role === 'user' &&
+        previousHistory[previousHistory.length - 1].content === message.trim()
+      ) {
+        previousHistory.pop();
+      }
+    }
 
     if (userId) {
       try {
@@ -200,8 +275,8 @@ export async function POST(req: NextRequest): Promise<Response> {
         });
         chatSessionId = chatSession.id;
 
-        // Fetch previous messages for smart history pruning
-        if (sessionId) {
+        // If client did not pass messages array, fetch previous messages from database
+        if (previousHistory.length === 0 && sessionId) {
           const sessionWithMsgs = await getChatSessionWithMessages(sessionId, userId);
           if (sessionWithMsgs?.messages) {
             previousHistory = sessionWithMsgs.messages.map((m) => ({
@@ -270,12 +345,13 @@ export async function POST(req: NextRequest): Promise<Response> {
       }
     }
 
-    // Smart History Pruning: limit to last 6 messages and strip heavy base64
-    const prunedHistory = pruneConversationHistory(previousHistory, 6);
+    // Smart History Pruning: retain last 10 messages for rich dialogue context and strip heavy base64
+    const prunedHistory = pruneConversationHistory(previousHistory, 10);
 
-    // 5. Build dynamic academic system prompt and parts
+    // 5. Build dynamic academic system prompt and multi-turn contents
     const systemInstruction = buildSystemPrompt(resolvedContext);
-    const contentParts = buildGeminiContentParts(
+    const geminiMultiTurnContents = buildGeminiMultiTurnContents(
+      prunedHistory,
       message,
       attachments as ChatAttachment[] | undefined
     );
@@ -318,7 +394,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
             responseStream = await ai.models.generateContentStream({
               model: candidateModel,
-              contents: contentParts,
+              contents: geminiMultiTurnContents,
               config: geminiConfig,
             });
             usedModel = candidateModel;
