@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { NexoraLogo } from '@/components/brand/NexoraLogo';
 
 describe('NexoraLogo Component', () => {
@@ -18,13 +18,22 @@ describe('NexoraLogo Component', () => {
     expect(screen.queryByText('v1.0')).toBeNull();
   });
 
-  it('renders self-contained pure SVG brand emblem without external image dependencies', () => {
+  it('renders brand emblem image using /logo.svg with fallback support', () => {
     render(<NexoraLogo size="lg" />);
 
-    const svgLogo = screen.getByLabelText('Nexora Logo');
-    expect(svgLogo).toBeDefined();
-    expect(svgLogo.tagName.toLowerCase()).toBe('svg');
+    const logoImg = screen.getByAltText('Nexora Logo');
+    expect(logoImg).toBeDefined();
+    expect(logoImg.getAttribute('src')).toContain('logo.svg');
     expect(screen.getByText('Nexora')).toBeDefined();
+  });
+
+  it('renders vector fallback on image load error', () => {
+    render(<NexoraLogo size="md" src="/non-existent-logo.svg" />);
+
+    const logoImg = screen.getByAltText('Nexora Logo');
+    fireEvent.error(logoImg);
+
+    expect(screen.getByLabelText('Nexora Logo Fallback')).toBeDefined();
   });
 
   it('renders link when href is provided', () => {
