@@ -207,4 +207,38 @@ describe('useSpeechRecognition Hook', () => {
       expect(result.current.recognitionStatus).toBe('stopped');
     });
   });
+
+  describe('Dynamic Language Switching', () => {
+    it('initializes with custom language option when provided', () => {
+      const { result } = renderHook(() => useSpeechRecognition({ language: 'en-US' }));
+      expect(result.current.language).toBe('en-US');
+    });
+
+    it('updates language and starts with new lang code when startListening is called with en-US', async () => {
+      const { result } = renderHook(() => useSpeechRecognition());
+
+      await act(async () => {
+        await result.current.startListening('en-US');
+      });
+
+      expect(result.current.language).toBe('en-US');
+      expect(mockInstance.lang).toBe('en-US');
+      expect(mockInstance.start).toHaveBeenCalled();
+    });
+
+    it('switches language dynamically via setLanguage', async () => {
+      const { result } = renderHook(() => useSpeechRecognition());
+
+      await act(async () => {
+        await result.current.startListening('id-ID');
+      });
+      expect(result.current.language).toBe('id-ID');
+
+      act(() => {
+        result.current.setLanguage('en-US');
+      });
+
+      expect(result.current.language).toBe('en-US');
+    });
+  });
 });

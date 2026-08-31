@@ -36,6 +36,10 @@ function getSpeechRecognitionConstructor(): (new () => SpeechRecognitionInstance
 
 export type RecognitionStatus = 'idle' | 'initializing' | 'listening' | 'error' | 'stopped';
 
+export interface UseSpeechRecognitionOptions {
+  language?: string; // e.g. 'id-ID' | 'en-US'
+}
+
 export interface UseSpeechRecognitionReturn {
   isListening: boolean;
   transcript: string;
@@ -43,26 +47,29 @@ export interface UseSpeechRecognitionReturn {
   isSupported: boolean;
   isPermissionDenied: boolean;
   recognitionStatus: RecognitionStatus;
+  language: string;
   error: string | null;
   startListening: (lang?: string) => Promise<void>;
   stopListening: () => void;
   resetTranscript: () => void;
+  setLanguage: (lang: string) => void;
 }
 
-export function useSpeechRecognition(): UseSpeechRecognitionReturn {
+export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}): UseSpeechRecognitionReturn {
   const [isListening, setIsListening] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
   const [isSupported, setIsSupported] = useState<boolean>(false);
   const [isPermissionDenied, setIsPermissionDenied] = useState<boolean>(false);
   const [recognitionStatus, setRecognitionStatus] = useState<RecognitionStatus>('idle');
+  const [language, setLanguageState] = useState<string>(options.language || 'id-ID');
   const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const finalTranscriptRef = useRef<string>('');
   const interimTranscriptRef = useRef<string>('');
   const shouldKeepListeningRef = useRef<boolean>(false);
-  const activeLangRef = useRef<string>('id-ID');
+  const activeLangRef = useRef<string>(options.language || 'id-ID');
   const consecutiveFailuresRef = useRef<number>(0);
   const lastStartTimeRef = useRef<number>(0);
   const isFatalErrorRef = useRef<boolean>(false);
@@ -246,13 +253,23 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     }
   }, []);
 
+  const setLanguage = useCallback((newLang: string) => {
+    activeLangRef.current = newLang;
+    setLanguageState(newLang);
+    if (shouldKeepListeningRef.current) {
+      initAndStartInstance(newLang);
+    }
+  }, [initAndStartInstance]);
+
   const startListening = useCallback(
-    async (lang = 'id-ID') => {
+    async (lang?: string) => {
+      const selectedLang = lang || activeLangRef.current || 'id-ID';
       setError(null);
       setIsPermissionDenied(false);
       isFatalErrorRef.current = false;
       consecutiveFailuresRef.current = 0;
-      activeLangRef.current = lang;
+      activeLangRef.current = selectedLang;
+      setLanguageState(selectedLang);
       shouldKeepListeningRef.current = true;
 
       // Check permission state via Permissions API if available (non-blocking, no audio stream lock)
@@ -271,7 +288,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         }
       }
 
-      initAndStartInstance(lang);
+      initAndStartInstance(selectedLang);
     },
     [initAndStartInstance]
   );
@@ -299,9 +316,11 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     isSupported,
     isPermissionDenied,
     recognitionStatus,
+    language,
     error,
     startListening,
     stopListening,
     resetTranscript,
+    setLanguage,
   };
 }

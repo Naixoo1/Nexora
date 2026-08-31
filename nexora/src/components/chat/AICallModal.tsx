@@ -44,10 +44,12 @@ export const AICallModal: React.FC = () => {
   } = useCallModeStore();
 
   const locale = useLanguageStore((state) => state.locale);
+  const [callLanguage, setCallLanguage] = useState<'id-ID' | 'en-US'>(() => (locale === 'en' ? 'en-US' : 'id-ID'));
+  const callLocale: 'id' | 'en' = callLanguage === 'en-US' ? 'en' : 'id';
+
   const { activeTutorMode, gradeLevel, customApiKey } = useChatStore();
 
   // Web Speech API input
-  const speechRecognitionLang = locale === 'en' ? 'en-US' : 'id-ID';
   const {
     isListening,
     transcript,
@@ -59,7 +61,8 @@ export const AICallModal: React.FC = () => {
     startListening,
     stopListening,
     resetTranscript,
-  } = useSpeechRecognition();
+    setLanguage,
+  } = useSpeechRecognition({ language: callLanguage });
 
   // Web Speech Synthesis output
   const handleAiSpeechEnd = useCallback(() => {
@@ -69,10 +72,10 @@ export const AICallModal: React.FC = () => {
       resetTranscript();
       setUserTranscript('');
       if (!useCallModeStore.getState().isMuted) {
-        startListening(speechRecognitionLang);
+        startListening(callLanguage);
       }
     }
-  }, [setCallStatus, resetTranscript, setUserTranscript, startListening, speechRecognitionLang]);
+  }, [setCallStatus, resetTranscript, setUserTranscript, startListening, callLanguage]);
 
   const {
     isPlaying: isAiSpeaking,
@@ -82,6 +85,24 @@ export const AICallModal: React.FC = () => {
   } = useTextToSpeech({
     onEnd: handleAiSpeechEnd,
   });
+
+  const handleSwitchLanguage = useCallback(
+    (newLang: 'id-ID' | 'en-US') => {
+      if (callLanguage === newLang) return;
+      setCallLanguage(newLang);
+      setLanguage(newLang);
+      if (useCallModeStore.getState().callStatus === 'LISTENING' && !useCallModeStore.getState().isMuted) {
+        stopListening();
+        startListening(newLang);
+      }
+    },
+    [callLanguage, setLanguage, stopListening, startListening]
+  );
+
+  // Sync with global store locale if initial modal opens
+  useEffect(() => {
+    setCallLanguage(locale === 'en' ? 'en-US' : 'id-ID');
+  }, [locale]);
 
   // Track silence / commit timer and abort controllers
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -160,7 +181,7 @@ export const AICallModal: React.FC = () => {
       try {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
-          'x-user-locale': locale || 'id',
+          'x-user-locale': callLocale,
           'x-grade-level': gradeLevel || 'SENIOR_HIGH',
           'x-call-mode': 'true',
         };
@@ -176,7 +197,7 @@ export const AICallModal: React.FC = () => {
           context: {
             tutorMode: activeTutorMode || 'socratic',
             gradeLevel: gradeLevel || 'SENIOR_HIGH',
-            locale: locale || 'id',
+            locale: callLocale,
             isCallMode: true,
             taskContext: chatStoreState.taskContext,
             canvasContext: chatStoreState.canvasContext,
@@ -227,7 +248,7 @@ export const AICallModal: React.FC = () => {
             const completeSentence = sentenceMatch[1].trim();
             if (completeSentence.length > 0) {
               setCallStatus('SPEAKING');
-              queueSentence(completeSentence, locale);
+              queueSentence(completeSentence, callLocale);
               processedIndex += sentenceMatch[0].length;
             }
           }
@@ -254,7 +275,7 @@ export const AICallModal: React.FC = () => {
         const remainingText = cleaned.slice(processedIndex).trim();
         if (remainingText.length > 0) {
           setCallStatus('SPEAKING');
-          queueSentence(remainingText, locale);
+          queueSentence(remainingText, callLocale);
         }
       } catch (err) {
         if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('aborted'))) {
@@ -264,14 +285,12 @@ export const AICallModal: React.FC = () => {
         console.error('[AICallModal] AI Call error:', err);
         const errMessage = err instanceof Error ? err.message : String(err);
         const fallbackText =
-          locale === 'en'
+          callLocale === 'en'
             ? `Connection issue (${errMessage}). Tap below to retry.`
-            : locale === 'su'
-            ? `Aya gangguan sambungan (${errMessage}). Mangga pencet di handap kanggo nyobian deui.`
             : `Terjadi gangguan koneksi (${errMessage}). Silakan tekan tombol untuk bicara kembali.`;
         setAiResponseText(fallbackText);
         setCallStatus('SPEAKING');
-        speak(fallbackText, locale);
+        speak(fallbackText, callLocale);
       } finally {
         isQueryingRef.current = false;
         abortControllerRef.current = null;
@@ -289,7 +308,7 @@ export const AICallModal: React.FC = () => {
       activeTutorMode,
       gradeLevel,
       customApiKey,
-      locale,
+      callLocale,
     ]
   );
 
@@ -323,7 +342,7 @@ export const AICallModal: React.FC = () => {
       resetTranscript();
       setUserTranscript('');
       setAiResponseText('');
-      startListening(speechRecognitionLang);
+      startListening(callLanguage);
     } else {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -360,7 +379,7 @@ export const AICallModal: React.FC = () => {
     startListening,
     stopListening,
     stopSpeaking,
-    speechRecognitionLang,
+    callLanguage,
   ]);
 
   const handleSkipSpeaking = () => {
@@ -372,7 +391,7 @@ export const AICallModal: React.FC = () => {
     if (isMuted) {
       toggleMute();
       if (callStatus === 'LISTENING') {
-        startListening(speechRecognitionLang);
+        startListening(callLanguage);
       }
     } else {
       toggleMute();
@@ -402,11 +421,9 @@ export const AICallModal: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: activeSessionId,
-          messages: currentMessages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+          messages: currentMessages.slice(-10),
         }),
-      }).catch((err) => {
-        console.warn('[AICallModal] Background memory extraction failed:', err);
-      });
+      }).catch((err) => console.warn('[AICallModal] Memory extraction notice:', err));
     }
 
     endCall();
@@ -415,7 +432,7 @@ export const AICallModal: React.FC = () => {
   const handleManualStartSpeak = () => {
     resetTranscript();
     setUserTranscript('');
-    startListening(speechRecognitionLang);
+    startListening(callLanguage);
   };
 
   const handleManualSubmitNow = () => {
@@ -456,10 +473,8 @@ export const AICallModal: React.FC = () => {
             </h2>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-xs text-slate-400 font-sans">
-                {locale === 'en'
+                {callLocale === 'en'
                   ? 'Socratic & STEM Interactive Voice Call'
-                  : locale === 'su'
-                  ? 'Panggero Sora Interaktif Socratic & STEM'
                   : 'Panggilan Suara Interaktif Socratic & STEM'}
               </p>
               {/* Live Recognition Status Diagnostic Badge */}
@@ -479,18 +494,18 @@ export const AICallModal: React.FC = () => {
                 <Radio className="h-2.5 w-2.5" />
                 <span>
                   {recognitionStatus === 'listening'
-                    ? locale === 'en'
+                    ? callLocale === 'en'
                       ? 'Live'
                       : 'Aktif'
                     : recognitionStatus === 'initializing'
-                    ? locale === 'en'
+                    ? callLocale === 'en'
                       ? 'Connecting'
                       : 'Menyambungkan'
                     : recognitionStatus === 'error'
-                    ? locale === 'en'
+                    ? callLocale === 'en'
                       ? 'Manual'
                       : 'Mode Manual'
-                    : locale === 'en'
+                    : callLocale === 'en'
                     ? 'Standby'
                     : 'Siaga'}
                 </span>
@@ -499,14 +514,48 @@ export const AICallModal: React.FC = () => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleEndCall}
-          className="rounded-2xl border border-white/10 bg-white/5 p-2 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
-          title="Close Call"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        {/* Top Right Controls: Language Pill + Close */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => handleSwitchLanguage('id-ID')}
+              className={cn(
+                'flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-semibold transition-all',
+                callLanguage === 'id-ID'
+                  ? 'bg-gradient-to-r from-indigo-500 to-cyan-500 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              )}
+              title="Bahasa Indonesia"
+            >
+              <span>🇮🇩</span>
+              <span>ID</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSwitchLanguage('en-US')}
+              className={cn(
+                'flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-semibold transition-all',
+                callLanguage === 'en-US'
+                  ? 'bg-gradient-to-r from-indigo-500 to-cyan-500 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              )}
+              title="English (US)"
+            >
+              <span>🇺🇸</span>
+              <span>EN</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleEndCall}
+            className="rounded-2xl border border-white/10 bg-white/5 p-2 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+            title="Close Call"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* Microphone Permission Warning Banner */}

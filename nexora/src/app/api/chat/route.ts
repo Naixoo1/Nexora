@@ -306,6 +306,7 @@ export async function POST(req: NextRequest): Promise<Response> {
               systemInstruction,
               temperature: complexityConfig.temperature,
               maxOutputTokens: complexityConfig.maxOutputTokens,
+              tools: [{ googleSearch: {} }],
             };
 
             // Only attach thinkingConfig when thinkingBudget > 0 (avoid empty candidates on budget 0)
@@ -474,7 +475,18 @@ export async function POST(req: NextRequest): Promise<Response> {
           try {
             let geminiTokens = 0;
             for await (const chunk of responseStream) {
-              const chunkText = chunk.text || '';
+              let chunkText = chunk.text || '';
+              const rawCandidates = (chunk as unknown as {
+                candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+              }).candidates;
+
+              if (!chunkText && rawCandidates?.[0]?.content?.parts) {
+                for (const part of rawCandidates[0].content.parts) {
+                  if (part.text) {
+                    chunkText += part.text;
+                  }
+                }
+              }
               if (chunkText) {
                 geminiTokens++;
                 anyTokensYielded = true;

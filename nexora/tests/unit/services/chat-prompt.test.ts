@@ -245,4 +245,23 @@ describe('chat-prompt service (buildSystemPrompt)', () => {
       expect(prompt).toContain('KaTeX displays');
     });
   });
+
+  describe('Language Mirroring & Voice Call Mode', () => {
+    it('enforces strict LANGUAGE MIRRORING across default and English locales', () => {
+      const promptDefault = buildSystemPrompt();
+      expect(promptDefault).toContain('LANGUAGE MIRRORING: Always respond in the exact language the user used to ask the question');
+      expect(promptDefault).toContain('TARGET RESPONSE LANGUAGE: BAHASA INDONESIA');
+
+      const promptEn = buildSystemPrompt({ tutorMode: 'socratic', locale: 'en' });
+      expect(promptEn).toContain('LANGUAGE MIRRORING: Always respond in the exact language the user used to ask the question');
+      expect(promptEn).toContain('TARGET RESPONSE LANGUAGE: ENGLISH (UK/US)');
+    });
+
+    it('formats instructions specifically for REALTIME AI VOICE CALL MODE', () => {
+      const prompt = buildSystemPrompt({ tutorMode: 'socratic', isCallMode: true });
+      expect(prompt).toContain('REALTIME AI VOICE CALL MODE (AUDIO ACTIVE):');
+      expect(prompt).toContain('VOICE CALL FORMATTING: Strictly NEVER use LaTeX delimiters');
+      expect(prompt).toContain('DO NOT generate any ```nexora-node``` action blocks');
+    });
+  });
 });

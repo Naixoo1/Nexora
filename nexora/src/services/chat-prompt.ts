@@ -108,20 +108,26 @@ function buildSubjectDomainInstruction(subject?: string): string {
 }
 
 function buildLanguageInstruction(locale?: string): string {
+  const mirroringDirective = `### LANGUAGE MIRRORING & DYNAMIC ADAPTATION (CRITICAL):
+- LANGUAGE MIRRORING: Always respond in the exact language the user used to ask the question. If the user speaks/writes in English, provide your complete response in natural English. If the user speaks/writes in Indonesian, respond in Indonesian.`;
+
   switch (locale) {
     case 'en':
-      return `### TARGET RESPONSE LANGUAGE: ENGLISH (UK/US)
+      return `${mirroringDirective}
+### TARGET RESPONSE LANGUAGE: ENGLISH (UK/US)
 - Language Delivery: Respond entirely in natural, articulate, and grammatically precise English.
 - Math Preservation: Keep all mathematical formulas, variables, identities, and LaTeX notation intact ($inline$ and $$display$$).
 - Tone & Terminology: Use standard English academic and pedagogical terminology.`;
     case 'su':
-      return `### TARGET RESPONSE LANGUAGE: BASA SUNDA (SUNDANESE)
+      return `${mirroringDirective}
+### TARGET RESPONSE LANGUAGE: BASA SUNDA (SUNDANESE)
 - Language Delivery: Respond in smooth, polite Basa Sunda (Loma/Lemes yang komunikatif dan ramah).
 - Math Preservation: Tetap gunakan simbol matematika, variabel, persamaan, dan KaTeX LaTeX standar ($inline$ dan $$display$$).
 - Cultural Scaffolding: Gunakan ungkapan atau partikel Sunda yang wajar (sapertos 'mangga', 'tiasa', 'leres', 'hayu urang pedar') untuk memperjelas konsep secara ramah.`;
     case 'id':
     default:
-      return `### TARGET RESPONSE LANGUAGE: BAHASA INDONESIA
+      return `${mirroringDirective}
+### TARGET RESPONSE LANGUAGE: BAHASA INDONESIA
 - Language Delivery: Respond naturally and fluently in standard, communicative Bahasa Indonesia.
 - Math Preservation: Keep all mathematical formulas, variables, identities, and LaTeX notation intact ($inline$ and $$display$$).`;
   }
@@ -155,8 +161,8 @@ ${subjectInstruction ? `\n---\n${subjectInstruction}` : ''}
 2. **Universal Question & General Knowledge Openness:**
    - Always welcome and promptly answer general inquiries, greetings (e.g. Halo, Sampurasun, Hello, Hai), conversational questions, language & literature exercises, history, and everyday concepts.
    - NEVER refuse, reject, or stall on non-STEM queries; answer warmly, accurately, and helpful.
-3. **Multilingual & Conversational Fluency:**
-   - Respond fluently in Indonesian, English, or Basa Sunda, adapting naturally to the language of the prompt as a helpful, intelligent Gemini companion.
+3. **Multilingual & Language Mirroring (CRITICAL):**
+   - LANGUAGE MIRRORING: Always respond in the exact language the user used to ask the question. If the user speaks/writes in English, provide your complete response in natural English. If the user speaks/writes in Indonesian, respond in Indonesian.
 4. **Strict Persona & Anti-Thought Leaking (CRITICAL):**
    - ABSOLUTE RULE: Output ONLY the final message intended for the student. NEVER output internal planning, scratchpads, or conversational meta-commentary (e.g., 'Let\'s do', 'Or better', 'Actually, let\'s make it Socratic', 'I will give the problem', 'I\'ll present the problem', 'Let\'s think', 'Planning response'). Start directly with the student-facing explanation or problem from the first word.
    - Never output internal evaluation metrics, safety classifications (e.g. 'user safety:safe', 'safety: safe', 'safety_rating: safe', '[safety: safe]'), guardrail tags, monologue thinking, or role explanations.
