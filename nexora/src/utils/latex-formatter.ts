@@ -199,9 +199,27 @@ function normalizeJammedMathLines(text: string): string {
 function wrapUndelimitedMathLines(text: string): string {
   const lines = text.split('\n');
   const processedLines: string[] = [];
+  let insideDisplayMath = false;
 
   for (const line of lines) {
     const trimmed = line.trim();
+
+    if (trimmed.startsWith('$$') && trimmed.endsWith('$$') && trimmed.length > 2) {
+      processedLines.push(line);
+      continue;
+    }
+
+    if (trimmed === '$$') {
+      insideDisplayMath = !insideDisplayMath;
+      processedLines.push(line);
+      continue;
+    }
+
+    if (insideDisplayMath) {
+      processedLines.push(line);
+      continue;
+    }
+
     // Skip empty lines, lines already containing math delimiters, markdown headers, lists, code fences
     if (
       !trimmed ||
@@ -242,6 +260,132 @@ function wrapUndelimitedMathLines(text: string): string {
 }
 
 /**
+ * Safely transforms non-math segments of text without modifying contents inside existing $...$ or $$...$$.
+ */
+function transformNonMathSegments(text: string, transformFn: (segment: string) => string): string {
+  if (!text) return '';
+  const mathBlockRegex = /(\$\$[\s\S]*?\$\$|\$(?!\$)(?:\\\$|[^\$\n])+?\$(?!\$))/g;
+
+  let result = '';
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = mathBlockRegex.exec(text)) !== null) {
+    const nonMath = text.slice(lastIndex, match.index);
+    result += transformFn(nonMath) + match[0];
+    lastIndex = match.index + match[0].length;
+  }
+  result += transformFn(text.slice(lastIndex));
+
+  return result;
+}
+
+/**
+ * Cleans bare LaTeX commands in non-math segments.
+ */
+function cleanBareCommandSegment(segment: string): string {
+  let s = segment;
+
+  // 1. Bare \sqrt: e.g. `like\sqrt{50}or` -> `like $\sqrt{50}$ or`, `\sqrt{75}.` -> `$\sqrt{75}$.`
+  s = s.replace(
+    /([a-zA-Z])?\\(sqrt)(?:\[([^\]]+)\])?\{([^}]+)\}([a-zA-Z])?/g,
+    (_match, leadWord, cmd, opt, inner, trailWord) => {
+      const lead = leadWord ? `${leadWord} ` : '';
+      const trail = trailWord ? ` ${trailWord}` : '';
+      const optPart = opt ? `[${opt}]` : '';
+      return `${lead}$\\${cmd}${optPart}{${inner}}$${trail}`;
+    }
+  );
+
+  // 2. Bare \frac: e.g. `word\frac{a}{b}word` -> `word $\frac{a}{b}$ word`
+  s = s.replace(
+    /([a-zA-Z])?\\(frac|cfrac|dfrac)\{([^}]+)\}\{([^}]+)\}([a-zA-Z])?/g,
+    (_match, leadWord, cmd, num, den, trailWord) => {
+      const lead = leadWord ? `${leadWord} ` : '';
+      const trail = trailWord ? ` ${trailWord}` : '';
+      return `${lead}$\\${cmd}{${num}}{${den}}$${trail}`;
+    }
+  );
+
+  // 3. Bare single-argument commands with braces: \log_{2}{x}, \sin{x}, etc.
+  s = s.replace(
+    /([a-zA-Z])?\\(log(?:_[^{}\s]+)?|ln|sin|cos|tan|sec|csc|cot|times|pm|cdot|approx|neq|leq|geq|sim|equiv|sum|int|lim|to)\{([^}]+)\}([a-zA-Z])?/g,
+    (_match, leadWord, cmd, inner, trailWord) => {
+      const lead = leadWord ? `${leadWord} ` : '';
+      const trail = trailWord ? ` ${trailWord}` : '';
+      return `${lead}$\\${cmd}{${inner}}$${trail}`;
+    }
+  );
+
+  // 4. Bare symbols glued between words: e.g. `a\pm b` -> `a $\pm$ b`
+  s = s.replace(
+    /([a-zA-Z])\\(times|pm|cdot|approx|neq|leq|geq|sim|equiv|infty|alpha|beta|gamma|theta|pi|lambda)([a-zA-Z0-9])/g,
+    (_match, leadWord, cmd, trailWord) => `${leadWord} $\\${cmd}$ ${trailWord}`
+  );
+
+  return s;
+}
+
+/**
+ * Auto-wraps bare math commands missing delimiters (e.g. `like\sqrt{50}or` -> `like $\sqrt{50}$ or`)
+ * and cleans up trailing mismatched $$ / $ (e.g. `or\sqrt{200}$$` -> `or $\sqrt{200}$`).
+ */
+export function wrapBareLatexCommands(text: string): string {
+  if (!text) return '';
+  return transformNonMathSegments(text, cleanBareCommandSegment);
+}
+
+/**
+ * Normalizes inline math spacing: ensures space between words and math, e.g. `word$formula$` -> `word $formula$`,
+ * `$formula$word` -> `$formula$ word`, and trims leading/trailing whitespace inside `$ formula $` -> `$formula$`.
+ */
+export function enforceInlineMathSpacing(text: string): string {
+  if (!text || !text.includes('$')) return text;
+
+  const lines = text.split('\n');
+
+  const processedLines = lines.map((line) => {
+    // If line has display math $$ or no $, leave line structure as is
+    if (line.includes('$$') || !line.includes('$')) return line;
+
+    // Tokenize line by single $ delimiters
+    const tokens = line.split(/(?<!\\)\$/);
+    if (tokens.length < 3 || tokens.length % 2 === 0) return line;
+
+    let rebuilt = tokens[0];
+
+    for (let i = 1; i < tokens.length; i += 2) {
+      const mathContent = tokens[i];
+      const nextText = tokens[i + 1] !== undefined ? tokens[i + 1] : '';
+
+      // If it looks like currency ($100), preserve as is
+      if (/^\s*\d+(\.\d+)?\s*(USD|usd|million|k|billion)?\s*$/.test(mathContent)) {
+        rebuilt += `$${mathContent}$${nextText}`;
+        continue;
+      }
+
+      // Ensure space before opening $ if preceded by an alphanumeric char
+      if (rebuilt.length > 0 && /[a-zA-Z0-9]/.test(rebuilt[rebuilt.length - 1])) {
+        rebuilt += ' ';
+      }
+
+      // Add trimmed math formula
+      rebuilt += `$${mathContent.trim()}$`;
+
+      // Ensure space after closing $ if followed by an alphanumeric char
+      if (nextText.length > 0 && /[a-zA-Z0-9]/.test(nextText[0])) {
+        rebuilt += ' ';
+      }
+      rebuilt += nextText;
+    }
+
+    return rebuilt;
+  });
+
+  return processedLines.join('\n');
+}
+
+/**
  * Pre-processes and normalizes LaTeX and Markdown math delimiters and escape sequences.
  * - Resolves jammed or unclosed display math delimiters (e.g. `formula $$ text $$ formula`)
  * - Cleans runaway dollar signs (e.g. `$$$$$$` -> `$$\n\n`)
@@ -252,11 +396,25 @@ function wrapUndelimitedMathLines(text: string): string {
  * - Cleans template/JSON bracket artifacts (`{{ //`, `{{ ... }}`)
  * - Sanitizes orphaned \left / \right bracket commands
  * - Wraps undelimited standalone algebraic lines in $$ ... $$
+ * - Auto-wraps bare LaTeX commands (e.g. `like\sqrt{50}or` -> `like $\sqrt{50}$ or`)
+ * - Enforces clean delimiter whitespace around inline math
  */
 export function preprocessLatex(content: string): string {
   if (!content || typeof content !== 'string') return '';
 
   let text = content.replace(/\r\n/g, '\n');
+
+  // 0. Clean unpaired/dangling single $$ on non-display lines before display block parsing (e.g. `or\sqrt{200}$$`)
+  text = text
+    .split('\n')
+    .map((line) => {
+      const count = (line.match(/\$\$/g) || []).length;
+      if (count === 1 && !line.trim().startsWith('$$')) {
+        return line.replace(/\$\$/g, '');
+      }
+      return line;
+    })
+    .join('\n');
 
   // 1. Sanitize orphaned \left / \right brackets across the raw text first
   text = sanitizeLeftRightBrackets(text);
@@ -342,6 +500,9 @@ export function preprocessLatex(content: string): string {
     return `${before}\n\n$$${cleanFormula}$$`;
   });
 
+  // 10b. Auto-wrap bare LaTeX commands missing delimiters (e.g. `like\sqrt{50}or` -> `like $\sqrt{50}$ or`)
+  text = wrapBareLatexCommands(text);
+
   // 11. Normalize inline math $ ... $ backslashes while avoiding standalone currency symbols
   text = text.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (match, formula) => {
     // If it looks like currency ($100, $5.50, $20 million) without operators, leave as is
@@ -351,6 +512,9 @@ export function preprocessLatex(content: string): string {
     const cleanFormula = cleanMathFormula(formula);
     return `$${cleanFormula}$`;
   });
+
+  // 11b. Enforce clean leading/trailing whitespace around inline math expressions
+  text = enforceInlineMathSpacing(text);
 
   // 12. Clean up excessive whitespace around display math
   text = text.replace(/\n{3,}\$\$/g, () => '\n\n$$');

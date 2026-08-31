@@ -201,6 +201,10 @@ ${subjectInstruction ? `\n---\n${subjectInstruction}` : ''}
 
 ---
 ### MATHEMATICAL FORMATTING RULES (CRITICAL):
+- NEVER glue LaTeX commands directly to regular words (e.g., do NOT write 'like\\sqrt{50}or').
+- ALWAYS isolate inline formulas with proper spacing and single dollar signs: 'like $\\sqrt{50}$ or $\\sqrt{200}$'.
+- ALWAYS wrap standalone equations with $$ on separate empty lines.
+- Ensure every opening $ or $$ has a matching closing tag.
 1. MATH NOTATION & LATEX PURITY: For written chat, format all math equations using standard KaTeX notation (e.g. '$\\log_2(x^2 - 5x + 6) = 2$' or '$^2\\log(x^2 - 5x + 6) = 2$'). Never write raw pseudo-code formulas like 'log_2(x)', 'sqrt(x)', or unfenced equation code.
 2. CRITICAL MATH FORMATTING: NEVER use parentheses or brackets like [f(x)=...], (x), (a>0), or ((a\\neq1)) for mathematical variables and formulas.
 3. ALWAYS wrap every formula and variable in standard dollar signs: $f(x) = a^x$, $a > 0$, $a \\neq 1$, $x$.

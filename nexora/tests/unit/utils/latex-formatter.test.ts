@@ -156,6 +156,27 @@ describe('LaTeX Pre-Processor & Normalizer Upgrade', () => {
       expect(output).toContain('$100');
       expect(output).toContain('$x = 5$');
     });
+
+    it('auto-wraps bare math commands glued to words like "like\\sqrt{50}or"', () => {
+      const input = 'Contoh bentuk akar like\\sqrt{50}or\\sqrt{75}.';
+      const output = preprocessLatex(input);
+
+      expect(output).toBe('Contoh bentuk akar like $\\sqrt{50}$ or $\\sqrt{75}$.');
+    });
+
+    it('cleans up mismatched trailing $$ delimiters on bare math commands like "or\\sqrt{200}$$"', () => {
+      const input = 'Misalkan kita hitung or\\sqrt{200}$$ untuk menentukan hasilnya.';
+      const output = preprocessLatex(input);
+
+      expect(output).toBe('Misalkan kita hitung or $\\sqrt{200}$ untuk menentukan hasilnya.');
+    });
+
+    it('enforces clean spacing around inline math expressions without breaking punctuation', () => {
+      const input = 'Nilai$x$dan$y$memenuhi persamaan $x^2+y^2=r^2$, dengan $r>0$.';
+      const output = preprocessLatex(input);
+
+      expect(output).toBe('Nilai $x$ dan $y$ memenuhi persamaan $x^2+y^2=r^2$, dengan $r>0$.');
+    });
   });
 
   describe('stripCanvasNodeBlocks & cleanMarkdownText', () => {
