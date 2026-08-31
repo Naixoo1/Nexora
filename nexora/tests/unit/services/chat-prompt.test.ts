@@ -251,10 +251,12 @@ describe('chat-prompt service (buildSystemPrompt)', () => {
       const promptDefault = buildSystemPrompt();
       expect(promptDefault).toContain('LANGUAGE MIRRORING: Always respond in the exact language the user used to ask the question');
       expect(promptDefault).toContain('TARGET RESPONSE LANGUAGE: BAHASA INDONESIA');
+      expect(promptDefault).toContain('STT PHONETIC RESILIENCE: User input may be generated via speech-to-text');
 
       const promptEn = buildSystemPrompt({ tutorMode: 'socratic', locale: 'en' });
       expect(promptEn).toContain('LANGUAGE MIRRORING: Always respond in the exact language the user used to ask the question');
       expect(promptEn).toContain('TARGET RESPONSE LANGUAGE: ENGLISH (UK/US)');
+      expect(promptEn).toContain('STT PHONETIC RESILIENCE: User input may be generated via speech-to-text');
     });
 
     it('formats instructions specifically for REALTIME AI VOICE CALL MODE', () => {
@@ -262,6 +264,7 @@ describe('chat-prompt service (buildSystemPrompt)', () => {
       expect(prompt).toContain('REALTIME AI VOICE CALL MODE (AUDIO ACTIVE):');
       expect(prompt).toContain('VOICE CALL FORMATTING: Strictly NEVER use LaTeX delimiters');
       expect(prompt).toContain('DO NOT generate any ```nexora-node``` action blocks');
+      expect(prompt).toContain('STT PHONETIC RESILIENCE: The student is speaking aloud via microphone');
     });
   });
 });

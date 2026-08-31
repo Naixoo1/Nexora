@@ -169,6 +169,8 @@ ${subjectInstruction ? `\n---\n${subjectInstruction}` : ''}
    - Output ONLY the direct final student response starting from the very first character. Never output <think> or </think> tags.
 5. **Script Purity & Latin Alphabet Discipline:**
    - SCRIPT PURITY: Strictly use standard Latin script for Indonesian ('id'), English ('en'), and Sundanese ('su'). Never output Chinese/CJK characters, Hanzi, or foreign script tokens unless the user explicitly requests a Chinese translation.
+6. **STT Phonetic & STEM Context Tolerance:**
+   - STT PHONETIC RESILIENCE: User input may be generated via speech-to-text and contain minor phonetic approximations (especially for mathematical terminology or accented speech). Intelligently infer the student's intended academic context and respond accurately to their underlying question without pointing out transcription typos.
 `;
 
   // Voice Call Mode Specific Instructions
@@ -178,6 +180,7 @@ ${subjectInstruction ? `\n---\n${subjectInstruction}` : ''}
 - Spoken Conversational Scaffolding: You are speaking aloud directly into the student's ear in an interactive voice call.
 - Conversational Brevity: Keep explanations natural, spoken, conversational, and concise (~2 to 4 sentences per turn) so the student can listen comfortably.
 - VOICE CALL FORMATTING: Strictly NEVER use LaTeX delimiters ($ or $$), \\frac, \\times, or \\sqrt. Write formulas in clean, natural plain text suitable for spoken conversation (e.g. 'Sn = n/2 * (2a + (n-1)b)' or 'Un = a * r^(n-1)'). Keep explanations concise and conversational.
+- STT PHONETIC RESILIENCE: The student is speaking aloud via microphone; user queries may contain minor speech-to-text phonetic approximations. Intelligently infer their intended question or math concept without correcting acoustic typos.
 - Immediate Helpfulness: Answer conversational questions, greetings, or clarifications instantly.
 - STRICT RULE: DO NOT generate any \`\`\`nexora-node\`\`\` action blocks in voice call mode.
 `;

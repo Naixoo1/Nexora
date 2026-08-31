@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 interface SpeechRecognitionInstance {
   continuous: boolean;
   interimResults: boolean;
+  maxAlternatives?: number;
   lang: string;
   start: () => void;
   stop: () => void;
@@ -18,6 +19,7 @@ interface SpeechRecognitionInstance {
     results: {
       [index: number]: {
         isFinal: boolean;
+        length?: number;
         [index: number]: { transcript: string; confidence: number };
       };
       length: number;
@@ -34,10 +36,19 @@ function getSpeechRecognitionConstructor(): (new () => SpeechRecognitionInstance
   return win.SpeechRecognition || win.webkitSpeechRecognition;
 }
 
+export const normalizeSpeechLang = (rawLang?: string): string => {
+  if (!rawLang) return 'id-ID';
+  const trimmed = rawLang.trim();
+  if (trimmed === 'en') return 'en-US';
+  if (trimmed === 'id') return 'id-ID';
+  if (trimmed === 'su') return 'id-ID'; // Web Speech API fallback for Sundanese
+  return trimmed;
+};
+
 export type RecognitionStatus = 'idle' | 'initializing' | 'listening' | 'error' | 'stopped';
 
 export interface UseSpeechRecognitionOptions {
-  language?: string; // e.g. 'id-ID' | 'en-US'
+  language?: string; // e.g. 'id-ID' | 'en-US' | 'en-GB'
 }
 
 export interface UseSpeechRecognitionReturn {
@@ -56,20 +67,21 @@ export interface UseSpeechRecognitionReturn {
 }
 
 export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}): UseSpeechRecognitionReturn {
+  const initialLang = normalizeSpeechLang(options.language);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
   const [isSupported, setIsSupported] = useState<boolean>(false);
   const [isPermissionDenied, setIsPermissionDenied] = useState<boolean>(false);
   const [recognitionStatus, setRecognitionStatus] = useState<RecognitionStatus>('idle');
-  const [language, setLanguageState] = useState<string>(options.language || 'id-ID');
+  const [language, setLanguageState] = useState<string>(initialLang);
   const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const finalTranscriptRef = useRef<string>('');
   const interimTranscriptRef = useRef<string>('');
   const shouldKeepListeningRef = useRef<boolean>(false);
-  const activeLangRef = useRef<string>(options.language || 'id-ID');
+  const activeLangRef = useRef<string>(initialLang);
   const consecutiveFailuresRef = useRef<number>(0);
   const lastStartTimeRef = useRef<number>(0);
   const isFatalErrorRef = useRef<boolean>(false);
@@ -133,6 +145,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
       const recognition = new SpeechRecognitionConstructor();
       recognition.continuous = true;
       recognition.interimResults = true;
+      recognition.maxAlternatives = 3;
       recognition.lang = lang;
 
       recognition.onstart = () => {
@@ -152,20 +165,35 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
-          const transcriptChunk = result[0]?.transcript || '';
+          if (!result) continue;
+
+          // Select the best alternative by confidence
+          let bestTranscript = result[0]?.transcript || '';
+          let bestConfidence = result[0]?.confidence ?? 0;
+
+          const numAlternatives = typeof result.length === 'number' ? result.length : 1;
+          for (let a = 1; a < numAlternatives; a++) {
+            const alt = result[a];
+            if (alt && typeof alt.confidence === 'number' && alt.confidence > bestConfidence && alt.transcript?.trim()) {
+              bestTranscript = alt.transcript;
+              bestConfidence = alt.confidence;
+            }
+          }
 
           if (result.isFinal) {
-            sessionNewFinal += transcriptChunk + ' ';
+            if (bestTranscript.trim()) {
+              sessionNewFinal += bestTranscript.trim() + ' ';
+            }
           } else {
-            currentInterim += transcriptChunk;
+            currentInterim += bestTranscript;
           }
         }
 
-        if (sessionNewFinal) {
+        if (sessionNewFinal.trim()) {
           finalTranscriptRef.current = (
             finalTranscriptRef.current
-              ? `${finalTranscriptRef.current} ${sessionNewFinal}`
-              : sessionNewFinal
+              ? `${finalTranscriptRef.current} ${sessionNewFinal.trim()}`
+              : sessionNewFinal.trim()
           ).trim();
           setTranscript(finalTranscriptRef.current);
         }
@@ -254,16 +282,17 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
   }, []);
 
   const setLanguage = useCallback((newLang: string) => {
-    activeLangRef.current = newLang;
-    setLanguageState(newLang);
+    const normalized = normalizeSpeechLang(newLang);
+    activeLangRef.current = normalized;
+    setLanguageState(normalized);
     if (shouldKeepListeningRef.current) {
-      initAndStartInstance(newLang);
+      initAndStartInstance(normalized);
     }
   }, [initAndStartInstance]);
 
   const startListening = useCallback(
     async (lang?: string) => {
-      const selectedLang = lang || activeLangRef.current || 'id-ID';
+      const selectedLang = normalizeSpeechLang(lang || activeLangRef.current || 'id-ID');
       setError(null);
       setIsPermissionDenied(false);
       isFatalErrorRef.current = false;
@@ -271,6 +300,32 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
       activeLangRef.current = selectedLang;
       setLanguageState(selectedLang);
       shouldKeepListeningRef.current = true;
+
+      // Pre-warm and check audio constraints to reduce acoustic distortion and noise
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+          // Immediately release tracks so Web Speech API engine has exclusive unblocked microphone access
+          stream.getTracks().forEach((track) => track.stop());
+        } catch (micErr) {
+          if (
+            micErr instanceof Error &&
+            (micErr.name === 'NotAllowedError' || micErr.name === 'PermissionDeniedError')
+          ) {
+            setIsPermissionDenied(true);
+            setError('Microphone access is blocked in browser settings. Please allow microphone access.');
+            setRecognitionStatus('error');
+            shouldKeepListeningRef.current = false;
+            return;
+          }
+        }
+      }
 
       // Check permission state via Permissions API if available (non-blocking, no audio stream lock)
       if (typeof navigator !== 'undefined' && 'permissions' in navigator && navigator.permissions?.query) {

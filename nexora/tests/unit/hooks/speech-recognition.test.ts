@@ -240,5 +240,81 @@ describe('useSpeechRecognition Hook', () => {
 
       expect(result.current.language).toBe('en-US');
     });
+
+    it('normalizes shorthand language codes like "en" to "en-US"', async () => {
+      const { result } = renderHook(() => useSpeechRecognition());
+
+      await act(async () => {
+        await result.current.startListening('en');
+      });
+
+      expect(result.current.language).toBe('en-US');
+      expect(mockInstance.lang).toBe('en-US');
+    });
+  });
+
+  describe('Multi-Alternative Confidence Hardening & Audio Constraints', () => {
+    it('selects alternative with highest confidence when multiple candidates exist', async () => {
+      const { result } = renderHook(() => useSpeechRecognition());
+
+      await act(async () => {
+        await result.current.startListening('en-US');
+      });
+
+      // Simulate onresult with 3 alternatives
+      act(() => {
+        mockInstance.onresult?.({
+          resultIndex: 0,
+          results: [
+            Object.assign(
+              [
+                { transcript: 'derivation of x square', confidence: 0.62 },
+                { transcript: 'derivative of x squared', confidence: 0.94 },
+                { transcript: 'dirt of extra', confidence: 0.31 },
+              ],
+              { isFinal: true, length: 3 }
+            ),
+          ],
+        });
+      });
+
+      expect(result.current.transcript).toBe('derivative of x squared');
+    });
+
+    it('pre-warms mediaDevices with echoCancellation and noiseSuppression constraints', async () => {
+      const mockStop = vi.fn();
+      const mockGetUserMedia = vi.fn().mockResolvedValue({
+        getTracks: () => [{ stop: mockStop }],
+      });
+
+      const originalMediaDevices = navigator.mediaDevices;
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: { getUserMedia: mockGetUserMedia },
+        configurable: true,
+        writable: true,
+      });
+
+      const { result } = renderHook(() => useSpeechRecognition());
+
+      await act(async () => {
+        await result.current.startListening('en-US');
+      });
+
+      expect(mockGetUserMedia).toHaveBeenCalledWith({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      expect(mockStop).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: originalMediaDevices,
+        configurable: true,
+        writable: true,
+      });
+    });
   });
 });
