@@ -34,6 +34,7 @@ import {
 } from '@/services/ai-circuit-breaker';
 import { validationErrorResponse } from '@/lib/api-response';
 import { classifyStudyContext } from '@/services/study-planner-classifier';
+import { normalizePhoneticQuery } from '@/services/stt-phonetic-aligner';
 import type { ChatAttachment } from '@/types/chat';
 import type { GradeLevel, SubjectCategory } from '@/types/planner';
 import type { UserMemoryPayload } from '@/types/memory';
@@ -182,21 +183,27 @@ export async function POST(req: NextRequest): Promise<Response> {
       );
     }
 
-    const { sessionId, taskId, canvasId, message, messages, mode, context, attachments } = parsed.data;
+    const { sessionId, taskId, canvasId, message: rawMessage, messages, mode, context, attachments } = parsed.data;
+
+    const isCallMode = Boolean(
+      context?.isCallMode || req.headers.get('x-call-mode') === 'true'
+    );
 
     // Resolve grade, subject, and language locale context via payload, headers, or automatic classifier
     const headerGrade = (req.headers.get('x-grade-level') as GradeLevel) || undefined;
     const headerSubject = (req.headers.get('x-subject-context') as SubjectCategory) || undefined;
     const headerLocale = (req.headers.get('x-user-locale') as 'id' | 'en' | 'su') || undefined;
+    const resolvedLocale = context?.locale || headerLocale || 'id';
+
+    // Acoustic & STT Phonetic Normalization for Voice/Call Queries
+    const message = isCallMode
+      ? normalizePhoneticQuery(rawMessage, resolvedLocale)
+      : rawMessage;
 
     const classified = classifyStudyContext(
       message,
       `${context?.taskContext?.category || ''} ${context?.canvasContext?.category || ''}`,
       context?.gradeLevel || headerGrade
-    );
-
-    const isCallMode = Boolean(
-      context?.isCallMode || req.headers.get('x-call-mode') === 'true'
     );
 
     let userMemoryProfile: UserMemoryPayload | undefined = undefined;
@@ -382,21 +389,35 @@ export async function POST(req: NextRequest): Promise<Response> {
               systemInstruction,
               temperature: complexityConfig.temperature,
               maxOutputTokens: complexityConfig.maxOutputTokens,
+              thinkingConfig: { thinkingBudget: 0 },
               tools: [{ googleSearch: {} }],
             };
 
-            // Only attach thinkingConfig when thinkingBudget > 0 (avoid empty candidates on budget 0)
-            if (typeof complexityConfig.thinkingBudget === 'number' && complexityConfig.thinkingBudget > 0) {
-              geminiConfig.thinkingConfig = {
-                thinkingBudget: complexityConfig.thinkingBudget,
-              };
+            try {
+              responseStream = await ai.models.generateContentStream({
+                model: candidateModel,
+                contents: geminiMultiTurnContents,
+                config: geminiConfig,
+              });
+            } catch (streamInitErr) {
+              const strErr = String(streamInitErr);
+              if (
+                strErr.includes('thinkingConfig') ||
+                strErr.includes('thinking_budget') ||
+                strErr.includes('Invalid') ||
+                strErr.includes('not supported')
+              ) {
+                // Retry without thinkingConfig for models without thinking parameter support
+                delete geminiConfig.thinkingConfig;
+                responseStream = await ai.models.generateContentStream({
+                  model: candidateModel,
+                  contents: geminiMultiTurnContents,
+                  config: geminiConfig,
+                });
+              } else {
+                throw streamInitErr;
+              }
             }
-
-            responseStream = await ai.models.generateContentStream({
-              model: candidateModel,
-              contents: geminiMultiTurnContents,
-              config: geminiConfig,
-            });
             usedModel = candidateModel;
             usedKeyIndex = k;
             recordProviderSuccess('gemini');
