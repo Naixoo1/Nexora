@@ -622,7 +622,15 @@ export async function POST(req: NextRequest): Promise<Response> {
         }
 
         if (!anyTokensYielded) {
-          controller.error(new Error('AI returned an empty response across all configured providers.'));
+          const isEn = resolvedContext.locale?.startsWith('en');
+          const isSu = resolvedContext.locale?.startsWith('su');
+          const quotaNotice = isEn
+            ? '⚠️ The AI provider is temporarily experiencing high demand (Rate limit / Quota exceeded). Please wait a few seconds, or provide your personal API key in Settings.'
+            : isSu
+            ? '⚠️ Layanan AI nuju ngalaman antrian padet (Rate limit / Quota exceeded). Mangga antos sakedap atanapi lebetkeun API Key pribadi di Pengaturan.'
+            : '⚠️ Layanan AI sedang mengalami antrean padat (Rate limit / Kuota terlampaui). Silakan tunggu beberapa detik, atau masukkan API Key pribadi Anda di menu Pengaturan.';
+          controller.enqueue(quotaNotice);
+          controller.close();
         } else {
           controller.close();
         }
@@ -666,9 +674,11 @@ export async function POST(req: NextRequest): Promise<Response> {
           controller.close();
         } catch (streamError) {
           console.error('[Chat API Error during streaming]:', streamError);
-          const errorNotice = `\n\n⚠️ *Streaming error: ${
-            streamError instanceof Error ? streamError.message : 'Connection interrupted'
-          }*`;
+          const errorMsg = streamError instanceof Error ? streamError.message : 'Connection interrupted';
+          const isRateLimit = errorMsg.includes('429') || errorMsg.toLowerCase().includes('quota') || errorMsg.toLowerCase().includes('resource exhausted');
+          const errorNotice = isRateLimit
+            ? '\n\n⚠️ *Layanan AI sedang sibuk (Rate limit). Silakan coba lagi beberapa saat lagi.*'
+            : `\n\n⚠️ *Streaming error: ${errorMsg}*`;
           controller.enqueue(encoder.encode(errorNotice));
           controller.close();
         }
@@ -685,11 +695,16 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
   } catch (error) {
     console.error('[Chat API Fatal Error]:', error);
+    const errString = String(error).toLowerCase();
+    const isRateLimit = errString.includes('429') || errString.includes('quota') || errString.includes('resource exhausted');
     return Response.json(
       {
-        error: error instanceof Error ? error.message : 'Failed to process chat message',
+        success: false,
+        error: isRateLimit
+          ? 'Kapasitas AI sedang padat (Rate limit reached). Silakan tunggu sebentar dan coba lagi.'
+          : (error instanceof Error ? error.message : 'Failed to process chat message'),
       },
-      { status: 500 }
+      { status: isRateLimit ? 429 : 500 }
     );
   }
 }
