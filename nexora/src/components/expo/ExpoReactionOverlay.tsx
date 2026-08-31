@@ -1,8 +1,9 @@
-'use client';
-
 import React, { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Sparkles, ArrowRight } from 'lucide-react';
+import { useTextToSpeech } from '@/hooks/useTextToSpeech';
+import { useLanguageStore } from '@/stores/useLanguageStore';
+import type { ExpoGradeTier } from '@/types/expo';
 
 export type ExpoReactionType = 'win' | 'lose' | 'hint' | 'end';
 
@@ -12,6 +13,9 @@ export interface ExpoReactionOverlayProps {
   autoDismissMs?: number;
   customTitle?: string;
   customSubtitle?: string;
+  customVoiceover?: string;
+  gradeLevel?: ExpoGradeTier;
+  isMuted?: boolean;
 }
 
 interface ReactionConfig {
@@ -21,6 +25,44 @@ interface ReactionConfig {
   gifSrc: string;
   fallbackSvg: string;
 }
+
+const DEFAULT_VOICEOVER: Record<ExpoReactionType, { id: string; en: string }> = {
+  win: {
+    id: 'Luar biasa, jawabanmu tepat!',
+    en: 'Outstanding, your answer is correct!',
+  },
+  lose: {
+    id: 'Ayo coba lagi, periksa kembali langkah penalaranmu!',
+    en: "Let's try again, re-examine your reasoning steps!",
+  },
+  hint: {
+    id: 'Perhatikan petunjuk berikut untuk membantumu berpikir.',
+    en: 'Notice the following hint to help your reasoning.',
+  },
+  end: {
+    id: 'Selamat! Kamu telah menyelesaikan seluruh tantangan penalaran AI!',
+    en: 'Congratulations! You have completed all AI reasoning challenges!',
+  },
+};
+
+const PRIMARY_VOICEOVER: Record<ExpoReactionType, { id: string; en: string }> = {
+  win: {
+    id: 'Hebat! Jawaban kamu benar sekali!',
+    en: 'Great job! Your answer is absolutely right!',
+  },
+  lose: {
+    id: 'Ayo coba lagi! Kamu pasti bisa!',
+    en: "Let's try again! You can do it!",
+  },
+  hint: {
+    id: 'Perhatikan petunjuk berikut untuk membantumu berpikir.',
+    en: 'Notice the following hint to help your reasoning.',
+  },
+  end: {
+    id: 'Horeee! Kamu berhasil menyelesaikan semua tantangan dengan gemilang!',
+    en: 'Hooray! You completed all challenges with flying colors!',
+  },
+};
 
 const REACTION_CONFIGS: Record<ExpoReactionType, ReactionConfig> = {
   win: {
@@ -59,12 +101,47 @@ export const ExpoReactionOverlay: React.FC<ExpoReactionOverlayProps> = ({
   autoDismissMs = 2200,
   customTitle,
   customSubtitle,
+  customVoiceover,
+  gradeLevel,
+  isMuted = false,
 }) => {
   const config = REACTION_CONFIGS[type] || REACTION_CONFIGS.win;
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const locale = useLanguageStore((state) => state.locale);
+  const targetLocale: 'id' | 'en' = locale === 'en' ? 'en' : 'id';
+
+  const { speak, stop } = useTextToSpeech({
+    gradeLevel: gradeLevel || 'SENIOR_HIGH',
+    pitch: gradeLevel === 'PRIMARY' ? 1.25 : 1.0,
+    rate: gradeLevel === 'PRIMARY' ? 0.95 : 1.05,
+  });
+
+  const textToSpeak =
+    customVoiceover ||
+    (gradeLevel === 'PRIMARY'
+      ? PRIMARY_VOICEOVER[type]?.[targetLocale] || PRIMARY_VOICEOVER[type].id
+      : DEFAULT_VOICEOVER[type]?.[targetLocale] || DEFAULT_VOICEOVER[type].id);
+
+  // Trigger TTS voiceover on overlay mount and guarantee previous audio cancellation
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    if (!isMuted && textToSpeak) {
+      speak(textToSpeak, targetLocale);
+    }
+    return () => {
+      stop();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [type, textToSpeak, targetLocale, isMuted, speak, stop]);
+
   useEffect(() => {
     timerRef.current = setTimeout(() => {
+      stop();
       onDismiss();
     }, autoDismissMs);
 
@@ -72,12 +149,17 @@ export const ExpoReactionOverlay: React.FC<ExpoReactionOverlayProps> = ({
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
+      stop();
     };
-  }, [onDismiss, autoDismissMs]);
+  }, [onDismiss, autoDismissMs, stop]);
 
   const handleDismiss = () => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
+    }
+    stop();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
     }
     onDismiss();
   };

@@ -56,6 +56,20 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
 
   const currentQuestion: PrimaryExpoQuestion = PRIMARY_EXPO_QUESTIONS[currentIndex] || PRIMARY_EXPO_QUESTIONS[0];
 
+  // Immediate audio teardown on question index change or component unmount
+  useEffect(() => {
+    stop();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    return () => {
+      stop();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [currentIndex, stop]);
+
   const handleSpeakText = useCallback(
     (text: string) => {
       if (isMuted) return;
@@ -65,6 +79,12 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
   );
 
   const handleSelectOption = (option: PrimaryQuestionOption) => {
+    // Immediately cancel any playing question audio when student answers
+    stop();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
     setTotalAttempts((prev) => prev + 1);
     if (option.isCorrect) {
       setScore((prev) => prev + currentQuestion.points);
@@ -74,11 +94,9 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
         return nextStreak;
       });
       setActiveMemeReaction('win');
-      handleSpeakText('Hebat! Jawaban kamu benar sekali!');
     } else {
       setStreak(0);
       setActiveMemeReaction('lose');
-      handleSpeakText('Ayo coba lagi! Kamu pasti bisa!');
     }
   };
 
@@ -92,7 +110,6 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
       } else {
         // Trigger final completion celebration overlay
         setActiveMemeReaction('end');
-        handleSpeakText('Horeee! Kamu berhasil menyelesaikan semua tantangan dengan gemilang!');
       }
     } else if (prevReaction === 'lose') {
       setShowRetryModal(true);
@@ -106,8 +123,11 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
   };
 
   const handleOpenHint = () => {
+    stop();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     setActiveMemeReaction('hint');
-    handleSpeakText(currentQuestion.hint);
   };
 
   const handleRestart = () => {
@@ -123,6 +143,9 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
     setShowHintModal(false);
     setShowCertificate(false);
     stop();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
   };
 
   // Color mappings for the chunky 2x2 interactive cards
@@ -436,6 +459,8 @@ export const PrimaryExpoArena: React.FC<PrimaryExpoArenaProps> = ({ onBackToMenu
         <ExpoReactionOverlay
           type={activeMemeReaction}
           onDismiss={handleMemeDismiss}
+          gradeLevel="PRIMARY"
+          isMuted={isMuted}
         />
       )}
 

@@ -84,8 +84,29 @@ export const ExpoChallengeArena: React.FC = () => {
   const [activeMemeReaction, setActiveMemeReaction] = useState<ExpoReactionType | null>(null);
   const [hasCopiedCert, setHasCopiedCert] = useState<boolean>(false);
 
+  // Immediate audio teardown on question change, grade tier change, game phase change, or component unmount
+  useEffect(() => {
+    stopSpeakingQuestion();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    return () => {
+      stopSpeakingQuestion();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [currentIndex, selectedGrade, gamePhase, stopSpeakingQuestion]);
+
   const handleSubmitWithMeme = (customAnswer?: string) => {
     if (!currentQuestion) return;
+
+    // Immediately stop question audio before submitting and showing reaction overlay
+    stopSpeakingQuestion();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
     const finalAnswer = (customAnswer || selectedOption || textAnswerInput || '').trim();
     const isCorrect = evaluateAnswerMatch(
       finalAnswer,
@@ -97,6 +118,11 @@ export const ExpoChallengeArena: React.FC = () => {
   };
 
   const handleNextQuestionWithMeme = () => {
+    stopSpeakingQuestion();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
     if (currentIndex + 1 >= questions.length) {
       setActiveMemeReaction('end');
     } else {
@@ -394,7 +420,10 @@ export const ExpoChallengeArena: React.FC = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={requestAiSocraticClue}
+                  onClick={() => {
+                    stopSpeakingQuestion();
+                    requestAiSocraticClue();
+                  }}
                   disabled={isFetchingClue}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-200 hover:bg-indigo-500/30 transition-colors disabled:opacity-50"
                 >
@@ -417,7 +446,10 @@ export const ExpoChallengeArena: React.FC = () => {
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => selectOption(opt)}
+                    onClick={() => {
+                      stopSpeakingQuestion();
+                      selectOption(opt);
+                    }}
                     className={cn(
                       'flex items-center justify-between rounded-2xl border p-3.5 text-left text-xs font-semibold transition-all',
                       selectedOption === opt
@@ -669,6 +701,7 @@ export const ExpoChallengeArena: React.FC = () => {
         <ExpoReactionOverlay
           type={activeMemeReaction}
           onDismiss={handleMemeDismiss}
+          gradeLevel={selectedGrade}
         />
       )}
 

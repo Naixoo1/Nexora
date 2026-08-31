@@ -164,5 +164,18 @@ describe('Primary School (SD) Gamified Expo Arena', () => {
       expect(screen.getByText('Total Waktu')).toBeDefined();
       expect(screen.getByText('Main Petualangan Lagi')).toBeDefined();
     });
+
+    it('cancels speech synthesis immediately when selecting an option or changing questions', () => {
+      render(<PrimaryExpoArena />);
+
+      const cancelSpy = (window as unknown as { speechSynthesis: { cancel: () => void } }).speechSynthesis.cancel;
+      expect(cancelSpy).toHaveBeenCalled();
+
+      // Click option
+      const optButton = screen.getByText('8 Buah Apel').closest('button')!;
+      fireEvent.click(optButton);
+
+      expect(cancelSpy).toHaveBeenCalled();
+    });
   });
 });
